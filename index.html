@@ -213,6 +213,8 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
           <button class="nb" onclick="showSec('add')">新規登録</button>
           <button class="nb" onclick="showSec('import')">一括取り込み</button>
           <button class="nb" onclick="showSec('analytics')">分析</button>
+          <button class="nb" onclick="showSec('minutes')">議事録</button>
+          <button class="nb" onclick="showSec('tasks')">タスク</button>
           <button class="nb" onclick="showSec('master')">マスター管理</button>
         </nav>
         <button id="adminNavBtn" class="nb" style="display:none;border-color:#378ADD;color:#378ADD;" onclick="showSec('admin')">クライアント管理</button>
@@ -247,7 +249,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
       </div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>応募日</th><th>名前</th><th>職種</th><th>媒体</th><th>ステータス</th><th></th></tr></thead>
+          <thead><tr><th>応募日</th><th>名前</th><th>職種</th><th>部署</th><th>媒体</th><th>ステータス</th><th>採用可否</th><th></th></tr></thead>
           <tbody id="dashRecentBody"></tbody>
         </table>
       </div>
@@ -419,6 +421,100 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
       </div>
     </div>
 
+
+    <!-- 議事録 -->
+    <div id="sec-minutes" class="sec">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <div>
+          <h2 style="font-size:14px;font-weight:600;">議事録</h2>
+          <p style="font-size:11px;color:#aaa;margin-top:2px;">MTGごとの議事録とタスクを記録します</p>
+        </div>
+        <button class="btn btn-p" onclick="showMinutesForm()">＋ 新規議事録</button>
+      </div>
+
+      <!-- 新規議事録フォーム -->
+      <div id="minutesForm" style="display:none;background:#f8f8f7;border-radius:10px;padding:1.25rem;margin-bottom:1.25rem;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:1rem;">新規議事録</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div class="fg"><label>日付<span class="req">*</span></label><input type="date" id="mDate"></div>
+          <div class="fg"><label>議事録URL</label><input type="url" id="mUrl" placeholder="https://docs.google.com/..."></div>
+          <div class="fg full"><label>タイトル・メモ</label><input type="text" id="mTitle" placeholder="例: 4月度定例MTG"></div>
+        </div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #e8e8e6;">タスク</div>
+        <div id="mTaskList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+        <div style="display:grid;grid-template-columns:120px 1fr 120px 100px auto;gap:6px;align-items:end;background:#fff;padding:8px;border-radius:8px;border:1px solid #e8e8e6;">
+          <div class="fg"><label style="font-size:10px;">担当</label>
+            <select id="tOwner" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;background:#fff;">
+              <option value="LinkCore">LinkCore</option>
+              <option value="クライアント">クライアント</option>
+            </select>
+          </div>
+          <div class="fg"><label style="font-size:10px;">タスク内容</label><input type="text" id="tContent" placeholder="タスク内容を入力" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;"></div>
+          <div class="fg"><label style="font-size:10px;">期限</label><input type="date" id="tDue" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;"></div>
+          <div class="fg"><label style="font-size:10px;">優先度</label>
+            <select id="tPriority" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;background:#fff;">
+              <option value="中">中</option>
+              <option value="高">高</option>
+              <option value="低">低</option>
+            </select>
+          </div>
+          <button class="btn btn-s" style="padding:6px 12px;font-size:11px;align-self:end;" onclick="addTaskToMinutes()">追加</button>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+          <button class="btn btn-s" onclick="hideMinutesForm()">キャンセル</button>
+          <button class="btn btn-p" onclick="saveMinutes()">保存する</button>
+        </div>
+      </div>
+
+      <!-- 議事録一覧 -->
+      <div id="minutesList"></div>
+    </div>
+
+    <!-- タスク -->
+    <div id="sec-tasks" class="sec">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <div>
+          <h2 style="font-size:14px;font-weight:600;">タスク管理</h2>
+          <p style="font-size:11px;color:#aaa;margin-top:2px;">期限・担当・完了状況を一覧で管理します</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="taskFilter" onchange="renderTasks()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;">
+            <option value="all">全て</option>
+            <option value="pending">未完了のみ</option>
+            <option value="done">完了のみ</option>
+            <option value="linkcore">LinkCore担当</option>
+            <option value="client">クライアント担当</option>
+          </select>
+          <button class="btn btn-p" onclick="showManualTaskForm()">＋ 手動追加</button>
+        </div>
+      </div>
+
+      <!-- 手動タスク追加フォーム -->
+      <div id="manualTaskForm" style="display:none;background:#f8f8f7;border-radius:10px;padding:1.125rem;margin-bottom:1rem;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:10px;">タスク手動追加</div>
+        <div style="display:grid;grid-template-columns:120px 1fr 130px 130px 100px auto;gap:8px;align-items:end;">
+          <div class="fg"><label style="font-size:10px;">担当</label>
+            <select id="mtOwner" style="padding:7px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;background:#fff;">
+              <option value="LinkCore">LinkCore</option>
+              <option value="クライアント">クライアント</option>
+            </select>
+          </div>
+          <div class="fg"><label style="font-size:10px;">タスク内容<span class="req">*</span></label><input type="text" id="mtContent" placeholder="タスク内容" style="padding:7px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;"></div>
+          <div class="fg"><label style="font-size:10px;">依頼日</label><input type="date" id="mtStart" style="padding:7px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;"></div>
+          <div class="fg"><label style="font-size:10px;">期限<span class="req">*</span></label><input type="date" id="mtDue" style="padding:7px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;"></div>
+          <div class="fg"><label style="font-size:10px;">優先度</label>
+            <select id="mtPriority" style="padding:7px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;background:#fff;">
+              <option value="中">中</option><option value="高">高</option><option value="低">低</option>
+            </select>
+          </div>
+          <button class="btn btn-p" style="align-self:end;padding:7px 14px;font-size:12px;" onclick="saveManualTask()">追加</button>
+        </div>
+        <button class="btn btn-s" style="margin-top:8px;font-size:11px;" onclick="hideManualTaskForm()">キャンセル</button>
+      </div>
+
+      <div id="taskList"></div>
+    </div>
+
     <!-- 分析 -->
     <div id="sec-analytics" class="sec">
       <div class="filter-row">
@@ -558,6 +654,7 @@ async function startApp() {
   initFormOptions();
   await loadMasters();
   await loadApplicants();
+  await loadMinutesAndTasks();
   renderDashboard();
 }
 
@@ -661,7 +758,7 @@ function showSec(s) {
   document.querySelectorAll('.sec').forEach(e => e.classList.remove('active'));
   document.querySelectorAll('.nb').forEach(e => e.classList.remove('active'));
   document.getElementById('sec-' + s).classList.add('active');
-  const navMap = { dashboard: 0, list: 1, add: 2, import: 3, analytics: 4, master: 5 };
+  const navMap = { dashboard: 0, list: 1, add: 2, import: 3, analytics: 4, minutes: 5, tasks: 6, master: 7 };
   if (navMap[s] !== undefined) document.querySelectorAll('.nb')[navMap[s]].classList.add('active');
   if (s === 'dashboard') renderDashboard();
   if (s === 'list') { closeDetail(); renderList(); }
@@ -670,6 +767,8 @@ function showSec(s) {
   if (s === 'admin') renderAdmin();
   if (s === 'add' && !editId) resetForm();
   if (s === 'import') cancelImport();
+  if (s === 'minutes') renderMinutes();
+  if (s === 'tasks') renderTasks();
 }
 
 // ========================================
@@ -749,10 +848,12 @@ function renderList() {
   tb.innerHTML = fil.map(a => {
     const dc = (a.docs||[]).length;
     const hireColor = {'内定':'bg','内定承諾':'bt','採用':'bg','不採用':'br','保留':'ba'}[a.hireStatus] || 'bgr';
-    const rowBg = ['内定','内定承諾','採用'].includes(a.hireStatus)
+    const hireOk = ['内定','内定承諾','採用'].includes(a.hireStatus);
+    const hireNg = a.hireStatus === '不採用' || a.status === '不採用';
+    const rowBg = hireOk
       ? 'background:linear-gradient(90deg,#fff0f5,#fff5f8);'
-      : a.hireStatus === '不採用'
-      ? 'background:linear-gradient(90deg,#f0f6ff,#f5f8ff);'
+      : hireNg
+      ? 'background:linear-gradient(90deg,#eef4ff,#f0f6ff);'
       : '';
     return `<tr id="row_${a.id}" style="${rowBg}">
       <td>${a.appDate||''}</td>
@@ -765,7 +866,12 @@ function renderList() {
         </select>
       </td>
       <td>${a.media?`<span class="badge bb">${a.media}</span>`:''}</td>
-      <td>${a.status?`<span class="badge ${stColor(a.status)}">${a.status}</span>`:''}</td>
+      <td onclick="event.stopPropagation()">
+        <select onchange="updateStatus('${a.id}', this.value)" style="padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;background:#fafafa;color:#1a1a1a;cursor:pointer;max-width:130px;" onclick="event.stopPropagation()">
+          <option value="">-</option>
+          ${(masters.status||[]).map(s=>`<option value="${s}" ${a.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </td>
       <td onclick="event.stopPropagation()">
         <select onchange="updateHireStatus('${a.id}', this.value)" style="padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;background:#fafafa;color:#1a1a1a;cursor:pointer;" onclick="event.stopPropagation()">
           <option value="">-</option>
@@ -801,6 +907,16 @@ async function updateDept(id, val) {
   const a = applicants.find(x => x.id === id);
   if (a) a.dept = val;
   setStatus('部署を更新しました', 'ok');
+}
+
+async function updateStatus(id, val) {
+  const { error } = await sb.from('applicants').update({ status: val }).eq('id', id);
+  if (error) { alert('更新に失敗しました: ' + error.message); return; }
+  const a = applicants.find(x => x.id === id);
+  if (a) a.status = val;
+  setStatus('ステータスを更新しました', 'ok');
+  renderList();
+  if (document.getElementById('sec-dashboard').classList.contains('active')) renderDashboard();
 }
 
 // ========================================
@@ -1089,7 +1205,16 @@ async function renderAdmin(){
     const total=(data||[]).length;
     const hired=(data||[]).filter(r=>['内定','内定承諾','採用'].includes(r.hire_status)).length;
     const el=document.getElementById('cnt_'+c.client_id);
-    if(el)el.innerHTML=`<span class="badge bgr">${total}名</span> <span class="badge bg" style="margin-left:4px;">採用${hired}名</span>`;
+    // タスク残数はstorageから取得
+    let taskCount = 0;
+    try {
+      const tr = await window.storage.get(`saiyo_tasks_${c.client_id}_v1`);
+      if (tr && tr.value) {
+        const clientTasks = JSON.parse(tr.value);
+        taskCount = clientTasks.filter(t => !t.done).length;
+      }
+    } catch(e) {}
+    if(el)el.innerHTML=`<span class="badge bgr">${total}名</span> <span class="badge bg" style="margin-left:4px;">採用${hired}名</span> <span class="badge ba" style="margin-left:4px;">タスク${taskCount}件</span>`;
   });
 }
 async function addClient(){
@@ -1188,14 +1313,22 @@ function renderDashboard() {
     tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:#aaa;font-size:12px;">応募者データがありません</td></tr>';
     return;
   }
-  tb.innerHTML = recent.map(a => `<tr>
-    <td>${a.appDate||''}</td>
-    <td style="font-weight:500;">${a.name}</td>
-    <td>${a.jobType||''}</td>
-    <td>${a.media?`<span class="badge bb">${a.media}</span>`:''}</td>
-    <td>${a.status?`<span class="badge ${stColor(a.status)}">${a.status}</span>`:''}</td>
-    <td><button class="btn-sm" onclick="openDetailFromDash('${a.id}')">詳細</button></td>
-  </tr>`).join('');
+  const hireColorMap = {'内定':'bg','内定承諾':'bt','採用':'bg','不採用':'br','保留':'ba'};
+  tb.innerHTML = recent.map(a => {
+    const hireOk2 = ['内定','内定承諾','採用'].includes(a.hireStatus);
+    const hireNg2 = a.hireStatus === '不採用' || a.status === '不採用';
+    const rBg = hireOk2 ? 'background:linear-gradient(90deg,#fff0f5,#fff5f8);' : hireNg2 ? 'background:linear-gradient(90deg,#eef4ff,#f0f6ff);' : '';
+    return `<tr style="${rBg}">
+      <td>${a.appDate||''}</td>
+      <td style="font-weight:500;">${a.name}</td>
+      <td>${a.jobType||''}</td>
+      <td>${a.dept||''}</td>
+      <td>${a.media?`<span class="badge bb">${a.media}</span>`:''}</td>
+      <td>${a.status?`<span class="badge ${stColor(a.status)}">${a.status}</span>`:''}</td>
+      <td>${a.hireStatus?`<span class="badge ${hireColorMap[a.hireStatus]||'bgr'}">${a.hireStatus}</span>`:''}</td>
+      <td><button class="btn-sm" onclick="openDetailFromDash('${a.id}')">詳細</button></td>
+    </tr>`;
+  }).join('');
 }
 
 function filterAndGo(status) {
@@ -1406,7 +1539,257 @@ function cancelImport() {
   document.getElementById('importBtn').textContent = 'この内容で一括登録する';
   document.getElementById('importBtn').disabled = false;
 }
+
+// ========================================
+// 議事録・タスク
+// ========================================
+let minutes = [];      // 議事録リスト
+let tasks = [];        // 全タスクリスト（議事録由来＋手動）
+let tempMinuteTasks = []; // 議事録作成中の一時タスク
+let editingMinuteId = null;
+
+const MINUTES_KEY = () => `saiyo_minutes_${currentClientId}_v1`;
+const TASKS_KEY = () => `saiyo_tasks_${currentClientId}_v1`;
+
+async function loadMinutesAndTasks() {
+  try {
+    const mr = await window.storage.get(MINUTES_KEY());
+    if (mr && mr.value) minutes = JSON.parse(mr.value);
+    const tr = await window.storage.get(TASKS_KEY());
+    if (tr && tr.value) tasks = JSON.parse(tr.value);
+  } catch(e) { minutes = []; tasks = []; }
+}
+async function saveMinutesData() {
+  try { await window.storage.set(MINUTES_KEY(), JSON.stringify(minutes)); } catch(e) {}
+}
+async function saveTasksData() {
+  try { await window.storage.set(TASKS_KEY(), JSON.stringify(tasks)); } catch(e) {}
+}
+
+// 議事録フォーム
+function showMinutesForm() {
+  tempMinuteTasks = [];
+  editingMinuteId = null;
+  document.getElementById('mDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('mUrl').value = '';
+  document.getElementById('mTitle').value = '';
+  document.getElementById('mTaskList').innerHTML = '';
+  document.getElementById('minutesForm').style.display = 'block';
+  document.getElementById('minutesForm').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function hideMinutesForm() {
+  document.getElementById('minutesForm').style.display = 'none';
+  tempMinuteTasks = [];
+}
+
+function addTaskToMinutes() {
+  const owner = document.getElementById('tOwner').value;
+  const content = document.getElementById('tContent').value.trim();
+  const due = document.getElementById('tDue').value;
+  const priority = document.getElementById('tPriority').value;
+  if (!content) { alert('タスク内容を入力してください'); return; }
+  const task = { id: Date.now()+'', owner, content, due, priority, done: false, doneDate: '', source: 'minutes' };
+  tempMinuteTasks.push(task);
+  document.getElementById('tContent').value = '';
+  document.getElementById('tDue').value = '';
+  renderTempTaskList();
+}
+function removeMinuteTask(id) {
+  tempMinuteTasks = tempMinuteTasks.filter(t => t.id !== id);
+  renderTempTaskList();
+}
+function renderTempTaskList() {
+  const el = document.getElementById('mTaskList');
+  if (!tempMinuteTasks.length) { el.innerHTML = ''; return; }
+  el.innerHTML = tempMinuteTasks.map(t => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff;border-radius:6px;border:1px solid #e8e8e6;font-size:11px;">
+      <span class="badge ${t.owner==='LinkCore'?'bb':'ba'}">${t.owner}</span>
+      <span style="flex:1;">${t.content}</span>
+      <span style="color:#aaa;">${t.due||'期限なし'}</span>
+      <span class="badge ${t.priority==='高'?'br':t.priority==='低'?'bg':'bgr'}">${t.priority}</span>
+      <button class="btn-del" onclick="removeMinuteTask('${t.id}')">削除</button>
+    </div>`).join('');
+}
+
+async function saveMinutes() {
+  const date = document.getElementById('mDate').value;
+  const url = document.getElementById('mUrl').value;
+  const title = document.getElementById('mTitle').value;
+  if (!date) { alert('日付を入力してください'); return; }
+  const minute = {
+    id: editingMinuteId || (Date.now()+''),
+    date, url, title,
+    tasks: [...tempMinuteTasks],
+    clientId: currentClientId,
+    createdAt: new Date().toISOString()
+  };
+  if (editingMinuteId) {
+    minutes = minutes.map(m => m.id === editingMinuteId ? minute : m);
+    // 既存タスクから同じminuteIdのものを削除して再追加
+    tasks = tasks.filter(t => t.minuteId !== editingMinuteId);
+  } else {
+    minutes.unshift(minute);
+  }
+  // タスクにminuteIdを付与して追加
+  const newTasks = tempMinuteTasks.map(t => ({ ...t, minuteId: minute.id, id: t.id || (Date.now()+Math.random()+'') }));
+  tasks = [...newTasks, ...tasks];
+  await saveMinutesData();
+  await saveTasksData();
+  hideMinutesForm();
+  renderMinutes();
+  setStatus('議事録を保存しました', 'ok');
+}
+
+function renderMinutes() {
+  const el = document.getElementById('minutesList');
+  if (!minutes.length) { el.innerHTML = '<div class="empty">議事録がまだありません</div>'; return; }
+  el.innerHTML = minutes.map(m => {
+    const mTasks = tasks.filter(t => t.minuteId === m.id);
+    const pendingCount = mTasks.filter(t => !t.done).length;
+    return `<div style="border:1px solid #e8e8e6;border-radius:10px;margin-bottom:10px;overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:.875rem 1rem;background:#fafafa;border-bottom:1px solid #f0f0ee;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="font-size:12px;color:#aaa;">${m.date}</div>
+          <div style="font-size:13px;font-weight:600;">${m.title||'MTG議事録'}</div>
+          ${m.url ? `<a href="${m.url}" target="_blank" style="font-size:11px;color:#378ADD;">議事録を開く →</a>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${pendingCount > 0 ? `<span class="badge br">未完了タスク ${pendingCount}件</span>` : '<span class="badge bg">全完了</span>'}
+          <button class="btn-sm" onclick="editMinute('${m.id}')">編集</button>
+          <button class="btn-del" onclick="deleteMinute('${m.id}')">削除</button>
+        </div>
+      </div>
+      ${mTasks.length ? `<div style="padding:.75rem 1rem;">
+        ${mTasks.map(t => renderTaskRow(t, true)).join('')}
+      </div>` : '<div style="padding:.75rem 1rem;font-size:11px;color:#aaa;">タスクなし</div>'}
+    </div>`;
+  }).join('');
+}
+
+function editMinute(id) {
+  const m = minutes.find(x => x.id === id); if (!m) return;
+  editingMinuteId = id;
+  document.getElementById('mDate').value = m.date;
+  document.getElementById('mUrl').value = m.url || '';
+  document.getElementById('mTitle').value = m.title || '';
+  tempMinuteTasks = [...(m.tasks || [])];
+  renderTempTaskList();
+  document.getElementById('minutesForm').style.display = 'block';
+  document.getElementById('minutesForm').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+async function deleteMinute(id) {
+  if (!confirm('この議事録を削除しますか？（関連タスクも削除されます）')) return;
+  minutes = minutes.filter(m => m.id !== id);
+  tasks = tasks.filter(t => t.minuteId !== id);
+  await saveMinutesData();
+  await saveTasksData();
+  renderMinutes();
+}
+
+// タスク
+function showManualTaskForm() {
+  document.getElementById('manualTaskForm').style.display = 'block';
+  document.getElementById('mtStart').value = new Date().toISOString().split('T')[0];
+}
+function hideManualTaskForm() { document.getElementById('manualTaskForm').style.display = 'none'; }
+
+async function saveManualTask() {
+  const content = document.getElementById('mtContent').value.trim();
+  const due = document.getElementById('mtDue').value;
+  if (!content) { alert('タスク内容を入力してください'); return; }
+  const task = {
+    id: Date.now()+'',
+    owner: document.getElementById('mtOwner').value,
+    content,
+    startDate: document.getElementById('mtStart').value,
+    due,
+    priority: document.getElementById('mtPriority').value,
+    done: false, doneDate: '',
+    source: 'manual', minuteId: null,
+    clientId: currentClientId
+  };
+  tasks.unshift(task);
+  await saveTasksData();
+  hideManualTaskForm();
+  document.getElementById('mtContent').value = '';
+  document.getElementById('mtDue').value = '';
+  renderTasks();
+  setStatus('タスクを追加しました', 'ok');
+}
+
+function renderTaskRow(task, compact=false) {
+  const today = new Date().toISOString().split('T')[0];
+  const isOverdue = task.due && task.due < today && !task.done;
+  const isDueSoon = task.due && task.due >= today && task.due <= new Date(Date.now()+3*86400000).toISOString().split('T')[0] && !task.done;
+  const rowBg = task.done ? 'background:#f8fdf8;' : isOverdue ? 'background:#fff5f5;border-left:3px solid #D85A30;' : isDueSoon ? 'background:#fffbf0;border-left:3px solid #EF9F27;' : 'background:#fff;';
+  return `<div style="${rowBg}padding:8px 10px;border-radius:6px;margin-bottom:5px;border:1px solid #f0f0ee;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <span class="badge ${task.owner==='LinkCore'?'bb':'ba'}" style="flex-shrink:0;">${task.owner}</span>
+    <span style="flex:1;font-size:12px;${task.done?'text-decoration:line-through;color:#aaa;':''}">${task.content}</span>
+    ${task.due ? `<span style="font-size:11px;color:${isOverdue?'#D85A30':isDueSoon?'#854F0B':'#aaa'};">期限: ${task.due}</span>` : ''}
+    <span class="badge ${task.priority==='高'?'br':task.priority==='低'?'bg':'bgr'}" style="flex-shrink:0;">${task.priority||'中'}</span>
+    ${task.done
+      ? `<span class="badge bt" style="flex-shrink:0;">✓ 完了 ${task.doneDate||''}</span>`
+      : `<button class="btn-sm" style="background:#f0faf6;color:#3B6D11;border-color:#c8e6c9;flex-shrink:0;" onclick="completeTask('${task.id}')">完了</button>`}
+    ${!compact ? `<button class="btn-del" style="flex-shrink:0;" onclick="deleteTask('${task.id}')">削除</button>` : ''}
+  </div>`;
+}
+
+function renderTasks() {
+  const filter = document.getElementById('taskFilter')?.value || 'all';
+  const today = new Date().toISOString().split('T')[0];
+  let filtered = tasks.filter(t => t.clientId === currentClientId || !t.clientId);
+  if (filter === 'pending') filtered = filtered.filter(t => !t.done);
+  else if (filter === 'done') filtered = filtered.filter(t => t.done);
+  else if (filter === 'linkcore') filtered = filtered.filter(t => t.owner === 'LinkCore');
+  else if (filter === 'client') filtered = filtered.filter(t => t.owner === 'クライアント');
+
+  // ソート：未完了→期限近い順、完了→完了日降順
+  filtered.sort((a,b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    if (!a.done) return (a.due||'9999') > (b.due||'9999') ? 1 : -1;
+    return (b.doneDate||'') > (a.doneDate||'') ? 1 : -1;
+  });
+
+  const pending = filtered.filter(t => !t.done);
+  const done = filtered.filter(t => t.done);
+  const overdue = pending.filter(t => t.due && t.due < today);
+  const dueSoon = pending.filter(t => t.due && t.due >= today && t.due <= new Date(Date.now()+3*86400000).toISOString().split('T')[0]);
+
+  const el = document.getElementById('taskList');
+  if (!filtered.length) { el.innerHTML = '<div class="empty">タスクがありません</div>'; return; }
+
+  let html = '';
+  if (overdue.length) html += `<div style="margin-bottom:1rem;"><div style="font-size:11px;font-weight:600;color:#D85A30;margin-bottom:6px;">⚠ 期限超過（${overdue.length}件）</div>${overdue.map(t=>renderTaskRow(t)).join('')}</div>`;
+  if (dueSoon.length) html += `<div style="margin-bottom:1rem;"><div style="font-size:11px;font-weight:600;color:#854F0B;margin-bottom:6px;">⏰ 期限間近（${dueSoon.length}件）</div>${dueSoon.map(t=>renderTaskRow(t)).join('')}</div>`;
+  const normal = pending.filter(t => !overdue.includes(t) && !dueSoon.includes(t));
+  if (normal.length) html += `<div style="margin-bottom:1rem;"><div style="font-size:11px;font-weight:600;color:#666;margin-bottom:6px;">未完了（${normal.length}件）</div>${normal.map(t=>renderTaskRow(t)).join('')}</div>`;
+  if (done.length) html += `<div><div style="font-size:11px;font-weight:600;color:#3B6D11;margin-bottom:6px;">✓ 完了（${done.length}件）</div>${done.map(t=>renderTaskRow(t)).join('')}</div>`;
+  el.innerHTML = html;
+}
+
+async function completeTask(id) {
+  const date = prompt('完了日を入力（例: 2025-04-29）', new Date().toISOString().split('T')[0]);
+  if (date === null) return;
+  const t = tasks.find(x => x.id === id);
+  if (t) { t.done = true; t.doneDate = date || new Date().toISOString().split('T')[0]; }
+  await saveTasksData();
+  renderTasks();
+  if (document.getElementById('sec-minutes').classList.contains('active')) renderMinutes();
+}
+
+async function deleteTask(id) {
+  if (!confirm('このタスクを削除しますか？')) return;
+  tasks = tasks.filter(t => t.id !== id);
+  await saveTasksData();
+  renderTasks();
+}
+
+// タスク残数カウント（クライアント管理用）
+function getPendingTaskCount(clientId) {
+  return tasks.filter(t => (t.clientId === clientId || !t.minuteId) && !t.done).length;
+}
+
 </script>
 </body>
 </html>
-　
