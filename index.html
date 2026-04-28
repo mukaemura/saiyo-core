@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>採用コア</title>
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;background:#f8f8f7;color:#1a1a1a;}
+.app{max-width:1100px;margin:0 auto;padding:1.5rem;}
+
+/* ログイン */
+.login-wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#f8f8f7;}
+.login-logo{font-size:24px;font-weight:600;letter-spacing:-.03em;}
+.login-logo span{color:#378ADD;}
+.login-box{background:#fff;border:1px solid #e8e8e6;border-radius:12px;padding:1.75rem;width:320px;display:flex;flex-direction:column;gap:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);}
+.login-box label{font-size:11px;color:#666;margin-bottom:3px;display:block;}
+.login-box input{width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#fafafa;}
+.login-box input:focus{outline:none;border-color:#378ADD;background:#fff;}
+.login-hint{font-size:10px;color:#aaa;text-align:center;}
+.err-msg{color:#D85A30;font-size:11px;text-align:center;padding:6px;background:#FFF3F0;border-radius:6px;display:none;}
+
+/* ヘッダー */
+.header{display:flex;align-items:center;justify-content:space-between;padding-bottom:1rem;border-bottom:1px solid #e8e8e6;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px;background:#fff;padding:1rem 1.25rem;border-radius:10px;margin-bottom:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);}
+.logo{font-size:17px;font-weight:600;letter-spacing:-.02em;}
+.logo span{color:#378ADD;}
+.client-badge{font-size:11px;color:#666;background:#f0f0ee;border-radius:20px;padding:3px 10px;}
+.nav{display:flex;gap:4px;flex-wrap:wrap;}
+.nb{padding:6px 13px;border:1px solid #ddd;border-radius:8px;background:transparent;color:#666;cursor:pointer;font-size:12px;font-family:inherit;transition:all .15s;}
+.nb.active{background:#1a1a1a;color:#fff;border-color:#1a1a1a;}
+.nb:hover:not(.active){background:#f0f0ee;color:#1a1a1a;}
+.nb-logout{padding:6px 13px;border:1px solid #ddd;border-radius:8px;background:transparent;color:#aaa;cursor:pointer;font-size:12px;font-family:inherit;}
+.nb-logout:hover{color:#1a1a1a;background:#f0f0ee;}
+
+/* セクション */
+.sec{display:none;background:#fff;border-radius:10px;padding:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.04);}
+.sec.active{display:block;}
+
+/* ボタン */
+.btn{padding:8px 16px;border-radius:8px;cursor:pointer;font-size:12px;font-family:inherit;font-weight:500;border:none;transition:all .15s;}
+.btn-p{background:#1a1a1a;color:#fff;}
+.btn-p:hover{background:#333;}
+.btn-s{background:transparent;color:#666;border:1px solid #ddd;}
+.btn-s:hover{background:#f0f0ee;color:#1a1a1a;}
+.btn-sm{padding:4px 9px;font-size:11px;border-radius:6px;cursor:pointer;font-family:inherit;border:1px solid #ddd;background:transparent;color:#666;transition:all .15s;}
+.btn-sm:hover{background:#f0f0ee;}
+.btn-del{background:transparent;color:#D85A30;border:1px solid #D85A30;border-radius:6px;padding:4px 9px;font-size:11px;cursor:pointer;font-family:inherit;}
+.btn-exp{padding:6px 12px;border:1px solid #ddd;border-radius:8px;background:transparent;color:#666;cursor:pointer;font-size:11px;font-family:inherit;}
+.btn-exp:hover{background:#f0f0ee;}
+
+/* フォーム */
+.fg{display:flex;flex-direction:column;gap:4px;}
+.fg label{font-size:11px;color:#666;font-weight:500;}
+.req{color:#D85A30;}
+.fg input,.fg select,.fg textarea{padding:7px 10px;border:1px solid #ddd;border-radius:8px;background:#fafafa;color:#1a1a1a;font-size:12px;font-family:inherit;transition:border .15s;}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:#378ADD;background:#fff;}
+.fg textarea{min-height:70px;resize:vertical;}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.full{grid-column:1/-1;}
+.fsec{grid-column:1/-1;font-size:10px;font-weight:600;color:#aaa;letter-spacing:.08em;text-transform:uppercase;padding:10px 0 6px;border-bottom:1px solid #f0f0ee;margin-top:6px;}
+.dr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;}
+
+/* 書類エリア */
+.doc-area{grid-column:1/-1;border:1px solid #e8e8e6;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;background:#fafafa;}
+.doc-area-title{font-size:11px;color:#666;}
+.doc-item{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff;border:1px solid #e8e8e6;border-radius:6px;}
+.doc-add-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.doc-add-row input,.doc-add-row select{padding:6px 9px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#1a1a1a;font-size:11px;font-family:inherit;}
+
+/* 一覧 */
+.list-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px;}
+.sr-row{display:flex;gap:5px;flex-wrap:wrap;}
+.sr-row input,.sr-row select{padding:6px 9px;border:1px solid #ddd;border-radius:8px;background:#fafafa;color:#1a1a1a;font-size:11px;font-family:inherit;}
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{text-align:left;padding:8px 10px;font-size:10px;font-weight:600;color:#aaa;border-bottom:1px solid #f0f0ee;white-space:nowrap;}
+td{padding:8px 10px;border-bottom:1px solid #f8f8f7;vertical-align:middle;}
+tr:hover td{background:#fafafa;}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:500;white-space:nowrap;}
+.bb{background:#E6F1FB;color:#185FA5;}.bg{background:#EAF3DE;color:#3B6D11;}
+.ba{background:#FAEEDA;color:#854F0B;}.br{background:#FCEBEB;color:#A32D2D;}
+.bgr{background:#F1EFE8;color:#5F5E5A;}.bt{background:#E1F5EE;color:#0F6E56;}
+.bc{background:#FAECE7;color:#993C1D;}
+
+/* 詳細パネル */
+.dp{display:none;background:#fff;border:1px solid #e8e8e6;border-radius:10px;padding:1.25rem;margin-top:1rem;box-shadow:0 2px 8px rgba(0,0,0,.06);}
+.dp.open{display:block;}
+.dp-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid #f0f0ee;}
+.dp-hd h3{font-size:15px;font-weight:600;}
+.dp-cls{background:none;border:none;cursor:pointer;font-size:18px;color:#aaa;line-height:1;}
+.dp-cls:hover{color:#1a1a1a;}
+.dp-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;}
+.dp-row{display:flex;flex-direction:column;gap:2px;}
+.dp-lbl{font-size:10px;color:#aaa;}
+.dp-val{font-size:12px;color:#1a1a1a;}
+.dp-docs{grid-column:1/-1;}
+.dp-doc-item{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fafafa;border-radius:6px;font-size:11px;margin-top:4px;}
+.dp-act{display:flex;gap:7px;margin-top:1rem;padding-top:.75rem;border-top:1px solid #f0f0ee;justify-content:flex-end;}
+
+/* 分析 */
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:1.25rem;}
+.mc{background:#f8f8f7;border-radius:8px;padding:.875rem;}
+.mc-lbl{font-size:10px;color:#888;margin-bottom:3px;}
+.mc-val{font-size:22px;font-weight:600;color:#1a1a1a;}
+.tab-row{display:flex;gap:5px;margin-bottom:1rem;flex-wrap:wrap;}
+.tab{padding:5px 12px;border:1px solid #ddd;border-radius:8px;background:transparent;color:#666;cursor:pointer;font-size:11px;font-family:inherit;}
+.tab.active{background:#f0f0ee;color:#1a1a1a;border-color:#ccc;}
+.filter-row{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:1rem;}
+.filter-row label{font-size:11px;color:#666;}
+.filter-row input[type=date],.filter-row select{padding:5px 8px;border:1px solid #ddd;border-radius:8px;background:#fafafa;color:#1a1a1a;font-size:11px;font-family:inherit;}
+.chart-wrap{position:relative;width:100%;}
+
+/* マスター管理 */
+.mg-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;}
+.mg-block h3{font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #f0f0ee;}
+.mg-list{list-style:none;display:flex;flex-direction:column;gap:5px;margin-bottom:10px;}
+.mg-list li{display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:#f8f8f7;border-radius:6px;font-size:12px;}
+.mg-add{display:flex;gap:5px;}
+.mg-add input{flex:1;padding:6px 9px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;background:#fafafa;}
+.mg-add button{padding:6px 12px;background:#1a1a1a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;}
+
+/* クライアント管理 */
+.client-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:1rem;}
+.client-table th{text-align:left;padding:8px 10px;font-size:10px;font-weight:600;color:#aaa;border-bottom:1px solid #f0f0ee;}
+.client-table td{padding:9px 10px;border-bottom:1px solid #f8f8f7;vertical-align:middle;}
+.add-client-form{background:#f8f8f7;border-radius:8px;padding:1rem;display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;margin-top:1rem;}
+.add-client-form .fg label{font-size:10px;}
+.add-client-form input{padding:7px 9px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;background:#fff;width:100%;}
+
+.empty{text-align:center;padding:2.5rem;color:#aaa;font-size:12px;}
+.divider{height:1px;background:#f0f0ee;margin:1.25rem 0;}
+.loading{text-align:center;padding:2rem;color:#aaa;font-size:12px;}
+
+/* パスワード変更 */
+.pw-row{display:flex;gap:7px;flex-wrap:wrap;align-items:center;}
+.pw-row input{padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fafafa;width:160px;}
+
+/* ステータスバー */
+.status-bar{font-size:11px;color:#aaa;padding:6px 0;text-align:right;}
+.status-bar.ok{color:#3B6D11;}
+.status-bar.err{color:#D85A30;}
+</style>
+</head>
+<body>
+
+<!-- ===== Supabase設定（ここを書き換える） ===== -->
+<script>
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';      // ← 後で書き換え
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; // ← 後で書き換え
+</script>
+
+<!-- ===== ログイン画面 ===== -->
+<div id="loginScreen" class="login-wrap">
+  <div class="login-logo">採用<span>コア</span></div>
+  <div class="login-box">
+    <div>
+      <label>クライアントID</label>
+      <input type="text" id="loginId" placeholder="例: client01" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div>
+      <label>パスワード</label>
+      <input type="password" id="loginPw" placeholder="パスワード" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn btn-p" style="width:100%;padding:10px;" onclick="doLogin()">ログイン</button>
+    <div class="err-msg" id="loginErr">IDまたはパスワードが違います</div>
+  </div>
+  <p class="login-hint">管理者ID: admin　／　初期PW: admin2024</p>
+</div>
+
+<!-- ===== メインアプリ ===== -->
+<div id="mainApp" style="display:none;">
+  <div class="app">
+    <div class="header">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="logo">採用<span>コア</span></div>
+        <span class="client-badge" id="clientBadge"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+        <nav class="nav" id="mainNav">
+          <button class="nb active" onclick="showSec('list')">一覧</button>
+          <button class="nb" onclick="showSec('add')">新規登録</button>
+          <button class="nb" onclick="showSec('import')">一括取り込み</button>
+          <button class="nb" onclick="showSec('analytics')">分析</button>
+          <button class="nb" onclick="showSec('master')">マスター管理</button>
+        </nav>
+        <button id="adminNavBtn" class="nb" style="display:none;border-color:#378ADD;color:#378ADD;" onclick="showSec('admin')">クライアント管理</button>
+        <button class="nb-logout" onclick="doLogout()">ログアウト</button>
+      </div>
+    </div>
+    <div class="status-bar" id="statusBar"></div>
+
+    <!-- 一覧 -->
+    <div id="sec-list" class="sec active">
+      <div class="list-top">
+        <div class="sr-row">
+          <input type="text" id="srch" placeholder="名前・メール検索" style="width:140px;" oninput="renderList()">
+          <select id="fSt" onchange="renderList()"><option value="">ステータス（全て）</option></select>
+          <select id="fMd" onchange="renderList()"><option value="">媒体（全て）</option></select>
+          <select id="fJb" onchange="renderList()"><option value="">職種（全て）</option></select>
+        </div>
+        <div style="display:flex;gap:5px;align-items:center;">
+          <span id="listCnt" style="font-size:10px;color:#aaa;"></span>
+          <button class="btn-exp" onclick="exportCSV()">CSV出力</button>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>応募日</th><th>名前</th><th>職種</th><th>媒体</th><th>ステータス</th><th>メール</th><th>書類</th><th></th></tr></thead>
+          <tbody id="listBody"></tbody>
+        </table>
+        <div id="emptyList" class="empty" style="display:none;">応募者データがありません</div>
+      </div>
+      <div class="dp" id="detailPanel">
+        <div class="dp-hd">
+          <h3 id="dpName"></h3>
+          <button class="dp-cls" onclick="closeDetail()">×</button>
+        </div>
+        <div class="dp-grid" id="dpBody"></div>
+        <div class="dp-act">
+          <button class="btn-del" onclick="delApp()">削除</button>
+          <button class="btn btn-s" onclick="closeDetail()">閉じる</button>
+          <button class="btn btn-p" onclick="editApp()">編集</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 新規登録 -->
+    <div id="sec-add" class="sec">
+      <div class="fgrid" id="addForm">
+        <div class="fsec">基本情報</div>
+        <div class="fg"><label>応募日<span class="req">*</span></label><input type="date" id="fAD"></div>
+        <div class="fg"><label>応募職種<span class="req">*</span></label><input type="text" id="fJT" placeholder="エンジニア、営業 等"></div>
+        <div class="fg"><label>勤務地</label><input type="text" id="fLoc" placeholder="東京、大阪 等"></div>
+        <div class="fg"><label>性別<span class="req">*</span></label><select id="fGe"><option value="">選択</option><option>男性</option><option>女性</option><option>その他</option><option>未回答</option></select></div>
+        <div class="fsec">個人情報</div>
+        <div class="fg"><label>名前<span class="req">*</span></label><input type="text" id="fNm" placeholder="山田 太郎"></div>
+        <div class="fg"><label>ふりがな<span class="req">*</span></label><input type="text" id="fKn" placeholder="やまだ たろう"></div>
+        <div class="fg full"><label>メールアドレス<span class="req">*</span></label><input type="email" id="fEm" placeholder="example@email.com"></div>
+        <div class="fg"><label>電話番号<span class="req">*</span></label><input type="tel" id="fTel" placeholder="090-0000-0000"></div>
+        <div class="fg"><label>生年月日</label>
+          <div class="dr3">
+            <input type="number" id="fBY" placeholder="1990年" min="1940" max="2010">
+            <select id="fBM"><option value="">月</option></select>
+            <select id="fBD"><option value="">日</option></select>
+          </div>
+        </div>
+        <div class="fg"><label>年齢</label><select id="fAg"><option value="">選択</option></select></div>
+        <div class="fsec">応募情報</div>
+        <div class="fg"><label>媒体名<span class="req">*</span></label><select id="fMed"><option value="">選択</option></select></div>
+        <div class="fg"><label>人材紹介会社</label><select id="fAg2"><option value="">選択</option></select></div>
+        <div class="fg"><label>ステータス<span class="req">*</span></label><select id="fSt2"><option value="">選択</option></select></div>
+        <div class="fg"><label>コンタクト日</label><input type="date" id="fCD"></div>
+        <div class="fsec">選考情報</div>
+        <div class="fg"><label>1次面接日時</label><input type="datetime-local" id="fI1D"></div>
+        <div class="fg"><label>1次面接結果</label><select id="fI1R"><option value="">未定</option><option>合格</option><option>不合格</option><option>辞退</option></select></div>
+        <div class="fg"><label>2次面接日時</label><input type="datetime-local" id="fI2D"></div>
+        <div class="fg"><label>2次面接結果</label><select id="fI2R"><option value="">未定</option><option>合格</option><option>不合格</option><option>辞退</option></select></div>
+        <div class="fg"><label>退職日</label><input type="date" id="fRD"></div>
+        <div class="fg"></div>
+        <div class="fsec">書類管理（GoogleドライブURL）</div>
+        <div class="doc-area full">
+          <div class="doc-area-title">書類を追加（種別を選んでURLを登録）</div>
+          <div id="docList" style="display:flex;flex-direction:column;gap:5px;"></div>
+          <div class="doc-add-row">
+            <select id="docType"><option value="履歴書">履歴書</option><option value="職務経歴書">職務経歴書</option><option value="その他">その他</option></select>
+            <input type="text" id="docName" placeholder="ファイル名（任意）" style="flex:1;min-width:100px;">
+            <input type="url" id="docUrl" placeholder="https://drive.google.com/..." style="flex:2;min-width:160px;">
+            <button class="btn-sm" onclick="addDoc()">追加</button>
+          </div>
+        </div>
+        <div class="fsec">メモ</div>
+        <div class="fg full"><textarea id="fMemo" placeholder="自由記述..."></textarea></div>
+        <div class="fg full" style="display:flex;gap:8px;justify-content:flex-end;padding-top:8px;">
+          <button class="btn btn-s" onclick="resetForm()">クリア</button>
+          <button class="btn btn-p" onclick="saveApp()">登録する</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 一括取り込み -->
+    <div id="sec-import" class="sec">
+      <div style="margin-bottom:1.25rem;">
+        <h2 style="font-size:14px;font-weight:600;margin-bottom:4px;">既存データの一括取り込み</h2>
+        <p style="font-size:11px;color:#888;">CSVテンプレートをダウンロード → 情報を入力 → アップロードで一括登録できます。</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1.25rem;">
+        <div style="border:1px solid #e8e8e6;border-radius:10px;padding:1.125rem;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:.75rem;">
+            <span style="width:22px;height:22px;background:#1a1a1a;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">1</span>
+            <strong style="font-size:13px;">テンプレートCSVをダウンロードする</strong>
+          </div>
+          <p style="font-size:11px;color:#888;margin-bottom:.75rem;">全項目のヘッダーが入ったExcel対応のCSVファイルです。1行目はヘッダーなので消さないでください。</p>
+          <button class="btn btn-s" onclick="downloadTemplate()">テンプレートCSVをダウンロード</button>
+        </div>
+        <div style="border:1px solid #e8e8e6;border-radius:10px;padding:1.125rem;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:.75rem;">
+            <span style="width:22px;height:22px;background:#1a1a1a;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">2</span>
+            <strong style="font-size:13px;">CSVに情報を入力する（Excelで開いてOK）</strong>
+          </div>
+          <div style="background:#f8f8f7;border-radius:8px;padding:.875rem;font-size:11px;color:#666;line-height:1.9;">
+            <strong style="color:#1a1a1a;">入力ルール：</strong><br>
+            ・<strong>応募日</strong>：YYYY-MM-DD形式（例: 2024-04-01）<span style="color:#D85A30;">★必須</span><br>
+            ・<strong>応募職種・名前・ふりがな・メール・電話・性別・媒体名・ステータス</strong>：<span style="color:#D85A30;">★必須</span><br>
+            ・<strong>生年月日_年/月/日</strong>：数字のみ（例: 年=1990, 月=4, 日=1）<br>
+            ・<strong>性別</strong>：男性 / 女性 / その他 / 未回答 のいずれか<br>
+            ・<strong>面接日時</strong>：YYYY-MM-DDTHH:MM（例: 2024-04-15T14:00）<br>
+            ・<strong>書類URL</strong>：GoogleドライブのURLをそのまま<br>
+            ・空欄の項目はそのまま空白でOK
+          </div>
+        </div>
+        <div style="border:1px solid #e8e8e6;border-radius:10px;padding:1.125rem;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:.75rem;">
+            <span style="width:22px;height:22px;background:#1a1a1a;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">3</span>
+            <strong style="font-size:13px;">CSVをアップロードしてプレビュー確認</strong>
+          </div>
+          <div id="dropZone" style="border:2px dashed #ddd;border-radius:8px;padding:2rem;text-align:center;cursor:pointer;transition:all .15s;background:#fafafa;" onclick="document.getElementById('csvFileInput').click()" ondragover="event.preventDefault();this.style.borderColor='#378ADD'" ondragleave="this.style.borderColor='#ddd'" ondrop="handleDrop(event)">
+            <div style="font-size:13px;color:#888;margin-bottom:6px;">クリックまたはCSVファイルをドラッグ＆ドロップ</div>
+            <div style="font-size:11px;color:#bbb;">.csv ファイルのみ対応</div>
+            <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="handleCSVFile(this.files[0])">
+          </div>
+        </div>
+        <div id="importPreview" style="display:none;border:1px solid #e8e8e6;border-radius:10px;padding:1.125rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem;flex-wrap:wrap;gap:8px;">
+            <div>
+              <strong style="font-size:13px;">取り込みプレビュー</strong>
+              <span id="previewCount" style="font-size:11px;color:#888;margin-left:8px;"></span>
+            </div>
+            <div style="display:flex;gap:7px;">
+              <button class="btn btn-s" onclick="cancelImport()">キャンセル</button>
+              <button class="btn btn-p" id="importBtn" onclick="doImport()">この内容で一括登録する</button>
+            </div>
+          </div>
+          <div id="importErrors" style="display:none;background:#FFF3F0;border-radius:6px;padding:.75rem;margin-bottom:.875rem;font-size:11px;color:#D85A30;line-height:1.7;"></div>
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:600px;">
+              <thead id="previewHead"></thead>
+              <tbody id="previewBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 分析 -->
+    <div id="sec-analytics" class="sec">
+      <div class="filter-row">
+        <label>期間：</label>
+        <input type="date" id="anFrom" onchange="renderAn()">
+        <span style="font-size:10px;color:#aaa;">〜</span>
+        <input type="date" id="anTo" onchange="renderAn()">
+        <button class="btn-sm" onclick="setPeriod('month')">今月</button>
+        <button class="btn-sm" onclick="setPeriod('quarter')">3ヶ月</button>
+        <button class="btn-sm" onclick="setPeriod('year')">1年</button>
+        <button class="btn-sm" onclick="setPeriod('all')">累計</button>
+        <div style="margin-left:auto;"><button class="btn-exp" onclick="exportPDF()">レポートPDF出力</button></div>
+      </div>
+      <div class="metric-grid" id="anMetrics"></div>
+      <div class="tab-row">
+        <button class="tab active" onclick="setTab('media',this)">媒体別</button>
+        <button class="tab" onclick="setTab('job',this)">職種別</button>
+        <button class="tab" onclick="setTab('trend',this)">月次トレンド</button>
+        <button class="tab" onclick="setTab('funnel',this)">ファネル</button>
+      </div>
+      <div class="chart-wrap" id="anWrap"></div>
+    </div>
+
+    <!-- マスター管理 -->
+    <div id="sec-master" class="sec">
+      <div class="mg-grid">
+        <div class="mg-block"><h3>媒体マスター</h3><ul class="mg-list" id="mlMed"></ul><div class="mg-add"><input type="text" id="miMed" placeholder="媒体名を追加"><button onclick="addM('media')">追加</button></div></div>
+        <div class="mg-block"><h3>ステータスマスター</h3><ul class="mg-list" id="mlSt"></ul><div class="mg-add"><input type="text" id="miSt" placeholder="ステータスを追加"><button onclick="addM('status')">追加</button></div></div>
+        <div class="mg-block"><h3>人材紹介会社マスター</h3><ul class="mg-list" id="mlAg"></ul><div class="mg-add"><input type="text" id="miAg" placeholder="会社名を追加"><button onclick="addM('agency')">追加</button></div></div>
+      </div>
+      <div class="divider"></div>
+      <div style="max-width:420px;">
+        <h3 style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">パスワード変更</h3>
+        <div class="pw-row">
+          <input type="password" id="np1" placeholder="新しいパスワード">
+          <input type="password" id="np2" placeholder="確認">
+          <button class="btn btn-s" onclick="chgPw()">変更</button>
+          <span id="pwOk" style="font-size:11px;color:#3B6D11;display:none;">✓ 変更しました</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- クライアント管理（管理者のみ） -->
+    <div id="sec-admin" class="sec">
+      <h2 style="font-size:14px;font-weight:600;margin-bottom:6px;">クライアント管理</h2>
+      <p style="font-size:11px;color:#888;margin-bottom:1rem;">クライアントごとにIDとパスワードを発行します。各クライアントは自社の応募者データのみ閲覧できます。</p>
+      <table class="client-table">
+        <thead><tr><th>クライアント名</th><th>ID</th><th>パスワード</th><th>応募者数</th><th>操作</th></tr></thead>
+        <tbody id="clientTableBody"></tbody>
+      </table>
+      <div class="add-client-form">
+        <div class="fg"><label>クライアント名</label><input type="text" id="newCName" placeholder="株式会社〇〇"></div>
+        <div class="fg"><label>クライアントID</label><input type="text" id="newCId" placeholder="client01"></div>
+        <div class="fg"><label>パスワード</label><input type="text" id="newCPw" placeholder="パスワード"></div>
+        <button class="btn btn-p" onclick="addClient()" style="align-self:end;">追加</button>
+      </div>
+      <p style="font-size:10px;color:#aaa;margin-top:8px;">※管理者(admin)は全クライアントのデータを横断して閲覧・操作できます</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========================================
+// Supabase 初期化
+// ========================================
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ========================================
+// アプリ状態
+// ========================================
+let currentClientId = null;
+let currentClientName = '';
+let isAdmin = false;
+let applicants = [];
+let masters = { media: [], status: [], agency: [] };
+let clients = []; // 管理者用
+let editId = null;
+let anTab = 'media';
+let anChart = null;
+let curId = null;
+let tempDocs = [];
+
+// ========================================
+// ステータス表示
+// ========================================
+function setStatus(msg, type='') {
+  const el = document.getElementById('statusBar');
+  el.textContent = msg;
+  el.className = 'status-bar' + (type ? ' ' + type : '');
+  if (type === 'ok') setTimeout(() => el.textContent = '', 3000);
+}
+
+// ========================================
+// ログイン
+// ========================================
+async function doLogin() {
+  const id = document.getElementById('loginId').value.trim();
+  const pw = document.getElementById('loginPw').value;
+  const err = document.getElementById('loginErr');
+  err.style.display = 'none';
+
+  // 管理者ログイン
+  const { data: adminData } = await sb.from('system_config')
+    .select('value').eq('key', 'admin_pw').single();
+  const adminPw = adminData?.value || 'admin2024';
+
+  if (id === 'admin' && pw === adminPw) {
+    currentClientId = 'admin';
+    currentClientName = '管理者（全社）';
+    isAdmin = true;
+    await startApp();
+    return;
+  }
+
+  // クライアントログイン
+  const { data: clientData } = await sb.from('clients')
+    .select('*').eq('client_id', id).eq('password', pw).single();
+
+  if (clientData) {
+    currentClientId = id;
+    currentClientName = clientData.name;
+    isAdmin = false;
+    await startApp();
+  } else {
+    err.style.display = 'block';
+  }
+}
+
+async function startApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'block';
+  document.getElementById('clientBadge').textContent = currentClientName;
+  document.getElementById('adminNavBtn').style.display = isAdmin ? 'block' : 'none';
+  initFormOptions();
+  await loadMasters();
+  await loadApplicants();
+  renderList();
+}
+
+function doLogout() {
+  currentClientId = null; isAdmin = false;
+  applicants = []; masters = { media: [], status: [], agency: [] };
+  editId = null; curId = null; tempDocs = [];
+  if (anChart) { anChart.destroy(); anChart = null; }
+  document.getElementById('mainApp').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginId').value = '';
+  document.getElementById('loginPw').value = '';
+}
+
+// ========================================
+// データ読み込み
+// ========================================
+async function loadApplicants() {
+  setStatus('データを読み込み中...');
+  let query = sb.from('applicants').select('*').order('app_date', { ascending: false });
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  const { data, error } = await query;
+  if (error) { setStatus('データ読み込みエラー: ' + error.message, 'err'); return; }
+  applicants = (data || []).map(r => ({
+    id: r.id,
+    appDate: r.app_date, jobType: r.job_type, location: r.location,
+    name: r.name, kana: r.kana, email: r.email, tel: r.tel,
+    gender: r.gender, age: r.age, media: r.media, agency: r.agency,
+    status: r.status, contactDate: r.contact_date,
+    int1Date: r.int1_date, int1Res: r.int1_result,
+    int2Date: r.int2_date, int2Res: r.int2_result,
+    resignDate: r.resign_date, memo: r.memo,
+    birthYear: r.birth_year, birthMonth: r.birth_month, birthDay: r.birth_day,
+    birthdate: r.birthdate,
+    docs: r.docs || [],
+    clientId: r.client_id
+  }));
+  setStatus('');
+}
+
+async function loadMasters() {
+  const cid = isAdmin ? 'admin' : currentClientId;
+  const { data } = await sb.from('masters').select('*').eq('client_id', cid);
+  if (data && data.length) {
+    masters = { media: [], status: [], agency: [] };
+    data.forEach(r => { if (masters[r.type] !== undefined) masters[r.type].push(r.value); });
+  } else {
+    // デフォルトマスター
+    masters = {
+      media: ['リクナビNEXT','マイナビ転職','Indeed','LinkedIn','ハローワーク','自社HP','紹介'],
+      status: ['書類選考中','1次面接調整','1次面接済','2次面接調整','2次面接済','最終選考','内定','入社','不採用','辞退'],
+      agency: []
+    };
+    // DBに保存
+    const rows = [];
+    Object.entries(masters).forEach(([type, vals]) => vals.forEach(v => rows.push({ client_id: cid, type, value: v })));
+    if (rows.length) await sb.from('masters').insert(rows);
+  }
+  popSelects();
+}
+
+// ========================================
+// フォーム初期化
+// ========================================
+function initFormOptions() {
+  const bm = document.getElementById('fBM');
+  bm.innerHTML = '<option value="">月</option>';
+  for (let i = 1; i <= 12; i++) bm.innerHTML += `<option>${i}</option>`;
+  const bd = document.getElementById('fBD');
+  bd.innerHTML = '<option value="">日</option>';
+  for (let i = 1; i <= 31; i++) bd.innerHTML += `<option>${i}</option>`;
+  const ag = document.getElementById('fAg');
+  ag.innerHTML = '<option value="">選択</option>';
+  for (let i = 18; i <= 70; i++) ag.innerHTML += `<option>${i}歳</option>`;
+}
+
+function popSelects() {
+  const set = (id, key, blank) => {
+    const el = document.getElementById(id); if (!el) return;
+    el.innerHTML = `<option value="">${blank}</option>`;
+    masters[key].forEach(v => el.innerHTML += `<option>${v}</option>`);
+  };
+  set('fMed','media','選択'); set('fAg2','agency','選択'); set('fSt2','status','選択');
+  set('fSt','status','ステータス（全て）'); set('fMd','media','媒体（全て）');
+  const fj = document.getElementById('fJb');
+  const jobs = [...new Set(applicants.map(a => a.jobType).filter(Boolean))];
+  fj.innerHTML = '<option value="">職種（全て）</option>';
+  jobs.forEach(j => fj.innerHTML += `<option>${j}</option>`);
+}
+
+// ========================================
+// ナビ
+// ========================================
+function showSec(s) {
+  document.querySelectorAll('.sec').forEach(e => e.classList.remove('active'));
+  document.querySelectorAll('.nb').forEach(e => e.classList.remove('active'));
+  document.getElementById('sec-' + s).classList.add('active');
+  const navMap = { list: 0, add: 1, import: 2, analytics: 3, master: 4 };
+  if (navMap[s] !== undefined) document.querySelectorAll('.nb')[navMap[s]].classList.add('active');
+  if (s === 'list') { closeDetail(); renderList(); }
+  if (s === 'analytics') setPeriod('all');
+  if (s === 'master') renderManage();
+  if (s === 'admin') renderAdmin();
+  if (s === 'add' && !editId) resetForm();
+  if (s === 'import') cancelImport();
+}
+
+// ========================================
+// 書類
+// ========================================
+function addDoc() {
+  const type = document.getElementById('docType').value;
+  const name = document.getElementById('docName').value.trim();
+  const url = document.getElementById('docUrl').value.trim();
+  if (!url) { alert('URLを入力してください'); return; }
+  tempDocs.push({ type, name: name || type, url, id: Date.now() + '' });
+  document.getElementById('docName').value = '';
+  document.getElementById('docUrl').value = '';
+  renderDocList();
+}
+function removeDoc(id) { tempDocs = tempDocs.filter(d => d.id !== id); renderDocList(); }
+function renderDocList() {
+  const el = document.getElementById('docList');
+  el.innerHTML = tempDocs.map(d => `
+    <div class="doc-item">
+      <span class="badge bb">${d.type}</span>
+      <span style="flex:1;font-size:12px;">${d.name}</span>
+      <a href="${d.url}" target="_blank" style="font-size:11px;color:#378ADD;">開く</a>
+      <button class="btn-del" onclick="removeDoc('${d.id}')">削除</button>
+    </div>`).join('');
+}
+
+// ========================================
+// 一覧
+// ========================================
+function renderList() {
+  const q = (document.getElementById('srch').value || '').toLowerCase();
+  const fs = document.getElementById('fSt').value;
+  const fm = document.getElementById('fMd').value;
+  const fj = document.getElementById('fJb').value;
+  const fil = applicants.filter(a => {
+    if (q && !a.name.toLowerCase().includes(q) && !(a.email||'').toLowerCase().includes(q)) return false;
+    if (fs && a.status !== fs) return false;
+    if (fm && a.media !== fm) return false;
+    if (fj && a.jobType !== fj) return false;
+    return true;
+  });
+  document.getElementById('listCnt').textContent = fil.length + '件';
+  const tb = document.getElementById('listBody');
+  const em = document.getElementById('emptyList');
+  if (!fil.length) { tb.innerHTML = ''; em.style.display = 'block'; return; }
+  em.style.display = 'none';
+  tb.innerHTML = fil.map(a => {
+    const dc = (a.docs||[]).length;
+    return `<tr>
+      <td>${a.appDate||''}</td>
+      <td style="font-weight:500;">${a.name}</td>
+      <td>${a.jobType||''}</td>
+      <td>${a.media?`<span class="badge bb">${a.media}</span>`:''}</td>
+      <td>${a.status?`<span class="badge ${stColor(a.status)}">${a.status}</span>`:''}</td>
+      <td style="color:#888">${a.email||''}</td>
+      <td>${dc?`<span class="badge bgr">${dc}件</span>`:''}</td>
+      <td><button class="btn-sm" onclick="openDetail('${a.id}')">詳細</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function stColor(s) {
+  const m = {'内定':'bg','入社':'bt','不採用':'br','辞退':'bc','書類選考中':'bgr','最終選考':'ba'};
+  return m[s] || 'bb';
+}
+
+// ========================================
+// 詳細パネル
+// ========================================
+function openDetail(id) {
+  curId = id;
+  const a = applicants.find(x => x.id === id); if (!a) return;
+  document.getElementById('dpName').textContent = a.name + (a.kana ? ` (${a.kana})` : '');
+  const fields = [
+    ['応募日',a.appDate],['応募職種',a.jobType],['勤務地',a.location],
+    ['メール',a.email],['電話',a.tel],['性別',a.gender],
+    ['生年月日',a.birthdate],['年齢',a.age],
+    ['媒体',a.media],['人材紹介会社',a.agency],['ステータス',a.status],
+    ['コンタクト日',a.contactDate],
+    ['1次面接日時',a.int1Date],['1次面接結果',a.int1Res],
+    ['2次面接日時',a.int2Date],['2次面接結果',a.int2Res],
+    ['退職日',a.resignDate],['メモ',a.memo]
+  ].filter(r => r[1]);
+  const docsHtml = (a.docs||[]).length ? `
+    <div class="dp-row dp-docs">
+      <div class="dp-lbl">書類</div>
+      ${(a.docs||[]).map(d=>`
+        <div class="dp-doc-item">
+          <span class="badge bb">${d.type}</span>
+          <span style="flex:1;">${d.name}</span>
+          <a href="${d.url}" target="_blank" style="color:#378ADD;font-size:11px;">開く →</a>
+        </div>`).join('')}
+    </div>` : '';
+  document.getElementById('dpBody').innerHTML =
+    fields.map(r => `<div class="dp-row"><div class="dp-lbl">${r[0]}</div><div class="dp-val">${r[1]}</div></div>`).join('') + docsHtml;
+  const panel = document.getElementById('detailPanel');
+  panel.classList.add('open');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeDetail() { document.getElementById('detailPanel').classList.remove('open'); curId = null; }
+
+function editApp() {
+  const a = applicants.find(x => x.id === curId); if (!a) return;
+  closeDetail(); editId = a.id;
+  const map = {fAD:'appDate',fJT:'jobType',fLoc:'location',fNm:'name',fKn:'kana',fEm:'email',fTel:'tel',fGe:'gender',fAg:'age',fMed:'media',fAg2:'agency',fSt2:'status',fCD:'contactDate',fI1D:'int1Date',fI1R:'int1Res',fI2D:'int2Date',fI2R:'int2Res',fRD:'resignDate',fMemo:'memo'};
+  Object.entries(map).forEach(([fid,key])=>{ const el=document.getElementById(fid); if(el&&a[key]!=null)el.value=a[key]; });
+  if(a.birthYear) document.getElementById('fBY').value=a.birthYear;
+  if(a.birthMonth) document.getElementById('fBM').value=a.birthMonth;
+  if(a.birthDay) document.getElementById('fBD').value=a.birthDay;
+  tempDocs = [...(a.docs||[])];
+  renderDocList();
+  showSec('add');
+}
+
+async function delApp() {
+  if (!confirm('この応募者を削除しますか？')) return;
+  const { error } = await sb.from('applicants').delete().eq('id', curId);
+  if (error) { alert('削除に失敗しました: ' + error.message); return; }
+  applicants = applicants.filter(x => x.id !== curId);
+  closeDetail(); popSelects(); renderList();
+  setStatus('削除しました', 'ok');
+}
+
+// ========================================
+// 登録・更新
+// ========================================
+function resetForm() {
+  editId = null; tempDocs = [];
+  ['fAD','fJT','fLoc','fNm','fKn','fEm','fTel','fCD','fI1D','fI2D','fRD','fMemo','fBY'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['fGe','fAg','fMed','fAg2','fSt2','fBM','fBD','fI1R','fI2R'].forEach(id=>{const e=document.getElementById(id);if(e)e.selectedIndex=0;});
+  document.getElementById('fAD').value = new Date().toISOString().split('T')[0];
+  document.getElementById('docList').innerHTML='';
+  document.getElementById('docName').value=''; document.getElementById('docUrl').value='';
+}
+
+async function saveApp() {
+  const req = {fAD:'応募日',fJT:'応募職種',fNm:'名前',fKn:'ふりがな',fEm:'メールアドレス',fTel:'電話番号',fGe:'性別',fMed:'媒体名',fSt2:'ステータス'};
+  for (const [id,lbl] of Object.entries(req)) {
+    if (!document.getElementById(id).value) { alert(`「${lbl}」は必須項目です`); document.getElementById(id).focus(); return; }
+  }
+  const by=document.getElementById('fBY').value, bm=document.getElementById('fBM').value, bd=document.getElementById('fBD').value;
+  const cid = isAdmin ? (editId ? applicants.find(x=>x.id===editId)?.clientId || 'admin' : 'admin') : currentClientId;
+  const row = {
+    client_id: cid,
+    app_date: document.getElementById('fAD').value,
+    job_type: document.getElementById('fJT').value,
+    location: document.getElementById('fLoc').value,
+    name: document.getElementById('fNm').value,
+    kana: document.getElementById('fKn').value,
+    email: document.getElementById('fEm').value,
+    tel: document.getElementById('fTel').value,
+    gender: document.getElementById('fGe').value,
+    age: document.getElementById('fAg').value,
+    media: document.getElementById('fMed').value,
+    agency: document.getElementById('fAg2').value,
+    status: document.getElementById('fSt2').value,
+    contact_date: document.getElementById('fCD').value || null,
+    int1_date: document.getElementById('fI1D').value || null,
+    int1_result: document.getElementById('fI1R').value,
+    int2_date: document.getElementById('fI2D').value || null,
+    int2_result: document.getElementById('fI2R').value,
+    resign_date: document.getElementById('fRD').value || null,
+    memo: document.getElementById('fMemo').value,
+    birth_year: by || null, birth_month: bm || null, birth_day: bd || null,
+    birthdate: by&&bm&&bd ? `${by}年${bm}月${bd}日` : null,
+    docs: tempDocs
+  };
+  let error;
+  if (editId) {
+    ({ error } = await sb.from('applicants').update(row).eq('id', editId));
+  } else {
+    ({ error } = await sb.from('applicants').insert(row));
+  }
+  if (error) { alert('保存に失敗しました: ' + error.message); return; }
+  await loadApplicants();
+  popSelects(); resetForm(); editId=null;
+  setStatus('保存しました', 'ok');
+  showSec('list');
+}
+
+// ========================================
+// CSV出力
+// ========================================
+function exportCSV() {
+  const headers = ['応募日','応募職種','勤務地','名前','ふりがな','メール','電話','媒体','人材紹介会社','生年月日','年齢','性別','ステータス','コンタクト日','1次面接日時','1次面接結果','2次面接日時','2次面接結果','退職日','書類URL','メモ'];
+  const rows = applicants.map(a => [
+    a.appDate,a.jobType,a.location,a.name,a.kana,a.email,a.tel,
+    a.media,a.agency,a.birthdate,a.age,a.gender,a.status,
+    a.contactDate,a.int1Date,a.int1Res,a.int2Date,a.int2Res,a.resignDate,
+    (a.docs||[]).map(d=>`${d.name}:${d.url}`).join(' | '),a.memo
+  ].map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(','));
+  const csv = '\uFEFF' + headers.join(',') + '\n' + rows.join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=`採用コア_${currentClientName}_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+// ========================================
+// PDF出力
+// ========================================
+function exportPDF() {
+  const data=getAnData(), total=data.length;
+  const hired=data.filter(a=>a.status==='内定'||a.status==='入社').length;
+  const rate=total?Math.round(hired/total*100):0;
+  const from=document.getElementById('anFrom').value||'全期間';
+  const to=document.getElementById('anTo').value||new Date().toISOString().split('T')[0];
+  const mc={},jc={},sc={};
+  data.forEach(a=>{if(a.media)mc[a.media]=(mc[a.media]||0)+1;if(a.jobType)jc[a.jobType]=(jc[a.jobType]||0)+1;if(a.status)sc[a.status]=(sc[a.status]||0)+1;});
+  const mR=Object.entries(mc).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td align="right">${v}件</td><td align="right">${total?Math.round(v/total*100):0}%</td></tr>`).join('');
+  const jR=Object.entries(jc).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td align="right">${v}件</td></tr>`).join('');
+  const sR=Object.entries(sc).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td align="right">${v}件</td></tr>`).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>採用コア レポート</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#1a1a1a;margin:0;padding:32px;}h1{font-size:20px;font-weight:700;margin-bottom:4px;color:#185FA5;}.sub{font-size:11px;color:#888;margin-bottom:24px;}h2{font-size:13px;font-weight:600;margin:20px 0 8px;padding-bottom:5px;border-bottom:1.5px solid #e0e0e0;}.mg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}.mc{background:#f5f5f5;border-radius:6px;padding:12px;}.ml{font-size:10px;color:#888;margin-bottom:3px;}.mv{font-size:20px;font-weight:700;color:#185FA5;}table{width:100%;border-collapse:collapse;font-size:11px;}th{background:#f5f5f5;text-align:left;padding:7px 9px;font-weight:600;}td{padding:6px 9px;border-bottom:1px solid #f0f0f0;}.footer{margin-top:28px;font-size:10px;color:#aaa;text-align:right;}@media print{body{padding:20px;}}</style></head><body><h1>採用コア｜採用レポート</h1><div class="sub">クライアント：${currentClientName}　期間：${from}〜${to}　出力：${new Date().toLocaleDateString('ja-JP')}</div><h2>サマリー</h2><div class="mg"><div class="mc"><div class="ml">総応募数</div><div class="mv">${total}</div></div><div class="mc"><div class="ml">内定・入社</div><div class="mv">${hired}</div></div><div class="mc"><div class="ml">採用率</div><div class="mv">${rate}%</div></div><div class="mc"><div class="ml">媒体数</div><div class="mv">${Object.keys(mc).length}</div></div></div><h2>媒体別応募状況</h2><table><thead><tr><th>媒体名</th><th align="right">応募数</th><th align="right">構成比</th></tr></thead><tbody>${mR||'<tr><td colspan="3" style="color:#aaa">データなし</td></tr>'}</tbody></table><h2>職種別応募状況</h2><table><thead><tr><th>職種</th><th align="right">応募数</th></tr></thead><tbody>${jR||'<tr><td colspan="2" style="color:#aaa">データなし</td></tr>'}</tbody></table><h2>ステータス別進捗</h2><table><thead><tr><th>ステータス</th><th align="right">人数</th></tr></thead><tbody>${sR||'<tr><td colspan="2" style="color:#aaa">データなし</td></tr>'}</tbody></table><div class="footer">採用コア · ${new Date().toLocaleString('ja-JP')}</div><script>window.onload=function(){window.print();}<\/script></body></html>`;
+  window.open(URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'})),'_blank');
+}
+
+// ========================================
+// 分析
+// ========================================
+function getAnData() {
+  const from=document.getElementById('anFrom').value, to=document.getElementById('anTo').value;
+  return applicants.filter(a=>{ if(from&&a.appDate<from)return false; if(to&&a.appDate>to)return false; return true; });
+}
+function setPeriod(p) {
+  const now=new Date(); let from='',to=now.toISOString().split('T')[0];
+  if(p==='month')from=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];
+  else if(p==='quarter'){const d=new Date(now);d.setMonth(d.getMonth()-3);from=d.toISOString().split('T')[0];}
+  else if(p==='year'){const d=new Date(now);d.setFullYear(d.getFullYear()-1);from=d.toISOString().split('T')[0];}
+  document.getElementById('anFrom').value=from; document.getElementById('anTo').value=to; renderAn();
+}
+function setTab(t,btn){ anTab=t; document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderAn(); }
+function renderAn() {
+  const data=getAnData(),total=data.length;
+  const hired=data.filter(a=>a.status==='内定'||a.status==='入社').length;
+  const rate=total?Math.round(hired/total*100):0;
+  const active=data.filter(a=>a.status&&!['内定','入社','不採用','辞退'].includes(a.status)).length;
+  document.getElementById('anMetrics').innerHTML=`
+    <div class="mc"><div class="mc-lbl">総応募数</div><div class="mc-val">${total}</div></div>
+    <div class="mc"><div class="mc-lbl">内定・入社</div><div class="mc-val">${hired}</div></div>
+    <div class="mc"><div class="mc-lbl">採用率</div><div class="mc-val">${rate}%</div></div>
+    <div class="mc"><div class="mc-lbl">選考中</div><div class="mc-val">${active}</div></div>`;
+  if(anChart){anChart.destroy();anChart=null;}
+  const wrap=document.getElementById('anWrap'); wrap.innerHTML='';
+  if(!total){wrap.innerHTML='<div class="empty">この期間のデータがありません</div>';return;}
+  if(anTab==='media') doBarChart(data,wrap,'media','#378ADD');
+  else if(anTab==='job') doBarChart(data,wrap,'jobType','#1D9E75');
+  else if(anTab==='trend') doTrend(data,wrap);
+  else doFunnel(data,wrap);
+}
+function doBarChart(data,wrap,key,color){
+  const c={};data.forEach(a=>{if(a[key])c[a[key]]=(c[a[key]]||0)+1;});
+  const lbs=Object.keys(c).sort((a,b)=>c[b]-c[a]),vs=lbs.map(l=>c[l]);
+  const h=Math.max(lbs.length*42+80,140);
+  wrap.innerHTML=`<div style="position:relative;width:100%;height:${h}px;"><canvas id="anC" role="img" aria-label="グラフ">グラフ</canvas></div>`;
+  anChart=new Chart(document.getElementById('anC'),{type:'bar',data:{labels:lbs,datasets:[{data:vs,backgroundColor:color,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{stepSize:1,callback:v=>Math.round(v)},grid:{color:'rgba(0,0,0,.04)'}},y:{grid:{display:false}}}}});
+}
+function doTrend(data,wrap){
+  const m={};data.forEach(a=>{if(a.appDate){const k=a.appDate.substring(0,7);m[k]=(m[k]||0)+1;}});
+  const lbs=Object.keys(m).sort(),vs=lbs.map(l=>m[l]);
+  wrap.innerHTML=`<div style="position:relative;width:100%;height:240px;"><canvas id="anC" role="img" aria-label="月次トレンド">月次トレンド</canvas></div>`;
+  anChart=new Chart(document.getElementById('anC'),{type:'line',data:{labels:lbs,datasets:[{data:vs,borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.07)',tension:0.3,fill:true,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,callback:v=>Math.round(v)},grid:{color:'rgba(0,0,0,.04)'}},x:{grid:{display:false},ticks:{autoSkip:false,maxRotation:45}}}}});
+}
+function doFunnel(data,wrap){
+  const order=['書類選考中','1次面接調整','1次面接済','2次面接調整','2次面接済','最終選考','内定','入社'];
+  const vs=order.map(s=>data.filter(a=>a.status===s).length);
+  const colors=['#B4B2A9','#85B7EB','#5DCAA5','#378ADD','#1D9E75','#EF9F27','#639922','#0F6E56'];
+  wrap.innerHTML=`<div style="position:relative;width:100%;height:${Math.max(order.length*42+80,180)}px;"><canvas id="anC" role="img" aria-label="ファネル">ファネル</canvas></div>`;
+  anChart=new Chart(document.getElementById('anC'),{type:'bar',data:{labels:order,datasets:[{data:vs,backgroundColor:colors,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{stepSize:1,callback:v=>Math.round(v)},grid:{color:'rgba(0,0,0,.04)'}},y:{grid:{display:false}}}}});
+}
+
+// ========================================
+// マスター管理
+// ========================================
+function renderManage(){
+  const map={media:'mlMed',status:'mlSt',agency:'mlAg'};
+  Object.entries(map).forEach(([key,id])=>{
+    document.getElementById(id).innerHTML=masters[key].map((v,i)=>`<li>${v}<button class="btn-del" onclick="delM('${key}',${i})">削除</button></li>`).join('');
+  });
+}
+async function addM(key){
+  const idMap={media:'miMed',status:'miSt',agency:'miAg'};
+  const el=document.getElementById(idMap[key]);
+  const v=el.value.trim(); if(!v)return;
+  if(masters[key].includes(v))return alert('すでに存在します');
+  const cid=isAdmin?'admin':currentClientId;
+  const {error}=await sb.from('masters').insert({client_id:cid,type:key,value:v});
+  if(error){alert('追加に失敗しました');return;}
+  masters[key].push(v); el.value='';
+  renderManage(); popSelects();
+}
+async function delM(key,i){
+  if(!confirm('削除しますか？'))return;
+  const v=masters[key][i];
+  const cid=isAdmin?'admin':currentClientId;
+  await sb.from('masters').delete().eq('client_id',cid).eq('type',key).eq('value',v);
+  masters[key].splice(i,1);
+  renderManage(); popSelects();
+}
+async function chgPw(){
+  const a=document.getElementById('np1').value, b=document.getElementById('np2').value;
+  if(!a||a!==b)return alert('パスワードが一致しません');
+  if(isAdmin){
+    await sb.from('system_config').upsert({key:'admin_pw',value:a});
+  } else {
+    await sb.from('clients').update({password:a}).eq('client_id',currentClientId);
+  }
+  document.getElementById('pwOk').style.display='inline';
+  setTimeout(()=>document.getElementById('pwOk').style.display='none',2000);
+}
+
+// ========================================
+// クライアント管理
+// ========================================
+async function renderAdmin(){
+  const {data}=await sb.from('clients').select('*').order('created_at',{ascending:true});
+  clients=data||[];
+  const tb=document.getElementById('clientTableBody');
+  if(!clients.length){tb.innerHTML=`<tr><td colspan="5" style="text-align:center;color:#aaa;padding:1.5rem;font-size:12px;">クライアントがまだいません</td></tr>`;return;}
+  tb.innerHTML=clients.map((c,i)=>`<tr>
+    <td style="font-weight:500;">${c.name}</td>
+    <td><code style="background:#f8f8f7;padding:2px 7px;border-radius:4px;font-size:11px;">${c.client_id}</code></td>
+    <td style="font-size:11px;color:#888;">${c.password}</td>
+    <td><span id="cnt_${c.client_id}" class="badge bgr">—</span></td>
+    <td><button class="btn-del" onclick="delClient('${c.client_id}')">削除</button></td>
+  </tr>`).join('');
+  // 応募者数カウント
+  clients.forEach(async c=>{
+    const {count}=await sb.from('applicants').select('id',{count:'exact',head:true}).eq('client_id',c.client_id);
+    const el=document.getElementById('cnt_'+c.client_id);
+    if(el)el.textContent=`${count||0}件`;
+  });
+}
+async function addClient(){
+  const name=document.getElementById('newCName').value.trim();
+  const id=document.getElementById('newCId').value.trim();
+  const pw=document.getElementById('newCPw').value.trim();
+  if(!name||!id||!pw){alert('クライアント名・ID・パスワードを入力してください');return;}
+  if(id==='admin'){alert('adminは使用できません');return;}
+  const {error}=await sb.from('clients').insert({name,client_id:id,password:pw});
+  if(error){alert('追加に失敗しました。IDが重複している可能性があります。');return;}
+  document.getElementById('newCName').value='';
+  document.getElementById('newCId').value='';
+  document.getElementById('newCPw').value='';
+  renderAdmin();
+}
+async function delClient(id){
+  const c=clients.find(x=>x.client_id===id);
+  if(!confirm(`クライアント「${c?.name}」を削除しますか？\n※このクライアントの応募者データは残ります`))return;
+  await sb.from('clients').delete().eq('client_id',id);
+  renderAdmin();
+}
+
+// ========================================
+// 一括取り込み
+// ========================================
+
+// CSVヘッダー定義（テンプレート用）
+const CSV_HEADERS = [
+  '応募日★','応募職種★','勤務地','名前★','ふりがな★','メールアドレス★',
+  '電話番号★','媒体名★','人材紹介会社','生年月日_年','生年月日_月','生年月日_日',
+  '年齢','性別★','ステータス★','コンタクト日','1次面接日時','1次面接結果',
+  '2次面接日時','2次面接結果','退職日','書類タイプ1','書類名1','書類URL1',
+  '書類タイプ2','書類名2','書類URL2','メモ'
+];
+
+let importRows = []; // パース済み取り込みデータ
+
+function downloadTemplate() {
+  // サンプル行を1行入れる
+  const sample = [
+    '2024-04-01','営業','東京','山田 太郎','やまだ たろう','yamada@example.com',
+    '090-0000-0000','Indeed','','1990','4','1',
+    '34歳','男性','書類選考中','2024-04-02','','',
+    '','','','履歴書','山田太郎_履歴書','https://drive.google.com/...',
+    '職務経歴書','山田太郎_職歴書','https://drive.google.com/...','面接調整中'
+  ];
+  const rows = [CSV_HEADERS.join(','), sample.map(v => `"${v}"`).join(',')];
+  const csv = '\uFEFF' + rows.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '採用コア_取り込みテンプレート.csv';
+  a.click();
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').style.borderColor = '#ddd';
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.csv')) handleCSVFile(file);
+  else alert('.csvファイルを選択してください');
+}
+
+function handleCSVFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => parseCSV(e.target.result);
+  reader.readAsText(file, 'UTF-8');
+}
+
+function parseCSV(text) {
+  // BOM除去
+  const clean = text.replace(/^\uFEFF/, '');
+  const lines = clean.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) { alert('データが1件もありません'); return; }
+
+  // CSVパーサー（ダブルクォート対応）
+  function parseLine(line) {
+    const result = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if (c === ',' && !inQ) { result.push(cur); cur = ''; }
+      else cur += c;
+    }
+    result.push(cur);
+    return result;
+  }
+
+  const headers = parseLine(lines[0]).map(h => h.trim());
+  const dataLines = lines.slice(1);
+  const errors = [];
+  importRows = [];
+
+  dataLines.forEach((line, idx) => {
+    const vals = parseLine(line);
+    const get = (col) => (vals[headers.indexOf(col)] || '').trim();
+    const rowNum = idx + 2; // 2行目から
+
+    // 必須チェック
+    const reqFields = ['応募日★','応募職種★','名前★','ふりがな★','メールアドレス★','電話番号★','媒体名★','性別★','ステータス★'];
+    const missing = reqFields.filter(f => !get(f));
+    if (missing.length) {
+      errors.push(`${rowNum}行目：必須項目が不足（${missing.map(f=>f.replace('★','')).join('、')}）`);
+      return;
+    }
+
+    // 書類リスト生成
+    const docs = [];
+    for (let i = 1; i <= 2; i++) {
+      const url = get(`書類URL${i}`);
+      if (url && url !== 'https://drive.google.com/...') {
+        docs.push({ id: Date.now()+Math.random()+'', type: get(`書類タイプ${i}`) || 'その他', name: get(`書類名${i}`) || `書類${i}`, url });
+      }
+    }
+    const by = get('生年月日_年'), bm = get('生年月日_月'), bd = get('生年月日_日');
+
+    importRows.push({
+      appDate: get('応募日★'), jobType: get('応募職種★'), location: get('勤務地'),
+      name: get('名前★'), kana: get('ふりがな★'), email: get('メールアドレス★'),
+      tel: get('電話番号★'), media: get('媒体名★'), agency: get('人材紹介会社'),
+      birthYear: by, birthMonth: bm, birthDay: bd,
+      birthdate: by&&bm&&bd ? `${by}年${bm}月${bd}日` : '',
+      age: get('年齢'), gender: get('性別★'), status: get('ステータス★'),
+      contactDate: get('コンタクト日'), int1Date: get('1次面接日時'), int1Res: get('1次面接結果'),
+      int2Date: get('2次面接日時'), int2Res: get('2次面接結果'),
+      resignDate: get('退職日'), memo: get('メモ'), docs
+    });
+  });
+
+  showPreview(errors);
+}
+
+function showPreview(errors) {
+  const preview = document.getElementById('importPreview');
+  const errEl = document.getElementById('importErrors');
+  const btn = document.getElementById('importBtn');
+
+  if (errors.length) {
+    errEl.style.display = 'block';
+    errEl.innerHTML = '<strong>⚠ 以下の行にエラーがあります（エラー行は除いて登録されます）</strong><br>' + errors.join('<br>');
+  } else {
+    errEl.style.display = 'none';
+  }
+
+  document.getElementById('previewCount').textContent = `${importRows.length}件が登録されます`;
+  btn.disabled = importRows.length === 0;
+
+  // テーブルヘッダー
+  const showCols = ['応募日','名前','ふりがな','媒体','職種','ステータス','性別','メール','書類'];
+  document.getElementById('previewHead').innerHTML = '<tr>' + showCols.map(h => `<th style="text-align:left;padding:6px 8px;font-size:10px;font-weight:600;color:#aaa;border-bottom:1px solid #f0f0ee;white-space:nowrap;">${h}</th>`).join('') + '</tr>';
+
+  document.getElementById('previewBody').innerHTML = importRows.map(r => `<tr>
+    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;">${r.appDate}</td>
+    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;font-weight:500;">${r.name}</td>
+    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;color:#888;">${r.kana}</td>
+    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;"><span class="badge bb">${r.media}</span></td>
+    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;">${r.jobType}</td>
+    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;"><span class="badge ${stColor(r.status)}">${r.status}</span></td>
+    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;">${r.gender}</td>
+    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;color:#888;font-size:11px;">${r.email}</td>
+    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;">${r.docs.length ? `<span class="badge bgr">${r.docs.length}件</span>` : ''}</td>
+  </tr>`).join('');
+
+  preview.style.display = 'block';
+  preview.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function doImport() {
+  const btn = document.getElementById('importBtn');
+  btn.disabled = true;
+  btn.textContent = '登録中...';
+  const cid = isAdmin ? 'admin' : currentClientId;
+
+  const rows = importRows.map(r => ({
+    client_id: cid,
+    app_date: r.appDate || null,
+    job_type: r.jobType, location: r.location,
+    name: r.name, kana: r.kana, email: r.email, tel: r.tel,
+    gender: r.gender, age: r.age, media: r.media, agency: r.agency,
+    status: r.status,
+    contact_date: r.contactDate || null,
+    int1_date: r.int1Date || null, int1_result: r.int1Res,
+    int2_date: r.int2Date || null, int2_result: r.int2Res,
+    resign_date: r.resignDate || null, memo: r.memo,
+    birth_year: r.birthYear || null, birth_month: r.birthMonth || null,
+    birth_day: r.birthDay || null, birthdate: r.birthdate || null,
+    docs: r.docs
+  }));
+
+  // 50件ずつ分割してInsert
+  const chunkSize = 50;
+  let successCount = 0;
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize);
+    const { error } = await sb.from('applicants').insert(chunk);
+    if (error) { alert(`登録中にエラーが発生しました（${i+1}〜${i+chunk.length}件目）:\n${error.message}`); break; }
+    successCount += chunk.length;
+    btn.textContent = `登録中... ${successCount}/${rows.length}件`;
+  }
+
+  await loadApplicants();
+  popSelects();
+  cancelImport();
+  setStatus(`${successCount}件の応募者を一括登録しました`, 'ok');
+  showSec('list');
+}
+
+function cancelImport() {
+  importRows = [];
+  document.getElementById('importPreview').style.display = 'none';
+  document.getElementById('importErrors').style.display = 'none';
+  document.getElementById('csvFileInput').value = '';
+  document.getElementById('importBtn').textContent = 'この内容で一括登録する';
+  document.getElementById('importBtn').disabled = false;
+}
+</script>
+</body>
+</html>
