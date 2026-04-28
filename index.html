@@ -259,15 +259,22 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
     <div id="sec-list" class="sec">
       <div class="list-top">
         <div class="sr-row">
-          <input type="text" id="srch" placeholder="名前・メール検索" style="width:130px;" oninput="renderList()">
+          <input type="text" id="srch" placeholder="名前・メール検索" style="width:120px;" oninput="renderList()">
           <select id="fSt" onchange="renderList()"><option value="">ステータス（全て）</option></select>
           <select id="fMd" onchange="renderList()"><option value="">媒体（全て）</option></select>
           <select id="fJb" onchange="renderList()"><option value="">職種（全て）</option></select>
           <select id="fDept" onchange="renderList()"><option value="">部署（全て）</option></select>
           <select id="fHire" onchange="renderList()"><option value="">採用可否（全て）</option></select>
         </div>
-        <div style="display:flex;gap:5px;align-items:center;">
-          <span id="listCnt" style="font-size:10px;color:#aaa;"></span>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;">
+          <span style="font-size:11px;color:#aaa;">応募日：</span>
+          <input type="date" id="fDateFrom" onchange="renderList()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;">
+          <span style="font-size:11px;color:#aaa;">〜</span>
+          <input type="date" id="fDateTo" onchange="renderList()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;">
+          <button class="btn-sm" onclick="clearDateFilter()">期間クリア</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span id="listCnt" style="font-size:13px;font-weight:600;color:#1a1a1a;"></span>
           <button class="btn-exp" onclick="exportCSV()">CSV出力</button>
         </div>
       </div>
@@ -799,6 +806,12 @@ function renderDocList() {
 // ========================================
 // 一覧
 // ========================================
+function clearDateFilter() {
+  document.getElementById('fDateFrom').value = '';
+  document.getElementById('fDateTo').value = '';
+  renderList();
+}
+
 let sortKeys = [{ key: 'appDate', dir: -1 }];
 function toggleSort(key) {
   const existing = sortKeys.find(s => s.key === key);
@@ -823,6 +836,8 @@ function renderList() {
   const fj = document.getElementById('fJb').value;
   const fd = document.getElementById('fDept') ? document.getElementById('fDept').value : '';
   const fh = document.getElementById('fHire') ? document.getElementById('fHire').value : '';
+  const fDateFrom = document.getElementById('fDateFrom') ? document.getElementById('fDateFrom').value : '';
+  const fDateTo = document.getElementById('fDateTo') ? document.getElementById('fDateTo').value : '';
   let fil = applicants.filter(a => {
     if (q && !a.name.toLowerCase().includes(q) && !(a.email||'').toLowerCase().includes(q)) return false;
     if (fs && a.status !== fs) return false;
@@ -830,6 +845,8 @@ function renderList() {
     if (fj && a.jobType !== fj) return false;
     if (fd && a.dept !== fd) return false;
     if (fh && a.hireStatus !== fh) return false;
+    if (fDateFrom && a.appDate && a.appDate < fDateFrom) return false;
+    if (fDateTo && a.appDate && a.appDate > fDateTo) return false;
     return true;
   });
   fil.sort((a,b) => {
@@ -840,7 +857,7 @@ function renderList() {
     }
     return 0;
   });
-  document.getElementById('listCnt').textContent = fil.length + '件';
+  document.getElementById('listCnt').textContent = fil.length + '件' + (fil.length !== applicants.length ? ' / 全'+applicants.length+'件' : '');
   const tb = document.getElementById('listBody');
   const em = document.getElementById('emptyList');
   if (!fil.length) { tb.innerHTML = ''; em.style.display = 'block'; return; }
@@ -893,11 +910,16 @@ function stColor(s) {
 async function updateHireStatus(id, val) {
   const { error } = await sb.from('applicants').update({ hire_status: val }).eq('id', id);
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
-  // ローカル状態を更新
   const a = applicants.find(x => x.id === id);
   if (a) a.hireStatus = val;
   setStatus('採用可否を更新しました', 'ok');
-  // ダッシュボードが表示中なら再描画
+  // 行の背景色だけ更新（並び順を変えない）
+  const hireOk = ['内定','内定承諾','採用'].includes(val);
+  const hireNg = val === '不採用';
+  const rowEl = document.getElementById('row_'+id);
+  if (rowEl) {
+    rowEl.style.background = hireOk ? 'linear-gradient(90deg,#fff0f5,#fff5f8)' : hireNg ? 'linear-gradient(90deg,#eef4ff,#f0f6ff)' : '';
+  }
   if (document.getElementById('sec-dashboard').classList.contains('active')) renderDashboard();
 }
 
@@ -915,7 +937,13 @@ async function updateStatus(id, val) {
   const a = applicants.find(x => x.id === id);
   if (a) a.status = val;
   setStatus('ステータスを更新しました', 'ok');
-  renderList();
+  // 不採用の場合は行色も更新（並び順は変えない）
+  const hireNg = val === '不採用' || (a && a.hireStatus === '不採用');
+  const rowEl = document.getElementById('row_'+id);
+  if (rowEl) {
+    const hireOk = a && ['内定','内定承諾','採用'].includes(a.hireStatus);
+    rowEl.style.background = hireOk ? 'linear-gradient(90deg,#fff0f5,#fff5f8)' : (val === '不採用' || hireNg) ? 'linear-gradient(90deg,#eef4ff,#f0f6ff)' : '';
+  }
   if (document.getElementById('sec-dashboard').classList.contains('active')) renderDashboard();
 }
 
@@ -1730,7 +1758,13 @@ function renderTaskRow(task, compact=false) {
     <span class="badge ${task.priority==='高'?'br':task.priority==='低'?'bg':'bgr'}" style="flex-shrink:0;">${task.priority||'中'}</span>
     ${task.done
       ? `<span class="badge bt" style="flex-shrink:0;">✓ 完了 ${task.doneDate||''}</span>`
-      : `<button class="btn-sm" style="background:#f0faf6;color:#3B6D11;border-color:#c8e6c9;flex-shrink:0;" onclick="completeTask('${task.id}')">完了</button>`}
+      : `<div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+          <button class="btn-sm" style="background:#f0faf6;color:#3B6D11;border-color:#c8e6c9;" onclick="showCompleteInput('${task.id}')">完了</button>
+          <div id="complete_${task.id}" style="display:none;align-items:center;gap:4px;">
+            <input type="date" id="cdate_${task.id}" value="${new Date().toISOString().split('T')[0]}" style="padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;">
+            <button class="btn-sm" style="background:#f0faf6;color:#3B6D11;border-color:#c8e6c9;" onclick="confirmComplete('${task.id}', document.getElementById('cdate_${task.id}').value)">確定</button>
+          </div>
+        </div>`}
     ${!compact ? `<button class="btn-del" style="flex-shrink:0;" onclick="deleteTask('${task.id}')">削除</button>` : ''}
   </div>`;
 }
@@ -1769,13 +1803,31 @@ function renderTasks() {
 }
 
 async function completeTask(id) {
-  const date = prompt('完了日を入力（例: 2025-04-29）', new Date().toISOString().split('T')[0]);
-  if (date === null) return;
+  const today = new Date().toISOString().split('T')[0];
+  // インラインで完了日入力UIを表示
+  const el = document.getElementById('complete_'+id);
+  if (el) { el.style.display = el.style.display === 'none' ? 'flex' : 'none'; return; }
   const t = tasks.find(x => x.id === id);
-  if (t) { t.done = true; t.doneDate = date || new Date().toISOString().split('T')[0]; }
+  if (!t) return;
+  t.done = true; t.doneDate = today;
   await saveTasksData();
   renderTasks();
   if (document.getElementById('sec-minutes').classList.contains('active')) renderMinutes();
+}
+
+function showCompleteInput(id) {
+  const el = document.getElementById('complete_'+id);
+  if (el) el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+}
+
+async function confirmComplete(id, dateVal) {
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  t.done = true; t.doneDate = dateVal || new Date().toISOString().split('T')[0];
+  await saveTasksData();
+  renderTasks();
+  if (document.getElementById('sec-minutes').classList.contains('active')) renderMinutes();
+  setStatus('タスクを完了しました', 'ok');
 }
 
 async function deleteTask(id) {
