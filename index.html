@@ -149,8 +149,8 @@ tr:hover td{background:#fafafa;}
 
 <!-- ===== Supabase設定（ここを書き換える） ===== -->
 <script>
-const SUPABASE_URL = 'https://jhnxvcqgwpidkfteqkdr.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impobnh2Y3Fnd3BpZGtmdGVxa2RyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNjU2ODgsImV4cCI6MjA5Mjk0MTY4OH0.oWHIJOQM-ktOlHayj19OiC2lEqP47keTl4q3CS4zUlY';
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';      // ← 後で書き換え
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; // ← 後で書き換え
 </script>
 
 <!-- ===== ログイン画面 ===== -->
@@ -181,7 +181,8 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
       </div>
       <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
         <nav class="nav" id="mainNav">
-          <button class="nb active" onclick="showSec('list')">一覧</button>
+          <button class="nb active" onclick="showSec('dashboard')">ダッシュボード</button>
+          <button class="nb" onclick="showSec('list')">一覧</button>
           <button class="nb" onclick="showSec('add')">新規登録</button>
           <button class="nb" onclick="showSec('import')">一括取り込み</button>
           <button class="nb" onclick="showSec('analytics')">分析</button>
@@ -193,8 +194,34 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
     </div>
     <div class="status-bar" id="statusBar"></div>
 
+    <!-- ダッシュボード -->
+    <div id="sec-dashboard" class="sec active">
+      <div style="margin-bottom:1.25rem;">
+        <div style="font-size:11px;color:#aaa;" id="dashDate"></div>
+        <h2 style="font-size:16px;font-weight:600;margin-top:2px;" id="dashGreet"></h2>
+      </div>
+
+      <!-- KPIカード -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1.5rem;" id="dashKpi"></div>
+
+      <!-- TODOカード -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1.5rem;" id="dashTodo"></div>
+
+      <!-- 直近の応募者 -->
+      <div style="margin-bottom:.5rem;display:flex;align-items:center;justify-content:space-between;">
+        <strong style="font-size:12px;">直近の応募者</strong>
+        <button class="btn-sm" onclick="showSec('list')">全件表示 →</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>応募日</th><th>名前</th><th>職種</th><th>媒体</th><th>ステータス</th><th></th></tr></thead>
+          <tbody id="dashRecentBody"></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- 一覧 -->
-    <div id="sec-list" class="sec active">
+    <div id="sec-list" class="sec">
       <div class="list-top">
         <div class="sr-row">
           <input type="text" id="srch" placeholder="名前・メール検索" style="width:140px;" oninput="renderList()">
@@ -482,7 +509,7 @@ async function startApp() {
   initFormOptions();
   await loadMasters();
   await loadApplicants();
-  renderList();
+  renderDashboard();
 }
 
 function doLogout() {
@@ -579,8 +606,9 @@ function showSec(s) {
   document.querySelectorAll('.sec').forEach(e => e.classList.remove('active'));
   document.querySelectorAll('.nb').forEach(e => e.classList.remove('active'));
   document.getElementById('sec-' + s).classList.add('active');
-  const navMap = { list: 0, add: 1, import: 2, analytics: 3, master: 4 };
+  const navMap = { dashboard: 0, list: 1, add: 2, import: 3, analytics: 4, master: 5 };
   if (navMap[s] !== undefined) document.querySelectorAll('.nb')[navMap[s]].classList.add('active');
+  if (s === 'dashboard') renderDashboard();
   if (s === 'list') { closeDetail(); renderList(); }
   if (s === 'analytics') setPeriod('all');
   if (s === 'master') renderManage();
@@ -939,6 +967,100 @@ async function delClient(id){
   if(!confirm(`クライアント「${c?.name}」を削除しますか？\n※このクライアントの応募者データは残ります`))return;
   await sb.from('clients').delete().eq('client_id',id);
   renderAdmin();
+}
+
+
+// ========================================
+// ダッシュボード
+// ========================================
+function renderDashboard() {
+  const now = new Date();
+  const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+  const monthAgo = new Date(now); monthAgo.setMonth(monthAgo.getMonth() - 1);
+  const toStr = d => d.toISOString().split('T')[0];
+
+  // 挨拶
+  const h = now.getHours();
+  const greet = h < 12 ? 'おはようございます' : h < 18 ? 'こんにちは' : 'お疲れ様です';
+  document.getElementById('dashGreet').textContent = greet + '、' + currentClientName + ' さん';
+  document.getElementById('dashDate').textContent = now.toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+
+  // KPI
+  const total = applicants.length;
+  const inProgress = applicants.filter(a => a.status && !['内定','入社','不採用','辞退'].includes(a.status)).length;
+  const hired = applicants.filter(a => a.status === '内定' || a.status === '入社').length;
+  const rate = total ? Math.round(hired / total * 100) : 0;
+  const thisMonth = applicants.filter(a => a.appDate && a.appDate >= toStr(monthAgo)).length;
+
+  document.getElementById('dashKpi').innerHTML = `
+    <div class="mc" style="border-left:3px solid #378ADD;">
+      <div class="mc-lbl">総応募数</div><div class="mc-val">${total}</div><div class="mc-sub">累計</div>
+    </div>
+    <div class="mc" style="border-left:3px solid #1D9E75;">
+      <div class="mc-lbl">選考中</div><div class="mc-val">${inProgress}</div><div class="mc-sub">名</div>
+    </div>
+    <div class="mc" style="border-left:3px solid #639922;">
+      <div class="mc-lbl">内定・入社</div><div class="mc-val">${hired}</div><div class="mc-sub">名</div>
+    </div>
+    <div class="mc" style="border-left:3px solid #EF9F27;">
+      <div class="mc-lbl">採用率</div><div class="mc-val">${rate}%</div><div class="mc-sub">累計</div>
+    </div>
+    <div class="mc" style="border-left:3px solid #85B7EB;">
+      <div class="mc-lbl">今月の応募</div><div class="mc-val">${thisMonth}</div><div class="mc-sub">件</div>
+    </div>`;
+
+  // TODOカード
+  const uncontacted = applicants.filter(a => a.status === '未対応').length;
+  const int1Soon = applicants.filter(a => a.status === '1次面接調整' || a.status === '1次面接済').length;
+  const int2Soon = applicants.filter(a => a.status === '2次面接調整' || a.status === '2次面接済').length;
+  const newThisWeek = applicants.filter(a => a.appDate && a.appDate >= toStr(weekAgo)).length;
+  const newThisMonth = applicants.filter(a => a.appDate && a.appDate >= toStr(monthAgo)).length;
+  const offer = applicants.filter(a => a.status === '内定').length;
+
+  const todoItems = [
+    { label: '未コンタクト（未対応）', count: uncontacted, color: '#D85A30', bg: '#FFF3F0', action: "filterAndGo('未対応')" },
+    { label: '1次面接 関連', count: int1Soon, color: '#378ADD', bg: '#E6F1FB', action: "filterAndGo('1次面接調整')" },
+    { label: '2次面接 関連', count: int2Soon, color: '#185FA5', bg: '#dce8f7', action: "filterAndGo('2次面接調整')" },
+    { label: '内定者', count: offer, color: '#3B6D11', bg: '#EAF3DE', action: "filterAndGo('内定')" },
+    { label: '今週の新規応募', count: newThisWeek, color: '#854F0B', bg: '#FAEEDA', action: "showSec('list')" },
+    { label: '今月の新規応募', count: newThisMonth, color: '#5F5E5A', bg: '#F1EFE8', action: "showSec('list')" },
+  ];
+
+  document.getElementById('dashTodo').innerHTML = todoItems.map(t => `
+    <div onclick="${t.action}" style="background:${t.bg};border-radius:10px;padding:1rem 1.125rem;cursor:pointer;transition:opacity .15s;display:flex;align-items:center;justify-content:space-between;" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+      <div>
+        <div style="font-size:11px;color:${t.color};font-weight:500;margin-bottom:4px;">${t.label}</div>
+        <div style="font-size:26px;font-weight:700;color:${t.color};">${t.count}<span style="font-size:13px;margin-left:3px;">名</span></div>
+      </div>
+      <div style="font-size:18px;color:${t.color};opacity:.4;">→</div>
+    </div>`).join('');
+
+  // 直近10件
+  const recent = [...applicants].sort((a,b) => b.appDate > a.appDate ? 1 : -1).slice(0, 10);
+  const tb = document.getElementById('dashRecentBody');
+  if (!recent.length) {
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:#aaa;font-size:12px;">応募者データがありません</td></tr>';
+    return;
+  }
+  tb.innerHTML = recent.map(a => `<tr>
+    <td>${a.appDate||''}</td>
+    <td style="font-weight:500;">${a.name}</td>
+    <td>${a.jobType||''}</td>
+    <td>${a.media?`<span class="badge bb">${a.media}</span>`:''}</td>
+    <td>${a.status?`<span class="badge ${stColor(a.status)}">${a.status}</span>`:''}</td>
+    <td><button class="btn-sm" onclick="openDetailFromDash('${a.id}')">詳細</button></td>
+  </tr>`).join('');
+}
+
+function filterAndGo(status) {
+  showSec('list');
+  document.getElementById('fSt').value = status;
+  renderList();
+}
+
+function openDetailFromDash(id) {
+  showSec('list');
+  setTimeout(() => openDetail(id), 100);
 }
 
 // ========================================
