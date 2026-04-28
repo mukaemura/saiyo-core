@@ -708,7 +708,12 @@ function renderList() {
       <td>${a.dept||''}</td>
       <td>${a.media?`<span class="badge bb">${a.media}</span>`:''}</td>
       <td>${a.status?`<span class="badge ${stColor(a.status)}">${a.status}</span>`:''}</td>
-      <td>${a.hireStatus?`<span class="badge ${hireColor}">${a.hireStatus}</span>`:''}</td>
+      <td onclick="event.stopPropagation()">
+        <select onchange="updateHireStatus('${a.id}', this.value)" style="padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;background:#fafafa;color:#1a1a1a;cursor:pointer;" onclick="event.stopPropagation()">
+          <option value="">-</option>
+          ${(masters.hire||['内定','内定承諾','採用','不採用','保留']).map(h=>`<option value="${h}" ${a.hireStatus===h?'selected':''}>${h}</option>`).join('')}
+        </select>
+      </td>
       <td>${dc?`<span class="badge bgr">${dc}件</span>`:''}</td>
       <td><button class="btn-sm" onclick="openDetail('${a.id}')">詳細</button></td>
     </tr>
@@ -719,6 +724,17 @@ function renderList() {
 function stColor(s) {
   const m = {'内定':'bg','入社':'bt','不採用':'br','辞退':'bc','書類選考中':'bgr','最終選考':'ba'};
   return m[s] || 'bb';
+}
+
+async function updateHireStatus(id, val) {
+  const { error } = await sb.from('applicants').update({ hire_status: val }).eq('id', id);
+  if (error) { alert('更新に失敗しました: ' + error.message); return; }
+  // ローカル状態を更新
+  const a = applicants.find(x => x.id === id);
+  if (a) a.hireStatus = val;
+  setStatus('採用可否を更新しました', 'ok');
+  // ダッシュボードが表示中なら再描画
+  if (document.getElementById('sec-dashboard').classList.contains('active')) renderDashboard();
 }
 
 // ========================================
