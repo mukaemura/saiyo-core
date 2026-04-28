@@ -149,8 +149,8 @@ tr:hover td{background:#fafafa;}
 
 <!-- ===== Supabase設定（ここを書き換える） ===== -->
 <script>
-const SUPABASE_URL = 'https://jhnxvcqgwpidkfteqkdr.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impobnh2Y3Fnd3BpZGtmdGVxa2RyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNjU2ODgsImV4cCI6MjA5Mjk0MTY4OH0.oWHIJOQM-ktOlHayj19OiC2lEqP47keTl4q3CS4zUlY';
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';      // ← 後で書き換え
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; // ← 後で書き換え
 </script>
 
 <!-- ===== ログイン画面 ===== -->
@@ -224,10 +224,12 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
     <div id="sec-list" class="sec">
       <div class="list-top">
         <div class="sr-row">
-          <input type="text" id="srch" placeholder="名前・メール検索" style="width:140px;" oninput="renderList()">
+          <input type="text" id="srch" placeholder="名前・メール検索" style="width:130px;" oninput="renderList()">
           <select id="fSt" onchange="renderList()"><option value="">ステータス（全て）</option></select>
           <select id="fMd" onchange="renderList()"><option value="">媒体（全て）</option></select>
           <select id="fJb" onchange="renderList()"><option value="">職種（全て）</option></select>
+          <select id="fDept" onchange="renderList()"><option value="">部署（全て）</option></select>
+          <select id="fHire" onchange="renderList()"><option value="">採用可否（全て）</option></select>
         </div>
         <div style="display:flex;gap:5px;align-items:center;">
           <span id="listCnt" style="font-size:10px;color:#aaa;"></span>
@@ -236,7 +238,17 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
       </div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>応募日</th><th>名前</th><th>職種</th><th>媒体</th><th>ステータス</th><th>メール</th><th>書類</th><th></th></tr></thead>
+          <thead><tr>
+  <th onclick="toggleSort('appDate')" style="cursor:pointer;">応募日 <span id="sort_appDate">↓</span></th>
+  <th>名前</th>
+  <th onclick="toggleSort('jobType')" style="cursor:pointer;">職種 <span id="sort_jobType"></span></th>
+  <th onclick="toggleSort('dept')" style="cursor:pointer;">部署 <span id="sort_dept"></span></th>
+  <th>媒体</th>
+  <th>ステータス</th>
+  <th>採用可否</th>
+  <th>書類</th>
+  <th></th>
+</tr></thead>
           <tbody id="listBody"></tbody>
         </table>
         <div id="emptyList" class="empty" style="display:none;">応募者データがありません</div>
@@ -263,6 +275,8 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
         <div class="fg"><label>応募職種<span class="req">*</span></label><input type="text" id="fJT" placeholder="エンジニア、営業 等"></div>
         <div class="fg"><label>勤務地</label><input type="text" id="fLoc" placeholder="東京、大阪 等"></div>
         <div class="fg"><label>性別<span class="req">*</span></label><select id="fGe"><option value="">選択</option><option>男性</option><option>女性</option><option>その他</option><option>未回答</option></select></div>
+        <div class="fg"><label>部署</label><select id="fDept2"><option value="">選択</option></select></div>
+        <div class="fg"><label>採用可否</label><select id="fHire2"><option value="">選択</option></select></div>
         <div class="fsec">個人情報</div>
         <div class="fg"><label>名前<span class="req">*</span></label><input type="text" id="fNm" placeholder="山田 太郎"></div>
         <div class="fg"><label>ふりがな<span class="req">*</span></label><input type="text" id="fKn" placeholder="やまだ たろう"></div>
@@ -419,7 +433,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
       <h2 style="font-size:14px;font-weight:600;margin-bottom:6px;">クライアント管理</h2>
       <p style="font-size:11px;color:#888;margin-bottom:1rem;">クライアントごとにIDとパスワードを発行します。各クライアントは自社の応募者データのみ閲覧できます。</p>
       <table class="client-table">
-        <thead><tr><th>クライアント名</th><th>ID</th><th>パスワード</th><th>応募者数</th><th>操作</th></tr></thead>
+        <thead><tr><th>クライアント名</th><th>ID</th><th>パスワード</th><th>応募者数 / 採用数</th><th>操作</th></tr></thead>
         <tbody id="clientTableBody"></tbody>
       </table>
       <div class="add-client-form">
@@ -544,6 +558,8 @@ async function loadApplicants() {
     birthYear: r.birth_year, birthMonth: r.birth_month, birthDay: r.birth_day,
     birthdate: r.birthdate,
     docs: r.docs || [],
+    dept: r.dept || '',
+    hireStatus: r.hire_status || '',
     clientId: r.client_id
   }));
   setStatus('');
@@ -553,14 +569,16 @@ async function loadMasters() {
   const cid = isAdmin ? 'admin' : currentClientId;
   const { data } = await sb.from('masters').select('*').eq('client_id', cid);
   if (data && data.length) {
-    masters = { media: [], status: [], agency: [] };
+    masters = { media: [], status: [], agency: [], hire: [], dept: [] };
     data.forEach(r => { if (masters[r.type] !== undefined) masters[r.type].push(r.value); });
   } else {
     // デフォルトマスター
     masters = {
       media: ['リクナビNEXT','マイナビ転職','Indeed','LinkedIn','ハローワーク','自社HP','紹介'],
-      status: ['書類選考中','1次面接調整','1次面接済','2次面接調整','2次面接済','最終選考','内定','入社','不採用','辞退'],
-      agency: []
+      status: ['書類選考中','1次面接調整','1次面接済','2次面接調整','2次面接済','最終選考','内定','入社','不採用','辞退','未対応'],
+      agency: [],
+      hire: ['内定','内定承諾','採用','不採用','保留'],
+      dept: []
     };
     // DBに保存
     const rows = [];
@@ -589,10 +607,12 @@ function popSelects() {
   const set = (id, key, blank) => {
     const el = document.getElementById(id); if (!el) return;
     el.innerHTML = `<option value="">${blank}</option>`;
-    masters[key].forEach(v => el.innerHTML += `<option>${v}</option>`);
+    (masters[key]||[]).forEach(v => el.innerHTML += `<option>${v}</option>`);
   };
   set('fMed','media','選択'); set('fAg2','agency','選択'); set('fSt2','status','選択');
+  set('fDept2','dept','選択'); set('fHire2','hire','選択');
   set('fSt','status','ステータス（全て）'); set('fMd','media','媒体（全て）');
+  set('fDept','dept','部署（全て）'); set('fHire','hire','採用可否（全て）');
   const fj = document.getElementById('fJb');
   const jobs = [...new Set(applicants.map(a => a.jobType).filter(Boolean))];
   fj.innerHTML = '<option value="">職種（全て）</option>';
@@ -645,17 +665,33 @@ function renderDocList() {
 // ========================================
 // 一覧
 // ========================================
+let sortKey = 'appDate', sortDir = -1;
+function toggleSort(key) {
+  if (sortKey === key) sortDir *= -1; else { sortKey = key; sortDir = -1; }
+  ['appDate','jobType','dept'].forEach(k => { const el=document.getElementById('sort_'+k); if(el) el.textContent=''; });
+  const el = document.getElementById('sort_'+key);
+  if (el) el.textContent = sortDir === -1 ? '↓' : '↑';
+  renderList();
+}
 function renderList() {
   const q = (document.getElementById('srch').value || '').toLowerCase();
   const fs = document.getElementById('fSt').value;
   const fm = document.getElementById('fMd').value;
   const fj = document.getElementById('fJb').value;
-  const fil = applicants.filter(a => {
+  const fd = document.getElementById('fDept') ? document.getElementById('fDept').value : '';
+  const fh = document.getElementById('fHire') ? document.getElementById('fHire').value : '';
+  let fil = applicants.filter(a => {
     if (q && !a.name.toLowerCase().includes(q) && !(a.email||'').toLowerCase().includes(q)) return false;
     if (fs && a.status !== fs) return false;
     if (fm && a.media !== fm) return false;
     if (fj && a.jobType !== fj) return false;
+    if (fd && a.dept !== fd) return false;
+    if (fh && a.hireStatus !== fh) return false;
     return true;
+  });
+  fil.sort((a,b) => {
+    const av = a[sortKey]||'', bv = b[sortKey]||'';
+    return av > bv ? sortDir : av < bv ? -sortDir : 0;
   });
   document.getElementById('listCnt').textContent = fil.length + '件';
   const tb = document.getElementById('listBody');
@@ -664,16 +700,19 @@ function renderList() {
   em.style.display = 'none';
   tb.innerHTML = fil.map(a => {
     const dc = (a.docs||[]).length;
-    return `<tr>
+    const hireColor = {'内定':'bg','内定承諾':'bt','採用':'bg','不採用':'br','保留':'ba'}[a.hireStatus] || 'bgr';
+    return `<tr id="row_${a.id}">
       <td>${a.appDate||''}</td>
       <td style="font-weight:500;">${a.name}</td>
       <td>${a.jobType||''}</td>
+      <td>${a.dept||''}</td>
       <td>${a.media?`<span class="badge bb">${a.media}</span>`:''}</td>
       <td>${a.status?`<span class="badge ${stColor(a.status)}">${a.status}</span>`:''}</td>
-      <td style="color:#888">${a.email||''}</td>
+      <td>${a.hireStatus?`<span class="badge ${hireColor}">${a.hireStatus}</span>`:''}</td>
       <td>${dc?`<span class="badge bgr">${dc}件</span>`:''}</td>
       <td><button class="btn-sm" onclick="openDetail('${a.id}')">詳細</button></td>
-    </tr>`;
+    </tr>
+    <tr id="detail_${a.id}" style="display:none;"><td colspan="9" style="padding:0;"></td></tr>`;
   }).join('');
 }
 
@@ -686,42 +725,59 @@ function stColor(s) {
 // 詳細パネル
 // ========================================
 function openDetail(id) {
+  // 既に開いている場合は閉じる
+  if (curId && curId !== id) {
+    const prev = document.getElementById('detail_'+curId);
+    if (prev) { prev.style.display='none'; prev.querySelector('td').innerHTML=''; }
+  }
+  if (curId === id) { closeDetail(); return; }
   curId = id;
   const a = applicants.find(x => x.id === id); if (!a) return;
-  document.getElementById('dpName').textContent = a.name + (a.kana ? ` (${a.kana})` : '');
   const fields = [
-    ['応募日',a.appDate],['応募職種',a.jobType],['勤務地',a.location],
+    ['応募日',a.appDate],['応募職種',a.jobType],['部署',a.dept],['勤務地',a.location],
     ['メール',a.email],['電話',a.tel],['性別',a.gender],
-    ['生年月日',a.birthdate],['年齢',a.age],
-    ['媒体',a.media],['人材紹介会社',a.agency],['ステータス',a.status],
+    ['生年月日',a.birthdate],['年齢',a.age],['ふりがな',a.kana],
+    ['媒体',a.media],['人材紹介会社',a.agency],['ステータス',a.status],['採用可否',a.hireStatus],
     ['コンタクト日',a.contactDate],
     ['1次面接日時',a.int1Date],['1次面接結果',a.int1Res],
     ['2次面接日時',a.int2Date],['2次面接結果',a.int2Res],
     ['退職日',a.resignDate],['メモ',a.memo]
   ].filter(r => r[1]);
-  const docsHtml = (a.docs||[]).length ? `
-    <div class="dp-row dp-docs">
-      <div class="dp-lbl">書類</div>
-      ${(a.docs||[]).map(d=>`
-        <div class="dp-doc-item">
-          <span class="badge bb">${d.type}</span>
-          <span style="flex:1;">${d.name}</span>
-          <a href="${d.url}" target="_blank" style="color:#378ADD;font-size:11px;">開く →</a>
-        </div>`).join('')}
-    </div>` : '';
-  document.getElementById('dpBody').innerHTML =
-    fields.map(r => `<div class="dp-row"><div class="dp-lbl">${r[0]}</div><div class="dp-val">${r[1]}</div></div>`).join('') + docsHtml;
-  const panel = document.getElementById('detailPanel');
-  panel.classList.add('open');
-  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const docsHtml = (a.docs||[]).length ? `<div style="grid-column:1/-1;"><div style="font-size:10px;color:#aaa;margin-bottom:4px;">書類</div>${(a.docs||[]).map(d=>`<div class="dp-doc-item"><span class="badge bb">${d.type}</span><span style="flex:1;">${d.name}</span><a href="${d.url}" target="_blank" style="color:#378ADD;font-size:11px;">開く →</a></div>`).join('')}</div>` : '';
+  const html = `<div style="background:#fff;border:1px solid #e8e8e6;border-radius:10px;padding:1rem;margin:4px 0 8px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;padding-bottom:.5rem;border-bottom:1px solid #f0f0ee;">
+      <strong style="font-size:14px;">${a.name}${a.kana?' ('+a.kana+')':''}</strong>
+      <div style="display:flex;gap:6px;">
+        <button class="btn-del" onclick="delApp()">削除</button>
+        <button class="btn btn-s" style="padding:4px 10px;font-size:11px;" onclick="closeDetail()">閉じる</button>
+        <button class="btn btn-p" style="padding:4px 10px;font-size:11px;" onclick="editApp()">編集</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;">
+      ${fields.map(r=>`<div><div style="font-size:10px;color:#aaa;">${r[0]}</div><div style="font-size:12px;">${r[1]}</div></div>`).join('')}
+      ${docsHtml}
+    </div>
+  </div>`;
+  const detailRow = document.getElementById('detail_'+id);
+  if (detailRow) {
+    detailRow.querySelector('td').innerHTML = html;
+    detailRow.style.display = 'table-row';
+    detailRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 
-function closeDetail() { document.getElementById('detailPanel').classList.remove('open'); curId = null; }
+function closeDetail() {
+  if (curId) {
+    const prev = document.getElementById('detail_'+curId);
+    if (prev) { prev.style.display='none'; prev.querySelector('td').innerHTML=''; }
+  }
+  curId = null;
+}
 
 function editApp() {
   const a = applicants.find(x => x.id === curId); if (!a) return;
   closeDetail(); editId = a.id;
-  const map = {fAD:'appDate',fJT:'jobType',fLoc:'location',fNm:'name',fKn:'kana',fEm:'email',fTel:'tel',fGe:'gender',fAg:'age',fMed:'media',fAg2:'agency',fSt2:'status',fCD:'contactDate',fI1D:'int1Date',fI1R:'int1Res',fI2D:'int2Date',fI2R:'int2Res',fRD:'resignDate',fMemo:'memo'};
+  const map = {fAD:'appDate',fJT:'jobType',fLoc:'location',fNm:'name',fKn:'kana',fEm:'email',fTel:'tel',fGe:'gender',fAg:'age',fMed:'media',fAg2:'agency',fSt2:'status',fCD:'contactDate',fI1D:'int1Date',fI1R:'int1Res',fI2D:'int2Date',fI2R:'int2Res',fRD:'resignDate',fMemo:'memo',fDept2:'dept',fHire2:'hireStatus'};
   Object.entries(map).forEach(([fid,key])=>{ const el=document.getElementById(fid); if(el&&a[key]!=null)el.value=a[key]; });
   if(a.birthYear) document.getElementById('fBY').value=a.birthYear;
   if(a.birthMonth) document.getElementById('fBM').value=a.birthMonth;
@@ -746,7 +802,7 @@ async function delApp() {
 function resetForm() {
   editId = null; tempDocs = [];
   ['fAD','fJT','fLoc','fNm','fKn','fEm','fTel','fCD','fI1D','fI2D','fRD','fMemo','fBY'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  ['fGe','fAg','fMed','fAg2','fSt2','fBM','fBD','fI1R','fI2R'].forEach(id=>{const e=document.getElementById(id);if(e)e.selectedIndex=0;});
+  ['fGe','fAg','fMed','fAg2','fSt2','fBM','fBD','fI1R','fI2R','fDept2','fHire2'].forEach(id=>{const e=document.getElementById(id);if(e)e.selectedIndex=0;});
   document.getElementById('fAD').value = new Date().toISOString().split('T')[0];
   document.getElementById('docList').innerHTML='';
   document.getElementById('docName').value=''; document.getElementById('docUrl').value='';
@@ -782,7 +838,9 @@ async function saveApp() {
     memo: document.getElementById('fMemo').value,
     birth_year: by || null, birth_month: bm || null, birth_day: bd || null,
     birthdate: by&&bm&&bd ? `${by}年${bm}月${bd}日` : null,
-    docs: tempDocs
+    docs: tempDocs,
+    dept: document.getElementById('fDept2') ? document.getElementById('fDept2').value : '',
+    hire_status: document.getElementById('fHire2') ? document.getElementById('fHire2').value : ''
   };
   let error;
   if (editId) {
@@ -820,7 +878,7 @@ function exportCSV() {
 // ========================================
 function exportPDF() {
   const data=getAnData(), total=data.length;
-  const hired=data.filter(a=>a.status==='内定'||a.status==='入社').length;
+  const hired=data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
   const rate=total?Math.round(hired/total*100):0;
   const from=document.getElementById('anFrom').value||'全期間';
   const to=document.getElementById('anTo').value||new Date().toISOString().split('T')[0];
@@ -850,7 +908,7 @@ function setPeriod(p) {
 function setTab(t,btn){ anTab=t; document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderAn(); }
 function renderAn() {
   const data=getAnData(),total=data.length;
-  const hired=data.filter(a=>a.status==='内定'||a.status==='入社').length;
+  const hired=data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
   const rate=total?Math.round(hired/total*100):0;
   const active=data.filter(a=>a.status&&!['内定','入社','不採用','辞退'].includes(a.status)).length;
   document.getElementById('anMetrics').innerHTML=`
@@ -891,13 +949,14 @@ function doFunnel(data,wrap){
 // マスター管理
 // ========================================
 function renderManage(){
-  const map={media:'mlMed',status:'mlSt',agency:'mlAg'};
+  const map={media:'mlMed',status:'mlSt',agency:'mlAg',hire:'mlHire',dept:'mlDept'};
   Object.entries(map).forEach(([key,id])=>{
-    document.getElementById(id).innerHTML=masters[key].map((v,i)=>`<li>${v}<button class="btn-del" onclick="delM('${key}',${i})">削除</button></li>`).join('');
+    const el=document.getElementById(id); if(!el)return;
+    el.innerHTML=(masters[key]||[]).map((v,i)=>`<li>${v}<button class="btn-del" onclick="delM('${key}',${i})">削除</button></li>`).join('');
   });
 }
 async function addM(key){
-  const idMap={media:'miMed',status:'miSt',agency:'miAg'};
+  const idMap={media:'miMed',status:'miSt',agency:'miAg',hire:'miHire',dept:'miDept'};
   const el=document.getElementById(idMap[key]);
   const v=el.value.trim(); if(!v)return;
   if(masters[key].includes(v))return alert('すでに存在します');
@@ -942,11 +1001,13 @@ async function renderAdmin(){
     <td><span id="cnt_${c.client_id}" class="badge bgr">—</span></td>
     <td><button class="btn-del" onclick="delClient('${c.client_id}')">削除</button></td>
   </tr>`).join('');
-  // 応募者数カウント
+  // 応募者数・採用数カウント
   clients.forEach(async c=>{
-    const {count}=await sb.from('applicants').select('id',{count:'exact',head:true}).eq('client_id',c.client_id);
+    const {data}=await sb.from('applicants').select('hire_status').eq('client_id',c.client_id);
+    const total=(data||[]).length;
+    const hired=(data||[]).filter(r=>['内定','内定承諾','採用'].includes(r.hire_status)).length;
     const el=document.getElementById('cnt_'+c.client_id);
-    if(el)el.textContent=`${count||0}件`;
+    if(el)el.innerHTML=`<span class="badge bgr">${total}名</span> <span class="badge bg" style="margin-left:4px;">採用${hired}名</span>`;
   });
 }
 async function addClient(){
@@ -988,7 +1049,7 @@ function renderDashboard() {
   // KPI
   const total = applicants.length;
   const inProgress = applicants.filter(a => a.status && !['内定','入社','不採用','辞退'].includes(a.status)).length;
-  const hired = applicants.filter(a => a.status === '内定' || a.status === '入社').length;
+  const hired = applicants.filter(a => ['内定','内定承諾','採用'].includes(a.hireStatus)).length;
   const rate = total ? Math.round(hired / total * 100) : 0;
   const thisMonth = applicants.filter(a => a.appDate && a.appDate >= toStr(monthAgo)).length;
 
@@ -1015,7 +1076,7 @@ function renderDashboard() {
   const int2Soon = applicants.filter(a => a.status === '2次面接調整' || a.status === '2次面接済').length;
   const newThisWeek = applicants.filter(a => a.appDate && a.appDate >= toStr(weekAgo)).length;
   const newThisMonth = applicants.filter(a => a.appDate && a.appDate >= toStr(monthAgo)).length;
-  const offer = applicants.filter(a => a.status === '内定').length;
+  const offer = applicants.filter(a => ['内定','内定承諾','採用'].includes(a.hireStatus)).length;
 
   const todoItems = [
     { label: '未コンタクト（未対応）', count: uncontacted, color: '#D85A30', bg: '#FFF3F0', action: "filterAndGo('未対応')" },
