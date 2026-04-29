@@ -543,8 +543,9 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
     <!-- 分析 -->
     <div id="sec-analytics" class="sec">
-      <div class="filter-row">
-        <label>期間：</label>
+      <!-- フィルター -->
+      <div class="filter-row" style="margin-bottom:.75rem;">
+        <label style="font-size:11px;color:#666;">期間：</label>
         <input type="date" id="anFrom" onchange="renderAn()">
         <span style="font-size:10px;color:#aaa;">〜</span>
         <input type="date" id="anTo" onchange="renderAn()">
@@ -552,48 +553,37 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
         <button class="btn-sm" onclick="setPeriod('quarter')">3ヶ月</button>
         <button class="btn-sm" onclick="setPeriod('year')">1年</button>
         <button class="btn-sm" onclick="setPeriod('all')">累計</button>
+        <select id="anDept" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;color:#1a1a1a;">
+          <option value="">部署（全て）</option>
+        </select>
+        <select id="anJob" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;color:#1a1a1a;">
+          <option value="">職種（全て）</option>
+        </select>
         <div style="margin-left:auto;"><button class="btn-exp" onclick="exportPDF()">レポートPDF出力</button></div>
       </div>
 
       <!-- KPIサマリー -->
-      <div class="metric-grid" id="anMetrics"></div>
+      <div class="metric-grid" id="anMetrics" style="margin-bottom:1rem;"></div>
 
-      <!-- 月別集計テーブル -->
-      <div style="margin-bottom:1.5rem;">
-        <div style="font-size:12px;font-weight:600;color:#666;margin-bottom:8px;">📊 月別集計（応募数・書類回収率・面接率・採用率）</div>
-        <div style="overflow-x:auto;">
-          <table id="anMonthlyTable" style="width:100%;border-collapse:collapse;font-size:11px;min-width:700px;">
-            <thead>
-              <tr style="background:#f8f8f7;">
-                <th style="padding:8px 10px;text-align:left;border-bottom:1px solid #e8e8e6;white-space:nowrap;">月</th>
-                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;">応募数</th>
-                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;">1次面接</th>
-                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;">2次面接</th>
-                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;">内定・採用</th>
-                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;">不採用</th>
-                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;">選考中</th>
-                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;">辞退</th>
-                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;color:#378ADD;">面接率</th>
-                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;color:#3B6D11;">採用率</th>
-              </tr>
-            </thead>
-            <tbody id="anMonthlyBody"></tbody>
-            <tfoot id="anMonthlyFoot"></tfoot>
-          </table>
-        </div>
+      <!-- 採用ファネル（歩留り） -->
+      <div id="anFunnelBar" style="background:#f8f8f7;border-radius:10px;padding:1rem;margin-bottom:1.25rem;"></div>
+
+      <!-- 分析タブ -->
+      <div class="tab-row" style="flex-wrap:wrap;">
+        <button class="tab active" onclick="setAnTab('monthly_all',this)">📊 月別集計（全体）</button>
+        <button class="tab" onclick="setAnTab('monthly_ref',this)">紹介別</button>
+        <button class="tab" onclick="setAnTab('age',this)">年代別</button>
+        <button class="tab" onclick="setAnTab('media',this)">媒体別</button>
+        <button class="tab" onclick="setAnTab('job',this)">職種別</button>
+        <button class="tab" onclick="setAnTab('dept',this)">部署別</button>
+        <button class="tab" onclick="setAnTab('gender',this)">性別</button>
+        <button class="tab" onclick="setAnTab('status',this)">ステータス別</button>
+        <button class="tab" onclick="setAnTab('hire',this)">採用可否別</button>
+        <button class="tab" onclick="setAnTab('trend',this)">📈 月次トレンド</button>
       </div>
 
-      <!-- グラフタブ -->
-      <div class="tab-row">
-        <button class="tab active" onclick="setTab('media',this)">媒体別</button>
-        <button class="tab" onclick="setTab('job',this)">職種別</button>
-        <button class="tab" onclick="setTab('status',this)">ステータス別</button>
-        <button class="tab" onclick="setTab('hire',this)">採用可否別</button>
-        <button class="tab" onclick="setTab('gender',this)">性別</button>
-        <button class="tab" onclick="setTab('trend',this)">月次トレンド</button>
-        <button class="tab" onclick="setTab('funnel',this)">ファネル</button>
-      </div>
-      <div class="chart-wrap" id="anWrap"></div>
+      <!-- コンテンツエリア -->
+      <div id="anContent"></div>
     </div>
 
     <!-- マスター管理 -->
@@ -720,7 +710,7 @@ function doLogout() {
   currentClientId = null; isAdmin = false;
   applicants = []; masters = { media: [], status: [], agency: [] };
   editId = null; curId = null; tempDocs = [];
-  if (anChart) { anChart.destroy(); anChart = null; }
+  if (typeof anChart !== 'undefined' && anChart) { anChart.destroy(); anChart = null; }
   document.getElementById('mainApp').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('loginId').value = '';
@@ -820,7 +810,7 @@ function showSec(s) {
   if (navMap[s] !== undefined) document.querySelectorAll('.nb')[navMap[s]].classList.add('active');
   if (s === 'dashboard') renderDashboard();
   if (s === 'list') { closeDetail(); renderList(); }
-  if (s === 'analytics') setPeriod('all');
+  if (s === 'analytics') { setPeriod('all'); }
   if (s === 'master') renderManage();
   if (s === 'admin') renderAdmin();
   if (s === 'add' && !editId) resetForm();
@@ -1176,8 +1166,17 @@ function exportPDF() {
 // ========================================
 function getAnData() {
   const from=document.getElementById('anFrom').value, to=document.getElementById('anTo').value;
-  return applicants.filter(a=>{ if(from&&a.appDate<from)return false; if(to&&a.appDate>to)return false; return true; });
+  const dept=document.getElementById('anDept')?document.getElementById('anDept').value:'';
+  const job=document.getElementById('anJob')?document.getElementById('anJob').value:'';
+  return applicants.filter(a=>{
+    if(from&&a.appDate<from)return false;
+    if(to&&a.appDate>to)return false;
+    if(dept&&a.dept!==dept)return false;
+    if(job&&a.jobType!==job)return false;
+    return true;
+  });
 }
+
 function setPeriod(p) {
   const now=new Date(); let from='',to=now.toISOString().split('T')[0];
   if(p==='month')from=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];
@@ -1185,16 +1184,40 @@ function setPeriod(p) {
   else if(p==='year'){const d=new Date(now);d.setFullYear(d.getFullYear()-1);from=d.toISOString().split('T')[0];}
   document.getElementById('anFrom').value=from; document.getElementById('anTo').value=to; renderAn();
 }
-function setTab(t,btn){ anTab=t; document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderAn(); }
+
+let anTab='monthly_all';
+function setAnTab(t,btn){
+  anTab=t;
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderAnContent();
+}
+// 後方互換
+function setTab(t,btn){ setAnTab(t,btn); }
+
 function renderAn() {
-  const data = getAnData(), total = data.length;
-  const hired = data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
-  const rate = total ? Math.round(hired/total*100) : 0;
-  const active = data.filter(a=>a.status&&!['内定','入社','不採用','辞退','内定承諾','採用'].includes(a.status)).length;
-  const int1 = data.filter(a=>a.int1Date).length;
-  const int2 = data.filter(a=>a.int2Date).length;
-  const rejected = data.filter(a=>a.status==='不採用'||a.hireStatus==='不採用').length;
-  const withdrew = data.filter(a=>a.status&&(a.status.includes('辞退')||a.status.includes('連絡不通'))).length;
+  // 部署・職種フィルターを更新
+  const anDept=document.getElementById('anDept');
+  const anJob=document.getElementById('anJob');
+  if(anDept){
+    const cur=anDept.value;
+    anDept.innerHTML='<option value="">部署（全て）</option>';
+    [...new Set(applicants.map(a=>a.dept).filter(Boolean))].forEach(v=>anDept.innerHTML+=`<option ${cur===v?'selected':''}>${v}</option>`);
+  }
+  if(anJob){
+    const cur=anJob.value;
+    anJob.innerHTML='<option value="">職種（全て）</option>';
+    [...new Set(applicants.map(a=>a.jobType).filter(Boolean))].forEach(v=>anJob.innerHTML+=`<option ${cur===v?'selected':''}>${v}</option>`);
+  }
+
+  const data=getAnData(),total=data.length;
+  const hired=data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
+  const rate=total?Math.round(hired/total*100):0;
+  const int1=data.filter(a=>a.int1Date).length;
+  const int2=data.filter(a=>a.int2Date).length;
+  const active=data.filter(a=>a.status&&!['内定','入社','不採用','辞退','内定承諾','採用'].includes(a.status)&&!a.status.includes('辞退')&&!a.status.includes('連絡不通')).length;
+  const rejected=data.filter(a=>a.status==='不採用'||a.hireStatus==='不採用').length;
+  const withdrew=data.filter(a=>a.status&&(a.status.includes('辞退')||a.status.includes('連絡不通'))).length;
 
   document.getElementById('anMetrics').innerHTML=`
     <div class="mc" style="border-left:3px solid #378ADD;"><div class="mc-lbl">総応募数</div><div class="mc-val">${total}</div></div>
@@ -1202,117 +1225,249 @@ function renderAn() {
     <div class="mc" style="border-left:3px solid #5DCAA5;"><div class="mc-lbl">2次面接</div><div class="mc-val">${int2}</div><div class="mc-sub">${total?Math.round(int2/total*100):0}%</div></div>
     <div class="mc" style="border-left:3px solid #639922;"><div class="mc-lbl">内定・採用</div><div class="mc-val">${hired}</div><div class="mc-sub">採用率 ${rate}%</div></div>
     <div class="mc" style="border-left:3px solid #A32D2D;"><div class="mc-lbl">不採用</div><div class="mc-val">${rejected}</div></div>
-    <div class="mc" style="border-left:3px solid #EF9F27;"><div class="mc-lbl">選考中</div><div class="mc-val">${active}</div></div>`;
+    <div class="mc" style="border-left:3px solid #EF9F27;"><div class="mc-lbl">選考中</div><div class="mc-val">${active}</div></div>
+    <div class="mc" style="border-left:3px solid #B4B2A9;"><div class="mc-lbl">辞退・連絡不通</div><div class="mc-val">${withdrew}</div></div>`;
 
-  // 月別集計テーブル
-  renderMonthlyTable(data);
+  // 採用ファネルバー
+  const funnelEl=document.getElementById('anFunnelBar');
+  if(funnelEl&&total>0){
+    const steps=[
+      {label:'応募',n:total,color:'#378ADD'},
+      {label:'1次面接',n:int1,color:'#5DCAA5'},
+      {label:'2次面接',n:int2,color:'#1D9E75'},
+      {label:'内定・採用',n:hired,color:'#639922'},
+    ];
+    funnelEl.innerHTML=`<div style="font-size:11px;font-weight:600;color:#666;margin-bottom:10px;">採用ファネル（歩留り率）</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      ${steps.map((s,i)=>{
+        const pct=total?Math.round(s.n/total*100):0;
+        const prev=i>0?steps[i-1].n:total;
+        const step=prev?Math.round(s.n/prev*100):0;
+        return`<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+          <div style="background:${s.color};color:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:90px;">
+            <div style="font-size:11px;opacity:.85;">${s.label}</div>
+            <div style="font-size:20px;font-weight:700;">${s.n}</div>
+            <div style="font-size:10px;opacity:.8;">全体 ${pct}%</div>
+          </div>
+          ${i>0?`<div style="font-size:10px;color:#aaa;">↓ ${step}%</div>`:''}
+        </div>
+        ${i<steps.length-1?'<div style="font-size:18px;color:#ddd;align-self:center;margin-top:-16px;">›</div>':''}`;
+      }).join('')}
+    </div>`;
+  } else if(funnelEl){funnelEl.innerHTML='';}
 
-  if(anChart){anChart.destroy();anChart=null;}
-  const wrap=document.getElementById('anWrap'); wrap.innerHTML='';
-  if(!total){wrap.innerHTML='<div class="empty">この期間のデータがありません</div>';return;}
-  if(anTab==='media') doBarChart(data,wrap,'media','#378ADD');
-  else if(anTab==='job') doBarChart(data,wrap,'jobType','#1D9E75');
-  else if(anTab==='status') doBarChart(data,wrap,'status','#85B7EB');
-  else if(anTab==='hire') doBarChart(data,wrap,'hireStatus','#EF9F27');
-  else if(anTab==='gender') doBarChart(data,wrap,'gender','#5DCAA5');
-  else if(anTab==='trend') doTrend(data,wrap);
-  else doFunnel(data,wrap);
+  renderAnContent();
 }
 
-function renderMonthlyTable(data) {
-  // 月ごとに集計
-  const months = {};
-  data.forEach(a => {
-    if (!a.appDate) return;
-    const m = a.appDate.substring(0,7); // YYYY-MM
-    if (!months[m]) months[m] = { total:0, int1:0, int2:0, hired:0, rejected:0, active:0, withdrew:0 };
+// テーブル共通スタイル
+const thStyle='padding:7px 9px;text-align:right;background:#f0f0ee;font-size:10px;font-weight:600;border-bottom:2px solid #e0e0de;white-space:nowrap;';
+const thStyleL='padding:7px 9px;text-align:left;background:#f0f0ee;font-size:10px;font-weight:600;border-bottom:2px solid #e0e0de;white-space:nowrap;';
+const tdStyle='padding:6px 9px;text-align:right;border-bottom:1px solid #f5f5f5;font-size:11px;';
+const tdStyleL='padding:6px 9px;text-align:left;border-bottom:1px solid #f5f5f5;font-size:11px;font-weight:500;';
+const tfStyle='padding:7px 9px;text-align:right;background:#f8f8f7;font-size:11px;font-weight:700;border-top:2px solid #e0e0de;';
+const tfStyleL='padding:7px 9px;text-align:left;background:#f8f8f7;font-size:11px;font-weight:700;border-top:2px solid #e0e0de;';
+
+function pct(n,d){return d?Math.round(n/d*100)+'%':'-';}
+function pctColor(n,d,good=10){
+  const v=d?n/d*100:0;
+  return v>=good?'#3B6D11':v>=good/2?'#854F0B':'#666';
+}
+
+function buildMonthStats(data){
+  const months={};
+  data.forEach(a=>{
+    if(!a.appDate)return;
+    const m=a.appDate.substring(0,7);
+    if(!months[m])months[m]={total:0,int1:0,int2:0,hired:0,rejected:0,active:0,withdrew:0};
     months[m].total++;
-    if (a.int1Date) months[m].int1++;
-    if (a.int2Date) months[m].int2++;
-    if (['内定','内定承諾','採用'].includes(a.hireStatus)) months[m].hired++;
-    else if (a.status==='不採用'||a.hireStatus==='不採用') months[m].rejected++;
-    else if (a.status&&(a.status.includes('辞退')||a.status.includes('連絡不通'))) months[m].withdrew++;
+    if(a.int1Date)months[m].int1++;
+    if(a.int2Date)months[m].int2++;
+    if(['内定','内定承諾','採用'].includes(a.hireStatus))months[m].hired++;
+    else if(a.status==='不採用'||a.hireStatus==='不採用')months[m].rejected++;
+    else if(a.status&&(a.status.includes('辞退')||a.status.includes('連絡不通')))months[m].withdrew++;
     else months[m].active++;
   });
+  return months;
+}
 
-  const sortedMonths = Object.keys(months).sort();
-  const pct = (n,d) => d ? (n/d*100).toFixed(1)+'%' : '-';
-  const colorPct = (n,d,good=10) => {
-    const v = d ? n/d*100 : 0;
-    return v >= good ? '#3B6D11' : v >= good/2 ? '#854F0B' : '#A32D2D';
-  };
-
-  const tbody = document.getElementById('anMonthlyBody');
-  const tfoot = document.getElementById('anMonthlyFoot');
-
-  if (!sortedMonths.length) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:1rem;color:#aaa;">データがありません</td></tr>';
-    tfoot.innerHTML = '';
-    return;
-  }
-
-  tbody.innerHTML = sortedMonths.map(m => {
-    const d = months[m];
-    const intRate = pct(d.int1, d.total);
-    const hireRate = pct(d.hired, d.total);
-    const intColor = colorPct(d.int1, d.total, 15);
-    const hireColor = colorPct(d.hired, d.total, 5);
-    return `<tr style="border-bottom:1px solid #f8f8f7;">
-      <td style="padding:7px 10px;font-weight:500;">${m}</td>
-      <td style="padding:7px 10px;text-align:right;">${d.total}</td>
-      <td style="padding:7px 10px;text-align:right;">${d.int1}</td>
-      <td style="padding:7px 10px;text-align:right;">${d.int2}</td>
-      <td style="padding:7px 10px;text-align:right;color:#3B6D11;font-weight:500;">${d.hired}</td>
-      <td style="padding:7px 10px;text-align:right;color:#A32D2D;">${d.rejected}</td>
-      <td style="padding:7px 10px;text-align:right;color:#854F0B;">${d.active}</td>
-      <td style="padding:7px 10px;text-align:right;color:#666;">${d.withdrew}</td>
-      <td style="padding:7px 10px;text-align:right;font-weight:500;color:${intColor};">${intRate}</td>
-      <td style="padding:7px 10px;text-align:right;font-weight:500;color:${hireColor};">${hireRate}</td>
+function renderMonthTable(months,title){
+  const sorted=Object.keys(months).sort();
+  if(!sorted.length)return`<div class="empty">データがありません</div>`;
+  const rows=sorted.map(m=>{
+    const d=months[m];
+    return`<tr>
+      <td style="${tdStyleL}">${m}</td>
+      <td style="${tdStyle}">${d.total}</td>
+      <td style="${tdStyle}">${d.int1}</td>
+      <td style="${tdStyle}">${d.int2}</td>
+      <td style="${tdStyle};color:#639922;font-weight:600;">${d.hired}</td>
+      <td style="${tdStyle};color:#A32D2D;">${d.rejected}</td>
+      <td style="${tdStyle};color:#EF9F27;">${d.active}</td>
+      <td style="${tdStyle};color:#888;">${d.withdrew}</td>
+      <td style="${tdStyle};color:${pctColor(d.int1,d.total,10)};font-weight:600;">${pct(d.int1,d.total)}</td>
+      <td style="${tdStyle};color:${pctColor(d.hired,d.total,5)};font-weight:600;">${pct(d.hired,d.total)}</td>
     </tr>`;
   }).join('');
+  const tot=sorted.reduce((a,m)=>{const d=months[m];a.total+=d.total;a.int1+=d.int1;a.int2+=d.int2;a.hired+=d.hired;a.rejected+=d.rejected;a.active+=d.active;a.withdrew+=d.withdrew;return a;},{total:0,int1:0,int2:0,hired:0,rejected:0,active:0,withdrew:0});
+  return`<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:700px;">
+    <caption style="text-align:left;font-size:11px;font-weight:600;color:#666;padding:0 0 8px;caption-side:top;">${title}</caption>
+    <thead><tr>
+      <th style="${thStyleL}">月</th>
+      <th style="${thStyle}">応募数</th>
+      <th style="${thStyle}">1次面接</th>
+      <th style="${thStyle}">2次面接</th>
+      <th style="${thStyle};color:#639922;">内定・採用</th>
+      <th style="${thStyle};color:#A32D2D;">不採用</th>
+      <th style="${thStyle};color:#EF9F27;">選考中</th>
+      <th style="${thStyle};color:#888;">辞退・連絡不通</th>
+      <th style="${thStyle};color:#378ADD;">面接率</th>
+      <th style="${thStyle};color:#3B6D11;">採用率</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr>
+      <td style="${tfStyleL}">合計/平均</td>
+      <td style="${tfStyle}">${tot.total}</td>
+      <td style="${tfStyle}">${tot.int1}</td>
+      <td style="${tfStyle}">${tot.int2}</td>
+      <td style="${tfStyle};color:#639922;">${tot.hired}</td>
+      <td style="${tfStyle};color:#A32D2D;">${tot.rejected}</td>
+      <td style="${tfStyle};color:#EF9F27;">${tot.active}</td>
+      <td style="${tfStyle};color:#888;">${tot.withdrew}</td>
+      <td style="${tfStyle};color:#378ADD;">${pct(tot.int1,tot.total)}</td>
+      <td style="${tfStyle};color:#3B6D11;">${pct(tot.hired,tot.total)}</td>
+    </tr></tfoot>
+  </table></div>`;
+}
 
-  // 合計行
-  const totals = sortedMonths.reduce((acc, m) => {
-    const d = months[m];
-    acc.total+=d.total; acc.int1+=d.int1; acc.int2+=d.int2;
-    acc.hired+=d.hired; acc.rejected+=d.rejected;
-    acc.active+=d.active; acc.withdrew+=d.withdrew;
-    return acc;
-  }, {total:0,int1:0,int2:0,hired:0,rejected:0,active:0,withdrew:0});
+function renderAnContent(){
+  const data=getAnData();
+  const el=document.getElementById('anContent');
+  if(!el)return;
+  if(!data.length){el.innerHTML='<div class="empty" style="margin-top:1rem;">この期間のデータがありません</div>';return;}
 
-  tfoot.innerHTML = `<tr style="background:#f8f8f7;font-weight:600;border-top:2px solid #e8e8e6;">
-    <td style="padding:8px 10px;">合計/平均</td>
-    <td style="padding:8px 10px;text-align:right;">${totals.total}</td>
-    <td style="padding:8px 10px;text-align:right;">${totals.int1}</td>
-    <td style="padding:8px 10px;text-align:right;">${totals.int2}</td>
-    <td style="padding:8px 10px;text-align:right;color:#3B6D11;">${totals.hired}</td>
-    <td style="padding:8px 10px;text-align:right;color:#A32D2D;">${totals.rejected}</td>
-    <td style="padding:8px 10px;text-align:right;color:#854F0B;">${totals.active}</td>
-    <td style="padding:8px 10px;text-align:right;color:#666;">${totals.withdrew}</td>
-    <td style="padding:8px 10px;text-align:right;color:#378ADD;">${pct(totals.int1,totals.total)}</td>
-    <td style="padding:8px 10px;text-align:right;color:#3B6D11;">${pct(totals.hired,totals.total)}</td>
-  </tr>`;
+  if(anTab==='monthly_all'){
+    const months=buildMonthStats(data);
+    el.innerHTML=`<div style="margin-top:1rem;">${renderMonthTable(months,'▼ 全体　月別×面接実施率×採用率')}</div>`;
+
+  } else if(anTab==='monthly_ref'){
+    const ref=data.filter(a=>a.agency&&a.agency.trim());
+    const nonRef=data.filter(a=>!a.agency||!a.agency.trim());
+    const mAll=buildMonthStats(data);
+    const mRef=buildMonthStats(ref);
+    const mNon=buildMonthStats(nonRef);
+    el.innerHTML=`<div style="display:flex;flex-direction:column;gap:1.5rem;margin-top:1rem;">
+      ${renderMonthTable(mAll,'▼ 全体')}
+      ${renderMonthTable(mNon,'▼ 紹介以外')}
+      ${renderMonthTable(mRef,'▼ 紹介')}
+    </div>`;
+
+  } else if(anTab==='age'){
+    // 年代別×月別クロス集計
+    const ageBands=['10代','20代','30代','40代','50代','60代','70代','80代以上'];
+    const getAgeBand=a=>{
+      const age=parseInt(a.age);
+      if(!age)return null;
+      if(age<20)return'10代';if(age<30)return'20代';if(age<40)return'30代';
+      if(age<50)return'40代';if(age<60)return'50代';if(age<70)return'60代';
+      if(age<80)return'70代';return'80代以上';
+    };
+    const months=[...new Set(data.map(a=>a.appDate?a.appDate.substring(0,7):null).filter(Boolean))].sort();
+    const matrix={};
+    months.forEach(m=>matrix[m]={});
+    const totals={};
+    ageBands.forEach(b=>totals[b]=0);
+    const monthTotals={};
+    months.forEach(m=>monthTotals[m]=0);
+    let grand=0;
+    data.forEach(a=>{
+      if(!a.appDate)return;
+      const m=a.appDate.substring(0,7);
+      const b=getAgeBand(a);
+      if(!b)return;
+      matrix[m][b]=(matrix[m][b]||0)+1;
+      totals[b]=(totals[b]||0)+1;
+      monthTotals[m]=(monthTotals[m]||0)+1;
+      grand++;
+    });
+    const usedBands=ageBands.filter(b=>totals[b]>0);
+    const headerCols=usedBands.map(b=>`<th style="${thStyle}">${b}</th>`).join('');
+    const bodyRows=months.map(m=>`<tr>
+      <td style="${tdStyleL}">${m}</td>
+      ${usedBands.map(b=>`<td style="${tdStyle}">${matrix[m][b]||''}</td>`).join('')}
+      <td style="${tdStyle};font-weight:600;">${monthTotals[m]||0}人</td>
+    </tr>`).join('');
+    const footCols=usedBands.map(b=>`<td style="${tfStyle}">${totals[b]}人</td>`).join('');
+    el.innerHTML=`<div style="margin-top:1rem;overflow-x:auto;">
+      <div style="font-size:11px;font-weight:600;color:#666;margin-bottom:8px;">▼ 年代別　月別集計</div>
+      <table style="width:100%;border-collapse:collapse;min-width:600px;">
+        <thead><tr><th style="${thStyleL}">月</th>${headerCols}<th style="${thStyle}">総計</th></tr></thead>
+        <tbody>${bodyRows}</tbody>
+        <tfoot><tr><td style="${tfStyleL}">総計</td>${footCols}<td style="${tfStyle}">${grand}人</td></tr></tfoot>
+      </table>
+    </div>`;
+
+  } else if(anTab==='media'||anTab==='job'||anTab==='dept'||anTab==='gender'||anTab==='status'||anTab==='hire'){
+    const keyMap={media:'media',job:'jobType',dept:'dept',gender:'gender',status:'status',hire:'hireStatus'};
+    const labelMap={media:'媒体別',job:'職種別',dept:'部署別',gender:'性別別',status:'ステータス別',hire:'採用可否別'};
+    const key=keyMap[anTab];
+    const label=labelMap[anTab];
+    const counts={};
+    const int1c={},hiredc={};
+    data.forEach(a=>{
+      const v=a[key]||'(未設定)';
+      counts[v]=(counts[v]||0)+1;
+      if(a.int1Date)int1c[v]=(int1c[v]||0)+1;
+      if(['内定','内定承諾','採用'].includes(a.hireStatus))hiredc[v]=(hiredc[v]||0)+1;
+    });
+    const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+    const rows=sorted.map(([k,v])=>`<tr>
+      <td style="${tdStyleL}">${k}</td>
+      <td style="${tdStyle}">${v}</td>
+      <td style="${tdStyle}">${pct(v,data.length)}</td>
+      <td style="${tdStyle}">${int1c[k]||0}</td>
+      <td style="${tdStyle};color:${pctColor(int1c[k]||0,v,10)};font-weight:600;">${pct(int1c[k]||0,v)}</td>
+      <td style="${tdStyle};color:#639922;font-weight:600;">${hiredc[k]||0}</td>
+      <td style="${tdStyle};color:${pctColor(hiredc[k]||0,v,5)};font-weight:600;">${pct(hiredc[k]||0,v)}</td>
+    </tr>`).join('');
+    el.innerHTML=`<div style="margin-top:1rem;overflow-x:auto;">
+      <div style="font-size:11px;font-weight:600;color:#666;margin-bottom:8px;">▼ ${label}集計</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr>
+          <th style="${thStyleL}">${label.replace('別','')}</th>
+          <th style="${thStyle}">応募数</th>
+          <th style="${thStyle}">構成比</th>
+          <th style="${thStyle}">1次面接数</th>
+          <th style="${thStyle};color:#378ADD;">面接率</th>
+          <th style="${thStyle};color:#639922;">採用数</th>
+          <th style="${thStyle};color:#3B6D11;">採用率</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr>
+          <td style="${tfStyleL}">合計</td>
+          <td style="${tfStyle}">${data.length}</td>
+          <td style="${tfStyle}">100%</td>
+          <td style="${tfStyle}">${data.filter(a=>a.int1Date).length}</td>
+          <td style="${tfStyle};color:#378ADD;">${pct(data.filter(a=>a.int1Date).length,data.length)}</td>
+          <td style="${tfStyle};color:#639922;">${data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length}</td>
+          <td style="${tfStyle};color:#3B6D11;">${pct(data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length,data.length)}</td>
+        </tr></tfoot>
+      </table>
+    </div>`;
+
+  } else if(anTab==='trend'){
+    // 月次トレンドグラフ
+    if(anChart){anChart.destroy();anChart=null;}
+    const months={};
+    data.forEach(a=>{if(a.appDate){const k=a.appDate.substring(0,7);months[k]=(months[k]||0)+1;}});
+    const lbs=Object.keys(months).sort(),vs=lbs.map(l=>months[l]);
+    el.innerHTML=`<div style="margin-top:1rem;position:relative;width:100%;height:260px;"><canvas id="anC" role="img" aria-label="月次トレンド">月次トレンド</canvas></div>`;
+    anChart=new Chart(document.getElementById('anC'),{type:'line',data:{labels:lbs,datasets:[{label:'応募数',data:vs,borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.07)',tension:0.3,fill:true,pointRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,callback:v=>Math.round(v)},grid:{color:'rgba(0,0,0,.04)'}},x:{grid:{display:false},ticks:{autoSkip:false,maxRotation:45}}}}});
+  }
 }
-function doBarChart(data,wrap,key,color){
-  const c={};data.forEach(a=>{if(a[key])c[a[key]]=(c[a[key]]||0)+1;});
-  const lbs=Object.keys(c).sort((a,b)=>c[b]-c[a]),vs=lbs.map(l=>c[l]);
-  const h=Math.max(lbs.length*42+80,140);
-  wrap.innerHTML=`<div style="position:relative;width:100%;height:${h}px;"><canvas id="anC" role="img" aria-label="グラフ">グラフ</canvas></div>`;
-  anChart=new Chart(document.getElementById('anC'),{type:'bar',data:{labels:lbs,datasets:[{data:vs,backgroundColor:color,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{stepSize:1,callback:v=>Math.round(v)},grid:{color:'rgba(0,0,0,.04)'}},y:{grid:{display:false}}}}});
-}
-function doTrend(data,wrap){
-  const m={};data.forEach(a=>{if(a.appDate){const k=a.appDate.substring(0,7);m[k]=(m[k]||0)+1;}});
-  const lbs=Object.keys(m).sort(),vs=lbs.map(l=>m[l]);
-  wrap.innerHTML=`<div style="position:relative;width:100%;height:240px;"><canvas id="anC" role="img" aria-label="月次トレンド">月次トレンド</canvas></div>`;
-  anChart=new Chart(document.getElementById('anC'),{type:'line',data:{labels:lbs,datasets:[{data:vs,borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.07)',tension:0.3,fill:true,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,callback:v=>Math.round(v)},grid:{color:'rgba(0,0,0,.04)'}},x:{grid:{display:false},ticks:{autoSkip:false,maxRotation:45}}}}});
-}
-function doFunnel(data,wrap){
-  const order=['書類選考中','1次面接調整','1次面接済','2次面接調整','2次面接済','最終選考','内定','入社'];
-  const vs=order.map(s=>data.filter(a=>a.status===s).length);
-  const colors=['#B4B2A9','#85B7EB','#5DCAA5','#378ADD','#1D9E75','#EF9F27','#639922','#0F6E56'];
-  wrap.innerHTML=`<div style="position:relative;width:100%;height:${Math.max(order.length*42+80,180)}px;"><canvas id="anC" role="img" aria-label="ファネル">ファネル</canvas></div>`;
-  anChart=new Chart(document.getElementById('anC'),{type:'bar',data:{labels:order,datasets:[{data:vs,backgroundColor:colors,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{stepSize:1,callback:v=>Math.round(v)},grid:{color:'rgba(0,0,0,.04)'}},y:{grid:{display:false}}}}});
-}
+
+// 後方互換（古いrenderMonthlyTable呼び出しに対応）
+function renderMonthlyTable(data){}
+
 
 // ========================================
 // マスター管理
