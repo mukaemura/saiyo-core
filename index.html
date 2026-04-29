@@ -312,10 +312,28 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
         <table>
           <thead><tr>
   <th style="width:36px;"><input type="checkbox" id="checkAll" onclick="toggleCheckAll(this)" style="cursor:pointer;width:14px;height:14px;"></th>
-  <th onclick="toggleSort('appDate')" style="cursor:pointer;">応募日 <span id="sort_appDate">↓</span></th>
+  <th style="cursor:pointer;position:relative;">
+    <div onclick="toggleSortPanel()" style="display:flex;align-items:center;gap:4px;user-select:none;">
+      応募日 <span id="sortIndicator" style="font-size:10px;color:#378ADD;">↓</span>
+      <span style="font-size:10px;color:#aaa;">▾</span>
+    </div>
+    <div id="sortPanel" style="display:none;position:absolute;top:100%;left:0;background:#fff;border:1px solid #e8e8e6;border-radius:8px;padding:8px 12px;z-index:100;min-width:180px;box-shadow:0 4px 12px rgba(0,0,0,.1);font-weight:400;">
+      <div style="font-size:10px;color:#aaa;margin-bottom:6px;">ソート順（チェックした順に優先）</div>
+      <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:11px;"><input type="checkbox" id="sortChk_appDate" onchange="applyMultiSort()" checked> 応募日</label>
+      <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:11px;"><input type="checkbox" id="sortChk_jobType" onchange="applyMultiSort()"> 職種</label>
+      <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:11px;"><input type="checkbox" id="sortChk_dept" onchange="applyMultiSort()"> 部署</label>
+      <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:11px;"><input type="checkbox" id="sortChk_name" onchange="applyMultiSort()"> 名前</label>
+      <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:11px;"><input type="checkbox" id="sortChk_status" onchange="applyMultiSort()"> ステータス</label>
+      <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:11px;"><input type="checkbox" id="sortChk_hireStatus" onchange="applyMultiSort()"> 採用可否</label>
+      <div style="margin-top:6px;padding-top:6px;border-top:1px solid #f0f0ee;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;"><input type="radio" name="sortDir" id="sortDirAsc" onchange="applyMultiSort()"> 昇順</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;margin-top:3px;"><input type="radio" name="sortDir" id="sortDirDesc" onchange="applyMultiSort()" checked> 降順</label>
+      </div>
+    </div>
+  </th>
   <th>名前</th>
-  <th onclick="toggleSort('jobType')" style="cursor:pointer;">職種 <span id="sort_jobType"></span></th>
-  <th onclick="toggleSort('dept')" style="cursor:pointer;">部署 <span id="sort_dept"></span></th>
+  <th>職種</th>
+  <th>部署</th>
   <th>媒体</th>
   <th>ステータス</th>
   <th>採用可否</th>
@@ -698,6 +716,28 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
           </div>
         </div>
 
+        <!-- 多軸クロス集計（複数選択型） -->
+        <div style="padding-top:.75rem;border-top:1px solid #f0f0ee;margin-top:.75rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.625rem;">
+            <div style="font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.06em;">複数軸クロス集計（2〜3軸）</div>
+            <span style="font-size:10px;color:#aaa;">クリックで選択・解除</span>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+            <button id="maxis_jobType"  class="btn-sm" onclick="toggleMultiAxis('jobType')"  style="background:#fafafa;">職種</button>
+            <button id="maxis_dept"     class="btn-sm" onclick="toggleMultiAxis('dept')"     style="background:#fafafa;">部署</button>
+            <button id="maxis_media"    class="btn-sm" onclick="toggleMultiAxis('media')"    style="background:#fafafa;">媒体</button>
+            <button id="maxis_agency"   class="btn-sm" onclick="toggleMultiAxis('agency')"   style="background:#fafafa;">人材紹介会社</button>
+            <button id="maxis_ageGroup" class="btn-sm" onclick="toggleMultiAxis('ageGroup')" style="background:#fafafa;">年代</button>
+            <button id="maxis_gender"   class="btn-sm" onclick="toggleMultiAxis('gender')"   style="background:#fafafa;">性別</button>
+            <button id="maxis_status"   class="btn-sm" onclick="toggleMultiAxis('status')"   style="background:#fafafa;">ステータス</button>
+            <button id="maxis_hireStatus" class="btn-sm" onclick="toggleMultiAxis('hireStatus')" style="background:#fafafa;">採用可否</button>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span id="multiAxisPreview" style="font-size:11px;color:#378ADD;">軸を選択してください（最大3軸・2軸で通常クロス表、3軸で第1軸でグループ分け）</span>
+            <button class="btn btn-p" style="padding:6px 14px;font-size:12px;flex-shrink:0;" onclick="addMultiAxisSection()">追加</button>
+          </div>
+        </div>
+
         <!-- 全クリア -->
         <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid #f0f0ee;display:flex;justify-content:flex-end;">
           <button class="btn-sm" onclick="activeSections=[];renderCustomSections();" style="color:#D85A30;border-color:#D85A30;">全セクションをクリア</button>
@@ -994,6 +1034,40 @@ function renderDocList() {
 function clearDateFilter() {
   document.getElementById('fDateFrom').value = '';
   document.getElementById('fDateTo').value = '';
+  renderList();
+}
+
+function toggleSortPanel() {
+  const panel = document.getElementById('sortPanel');
+  if (!panel) return;
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  // パネル外クリックで閉じる
+  if (panel.style.display === 'block') {
+    setTimeout(() => {
+      document.addEventListener('click', function closeSortPanel(e) {
+        if (!panel.contains(e.target) && !e.target.closest('th')) {
+          panel.style.display = 'none';
+          document.removeEventListener('click', closeSortPanel);
+        }
+      });
+    }, 100);
+  }
+}
+
+function applyMultiSort() {
+  const keys = ['appDate','jobType','dept','name','status','hireStatus'];
+  const checkedKeys = keys.filter(k => {
+    const el = document.getElementById('sortChk_'+k);
+    return el && el.checked;
+  });
+  const descEl = document.getElementById('sortDirDesc');
+  const desc = descEl && descEl.checked;
+  // ソートキーを更新
+  sortKeys = checkedKeys.length > 0 ? checkedKeys : ['appDate'];
+  sortDesc = desc;
+  // ソートインジケータ更新
+  const ind = document.getElementById('sortIndicator');
+  if (ind) ind.textContent = desc ? '↓' : '↑';
   renderList();
 }
 
@@ -1569,7 +1643,7 @@ function renderAnContent(){
 // セクション管理
 let activeSections = []; // 追加済みセクションのリスト
 const sectionCharts = {}; // セクションごとのChartインスタンス管理
-const CHART_COLORS = ['#378ADD','#1D9E75','#EF9F27','#D85A30','#639922','#85B7EB','#5DCAA5','#854F0B','#A32D2D','#185FA5','#0F6E56','#B4B2A9'];
+// CHART_COLORS defined below
 
 function addSection(type, opts) {
   const id = 'sec_' + type + '_' + Date.now();
@@ -1597,6 +1671,177 @@ function removeSection(id) {
   if (sectionCharts[id]) { sectionCharts[id].forEach(c => c.destroy()); delete sectionCharts[id]; }
   activeSections = activeSections.filter(s => s.id !== id);
   renderCustomSections();
+}
+
+
+// ========================================
+// グラフ・ビジュアライゼーション
+// ========================================
+const CHART_COLORS = ['#378ADD','#1D9E75','#EF9F27','#D85A30','#639922','#85B7EB','#5DCAA5','#854F0B','#A32D2D','#185FA5','#B4B2A9','#6ab49a'];
+
+function renderSimpleChart(data, type, secId) {
+  const keyMap = {media:'media',job:'jobType',dept:'dept',gender:'gender',status:'status',hire:'hireStatus'};
+  const key = keyMap[type]; if (!key) return;
+  const counts = {};
+  data.forEach(a => { const v = a[key]||'未設定'; counts[v]=(counts[v]||0)+1; });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const labels = sorted.map(e=>e[0]), vals = sorted.map(e=>e[1]);
+  const colors = CHART_COLORS.slice(0,labels.length);
+
+  const barEl = document.getElementById('bar_'+type+'_'+secId);
+  if (barEl) {
+    const c = new Chart(barEl, {
+      type:'bar',
+      data:{labels, datasets:[{data:vals, backgroundColor:colors, borderRadius:4}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},title:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:10},maxRotation:35}},
+                y:{beginAtZero:true,ticks:{stepSize:1,font:{size:10}}}}}
+    });
+    if (!sectionCharts[secId]) sectionCharts[secId]=[];
+    sectionCharts[secId].push(c);
+  }
+  const pieEl = document.getElementById('pie_'+type+'_'+secId);
+  if (pieEl) {
+    const c = new Chart(pieEl, {
+      type:'pie',
+      data:{labels, datasets:[{data:vals, backgroundColor:colors, borderWidth:1}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:true,position:'right',labels:{font:{size:10},boxWidth:12}}}}
+    });
+    if (!sectionCharts[secId]) sectionCharts[secId]=[];
+    sectionCharts[secId].push(c);
+  }
+}
+
+function renderTrendInSection(data, secId) {
+  const months={},int1m={},hirem={};
+  data.forEach(a=>{if(a.appDate){const k=a.appDate.substring(0,7);months[k]=(months[k]||0)+1;if(a.int1Date)int1m[k]=(int1m[k]||0)+1;if(['内定','内定承諾','採用'].includes(a.hireStatus))hirem[k]=(hirem[k]||0)+1;}});
+  const lbs=Object.keys(months).sort();
+  const el=document.getElementById('trend_'+secId);
+  if (!el) return;
+  const c=new Chart(el,{type:'line',data:{labels:lbs,datasets:[
+    {label:'応募数',data:lbs.map(l=>months[l]),borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.07)',tension:0.3,fill:true,pointRadius:3},
+    {label:'1次面接',data:lbs.map(l=>int1m[l]||0),borderColor:'#5DCAA5',borderDash:[4,2],tension:0.3,pointRadius:3},
+    {label:'採用',data:lbs.map(l=>hirem[l]||0),borderColor:'#639922',tension:0.3,pointRadius:3},
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:true,position:'top',labels:{font:{size:10},boxWidth:12}}},
+    scales:{y:{beginAtZero:true,ticks:{stepSize:1,font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:10},maxRotation:45}}}}});
+  if (!sectionCharts[secId]) sectionCharts[secId]=[];
+  sectionCharts[secId].push(c);
+}
+
+function renderCrossChart(data, rowKey, colKey, viz, secId) {
+  const getVal=(a,key)=>{
+    if(key==='ageGroup'){const age=parseInt(a.age);if(!age)return'不明';if(age<30)return'20代以下';if(age<40)return'30代';if(age<50)return'40代';if(age<60)return'50代';return'60代以上';}
+    return a[key]||'未設定';
+  };
+  const rowVals=[...new Set(data.map(a=>getVal(a,rowKey)).filter(Boolean))].sort();
+  const colVals=[...new Set(data.map(a=>getVal(a,colKey)).filter(Boolean))].sort();
+  const matrix={};rowVals.forEach(r=>{matrix[r]={};colVals.forEach(c=>matrix[r][c]=0);});
+  const colTotals={};colVals.forEach(c=>colTotals[c]=0);
+  data.forEach(a=>{const r=getVal(a,rowKey);const c=getVal(a,colKey);if(matrix[r])matrix[r][c]=(matrix[r][c]||0)+1;colTotals[c]=(colTotals[c]||0)+1;});
+  const topCols=colVals.sort((a,b)=>(colTotals[b]||0)-(colTotals[a]||0)).slice(0,8);
+  const container=document.getElementById('cross_chart_'+secId);
+  if(!container)return;
+  container.innerHTML=`<div style="position:relative;height:${Math.max(rowVals.length*36+80,220)}px;"><canvas id="bar_cross_${secId}"></canvas></div>`;
+  const el=document.getElementById('bar_cross_'+secId);if(!el)return;
+  const datasets=topCols.map((col,i)=>({
+    label:col,data:rowVals.map(r=>matrix[r][col]||0),
+    backgroundColor:CHART_COLORS[i%CHART_COLORS.length],borderRadius:3
+  }));
+  const c=new Chart(el,{type:'bar',data:{labels:rowVals,datasets},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:12}}},
+      scales:{x:{stacked:true,ticks:{stepSize:1,font:{size:10}}},y:{stacked:true,grid:{display:false},ticks:{font:{size:10}}}}}});
+  if(!sectionCharts[secId])sectionCharts[secId]=[];
+  sectionCharts[secId].push(c);
+}
+
+// ========================================
+// 多軸クロス集計（複数軸選択）
+// ========================================
+let multiAxisCols = []; // 選択中の列軸
+
+function toggleMultiAxis(key) {
+  if (multiAxisCols.includes(key)) {
+    multiAxisCols = multiAxisCols.filter(k=>k!==key);
+  } else {
+    if (multiAxisCols.length >= 3) { alert('最大3軸まで選択できます'); return; }
+    multiAxisCols.push(key);
+  }
+  updateMultiAxisUI();
+}
+
+function updateMultiAxisUI() {
+  const keys = ['jobType','dept','media','agency','ageGroup','gender','status','hireStatus'];
+  const labels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否'};
+  keys.forEach(k => {
+    const btn = document.getElementById('maxis_'+k);
+    if (!btn) return;
+    const selected = multiAxisCols.includes(k);
+    btn.style.background = selected ? '#1a1a1a' : '#fafafa';
+    btn.style.color = selected ? '#fff' : '#1a1a1a';
+    btn.style.borderColor = selected ? '#1a1a1a' : '#ddd';
+  });
+  const preview = document.getElementById('multiAxisPreview');
+  if (preview) {
+    preview.textContent = multiAxisCols.length > 0
+      ? '選択中: ' + multiAxisCols.map(k=>({jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否'})[k]).join(' × ')
+      : '軸を選択してください（最大3軸）';
+  }
+}
+
+function addMultiAxisSection() {
+  if (multiAxisCols.length < 2) { alert('2軸以上を選択してください'); return; }
+  addSection('multi_axis', { axes: [...multiAxisCols] });
+  multiAxisCols = [];
+  updateMultiAxisUI();
+}
+
+function buildMultiAxisHTML(data, axes, secId) {
+  if (!data.length) return '<div class="empty">データがありません</div>';
+  const getVal = (a, key) => {
+    if (key==='ageGroup'){const age=parseInt(a.age);if(!age)return'不明';if(age<30)return'20代以下';if(age<40)return'30代';if(age<50)return'40代';if(age<60)return'50代';return'60代以上';}
+    return a[key]||'(未設定)';
+  };
+  const labels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否'};
+
+  if (axes.length === 2) {
+    // 2軸は通常クロス表＋グラフ
+    const rowKey=axes[0], colKey=axes[1];
+    const tableHtml = renderCrossTable(data, rowKey, colKey, labels[rowKey], labels[colKey]);
+    const chartDiv = `<div style="margin-top:1rem;" id="cross_chart_${secId}"></div>`;
+    return tableHtml + chartDiv;
+  }
+
+  // 3軸：第1軸でグループ化し、各グループでクロス表
+  const [ax1, ax2, ax3] = axes;
+  const groups = {};
+  data.forEach(a => {
+    const g = getVal(a, ax1);
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(a);
+  });
+  const sortedGroups = Object.keys(groups).sort((a,b)=>groups[b].length-groups[a].length);
+  const totalCount = data.length;
+  let html = `<div style="font-size:10px;color:#666;margin-bottom:8px;">
+    ${labels[ax1]}ごとに ${labels[ax2]}×${labels[ax3]} をクロス集計（全${totalCount}名）
+  </div>`;
+
+  html += sortedGroups.map(g => {
+    const gData = groups[g];
+    const pct = Math.round(gData.length/totalCount*100);
+    const crossHtml = renderCrossTable(gData, ax2, ax3, labels[ax2], labels[ax3]);
+    return `<details style="margin-bottom:.75rem;border:1px solid #e8e8e6;border-radius:8px;overflow:hidden;" open>
+      <summary style="padding:.625rem 1rem;background:#f8f8f7;cursor:pointer;font-size:12px;font-weight:600;list-style:none;display:flex;align-items:center;justify-content:space-between;">
+        <span>${labels[ax1]}：${g}</span>
+        <span style="font-size:11px;color:#aaa;font-weight:400;">${gData.length}名（${pct}%）</span>
+      </summary>
+      <div style="padding:.75rem 1rem;">${crossHtml}</div>
+    </details>`;
+  }).join('');
+  return html;
 }
 
 function renderCustomSections() {
@@ -1630,6 +1875,8 @@ function renderCustomSections() {
     else if (s.type === 'custom_cross') {
       const viz = s.opts.viz || 'both';
       if (viz !== 'table') renderCrossChart(data, s.opts.row, s.opts.col, viz, s.id);
+    } else if (s.type === 'multi_axis' && s.opts && s.opts.axes && s.opts.axes.length === 2) {
+      renderCrossChart(data, s.opts.axes[0], s.opts.axes[1], 'bar', s.id);
     } else if (['media','job','dept','gender','status','hire'].includes(s.type)) {
       renderSimpleChart(data, s.type, s.id);
     } else if (s.type === 'ai') {
@@ -1665,6 +1912,9 @@ function buildSectionInline(data, s) {
       <div><div style="font-size:10px;color:#666;font-weight:600;margin-bottom:4px;">棒グラフ（応募数）</div><div style="position:relative;height:200px;"><canvas id="bar_${type}_${secId}"></canvas></div></div>
       <div><div style="font-size:10px;color:#666;font-weight:600;margin-bottom:4px;">円グラフ（構成比）</div><div style="position:relative;height:200px;"><canvas id="pie_${type}_${secId}"></canvas></div></div>
     </div>`;
+  } else if (type === 'multi_axis') {
+    const axes = s.opts ? s.opts.axes : [];
+    return buildMultiAxisHTML(data, axes, secId);
   } else if (type === 'dept_job') {
     return renderCrossTable(data,'dept','jobType','部署','職種');
   } else if (type === 'age_job') {
