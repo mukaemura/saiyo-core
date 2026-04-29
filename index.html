@@ -462,13 +462,19 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
     <!-- 議事録 -->
     <div id="sec-minutes" class="sec">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px;">
         <div>
           <h2 style="font-size:14px;font-weight:600;">議事録</h2>
           <p style="font-size:11px;color:#aaa;margin-top:2px;">MTGごとの議事録とタスクを記録します</p>
         </div>
-        <button class="btn btn-p" onclick="showMinutesForm()">＋ 新規議事録</button>
+        <div style="display:flex;gap:8px;">
+          <input type="month" id="calMonth" onchange="renderMinutes()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fafafa;">
+          <button class="btn btn-s" onclick="showMinutesFormForDate()">＋ 日付指定で追加</button>
+          <button class="btn btn-p" onclick="showMinutesForm()">＋ 新規議事録</button>
+        </div>
       </div>
+      <!-- ミニカレンダー -->
+      <div id="minutesCalendar" style="margin-bottom:1rem;"></div>
 
       <!-- 新規議事録フォーム -->
       <div id="minutesForm" style="display:none;background:#f8f8f7;border-radius:10px;padding:1.25rem;margin-bottom:1.25rem;">
@@ -510,12 +516,12 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
     <!-- タスク -->
     <div id="sec-tasks" class="sec">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px;">
         <div>
           <h2 style="font-size:14px;font-weight:600;">タスク管理</h2>
           <p style="font-size:11px;color:#aaa;margin-top:2px;">期限・担当・完了状況を一覧で管理します</p>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <select id="taskFilter" onchange="renderTasks()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;">
             <option value="all">全て</option>
             <option value="pending">未完了のみ</option>
@@ -523,9 +529,12 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
             <option value="linkcore">LinkCore担当</option>
             <option value="client">クライアント担当</option>
           </select>
+          <input type="month" id="taskCalMonth" onchange="renderTaskCalendar()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fafafa;">
           <button class="btn btn-p" onclick="showManualTaskForm()">＋ 手動追加</button>
         </div>
       </div>
+      <!-- タスクカレンダー -->
+      <div id="taskCalendar" style="margin-bottom:1rem;"></div>
 
       <!-- 手動タスク追加フォーム -->
       <div id="manualTaskForm" style="display:none;background:#f8f8f7;border-radius:10px;padding:1.125rem;margin-bottom:1rem;">
@@ -864,8 +873,19 @@ function showSec(s) {
   if (s === 'admin') renderAdmin();
   if (s === 'add' && !editId) resetForm();
   if (s === 'import') cancelImport();
-  if (s === 'minutes') renderMinutes();
-  if (s === 'tasks') renderTasks();
+  if (s === 'minutes') {
+    // カレンダーの月を今月に初期化
+    const calInput = document.getElementById('calMonth');
+    if (calInput && !calInput.value) calInput.value = new Date().toISOString().slice(0,7);
+    renderMinutes();
+    renderMinutesCalendar();
+  }
+  if (s === 'tasks') {
+    const tcInput = document.getElementById('taskCalMonth');
+    if (tcInput && !tcInput.value) tcInput.value = new Date().toISOString().slice(0,7);
+    renderTasks();
+    renderTaskCalendar();
+  }
 }
 
 // ========================================
@@ -1947,20 +1967,31 @@ const MINUTES_KEY = () => `saiyo_minutes_${currentClientId}_v1`;
 const TASKS_KEY = () => `saiyo_tasks_${currentClientId}_v1`;
 
 async function loadMinutesAndTasks() {
+  const cid = currentClientId;
   try {
-    const mr = await window.storage.get(MINUTES_KEY());
-    if (mr && mr.value) minutes = JSON.parse(mr.value);
-    const tr = await window.storage.get(TASKS_KEY());
-    if (tr && tr.value) tasks = JSON.parse(tr.value);
-  } catch(e) { minutes = []; tasks = []; }
+    const { data: mData } = await sb.from('minutes').select('*').eq('client_id', cid).order('date', { ascending: false });
+    minutes = (mData || []).map(r => ({
+      id: r.id, date: r.date, title: r.title, url: r.url,
+      tasks: r.tasks || [], clientId: r.client_id, createdAt: r.created_at
+    }));
+  } catch(e) { minutes = []; }
+  try {
+    const { data: tData } = await sb.from('tasks').select('*').eq('client_id', cid).order('created_at', { ascending: false });
+    tasks = (tData || []).map(r => ({
+      id: r.id, owner: r.owner, content: r.content,
+      startDate: r.start_date, due: r.due_date, priority: r.priority,
+      done: r.done, doneDate: r.done_date, source: r.source,
+      minuteId: r.minute_id, clientId: r.client_id
+    }));
+  } catch(e) { tasks = []; }
 }
 async function saveMinutesData() {
-  try { await window.storage.set(MINUTES_KEY(), JSON.stringify(minutes)); } catch(e) {}
+  // Supabaseへの保存はsaveMinute()内で個別に実施
 }
 async function saveTasksData() {
-  try { await window.storage.set(TASKS_KEY(), JSON.stringify(tasks)); } catch(e) {}
+  // Supabaseへの保存はsaveManualTask/confirmComplete/deleteTask内で実施
   updateTaskBadge();
-  if(document.getElementById("sec-dashboard").classList.contains("active")) renderDashTasks();
+  if(document.getElementById("sec-dashboard") && document.getElementById("sec-dashboard").classList.contains("active")) renderDashTasks();
 }
 
 // 議事録フォーム
@@ -2013,27 +2044,36 @@ async function saveMinutes() {
   const url = document.getElementById('mUrl').value;
   const title = document.getElementById('mTitle').value;
   if (!date) { alert('日付を入力してください'); return; }
-  const minute = {
-    id: editingMinuteId || (Date.now()+''),
-    date, url, title,
-    tasks: [...tempMinuteTasks],
-    clientId: currentClientId,
-    createdAt: new Date().toISOString()
-  };
+  const mid = editingMinuteId || (Date.now()+'');
+  const cid = currentClientId;
+  const row = { id: mid, client_id: cid, date, url: url||null, title: title||null, tasks: tempMinuteTasks };
   if (editingMinuteId) {
-    minutes = minutes.map(m => m.id === editingMinuteId ? minute : m);
-    // 既存タスクから同じminuteIdのものを削除して再追加
-    tasks = tasks.filter(t => t.minuteId !== editingMinuteId);
+    await sb.from('minutes').update(row).eq('id', mid);
+    // 関連タスクを削除して再挿入
+    await sb.from('tasks').delete().eq('minute_id', mid);
+    tasks = tasks.filter(t => t.minuteId !== mid);
   } else {
-    minutes.unshift(minute);
+    await sb.from('minutes').insert(row);
+    minutes.unshift({ id: mid, date, url, title, tasks: tempMinuteTasks, clientId: cid });
   }
-  // タスクにminuteIdを付与して追加
-  const newTasks = tempMinuteTasks.map(t => ({ ...t, minuteId: minute.id, id: t.id || (Date.now()+Math.random()+'') }));
-  tasks = [...newTasks, ...tasks];
-  await saveMinutesData();
-  await saveTasksData();
+  // タスクをSupabaseに保存
+  if (tempMinuteTasks.length) {
+    const taskRows = tempMinuteTasks.map(t => ({
+      id: t.id || (Date.now()+Math.random()+''),
+      client_id: cid, owner: t.owner, content: t.content,
+      due_date: t.due||null, priority: t.priority||'中',
+      done: false, source: 'minutes', minute_id: mid
+    }));
+    await sb.from('tasks').insert(taskRows);
+    const newTasks = taskRows.map(r => ({
+      id: r.id, owner: r.owner, content: r.content, due: r.due_date,
+      priority: r.priority, done: false, source: 'minutes', minuteId: mid, clientId: cid
+    }));
+    tasks = [...newTasks, ...tasks.filter(t => t.minuteId !== mid)];
+  }
   hideMinutesForm();
   renderMinutes();
+  updateTaskBadge();
   setStatus('議事録を保存しました', 'ok');
 }
 
@@ -2042,8 +2082,9 @@ function renderMinutes() {
   if (!minutes.length) { el.innerHTML = '<div class="empty">議事録がまだありません</div>'; return; }
   el.innerHTML = minutes.map(m => {
     const mTasks = tasks.filter(t => t.minuteId === m.id);
+    const mId = 'minute_' + m.id;
     const pendingCount = mTasks.filter(t => !t.done).length;
-    return `<div style="border:1px solid #e8e8e6;border-radius:10px;margin-bottom:10px;overflow:hidden;">
+    return `<div id="${mId}" style="border:1px solid #e8e8e6;border-radius:10px;margin-bottom:10px;overflow:hidden;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:.875rem 1rem;background:#fafafa;border-bottom:1px solid #f0f0ee;">
         <div style="display:flex;align-items:center;gap:12px;">
           <div style="font-size:12px;color:#aaa;">${m.date}</div>
@@ -2077,11 +2118,12 @@ function editMinute(id) {
 
 async function deleteMinute(id) {
   if (!confirm('この議事録を削除しますか？（関連タスクも削除されます）')) return;
+  await sb.from('tasks').delete().eq('minute_id', id);
+  await sb.from('minutes').delete().eq('id', id);
   minutes = minutes.filter(m => m.id !== id);
   tasks = tasks.filter(t => t.minuteId !== id);
-  await saveMinutesData();
-  await saveTasksData();
   renderMinutes();
+  setStatus('議事録を削除しました', 'ok');
 }
 
 // タスク
@@ -2096,26 +2138,27 @@ function hideManualTaskForm() {
 }
 
 async function saveManualTask() {
-  const content = document.getElementById('mtContent').value.trim();
+  const taskContent = document.getElementById('mtContent').value.trim();
   const due = document.getElementById('mtDue').value;
-  if (!content) { alert('タスク内容を入力してください'); return; }
-  const task = {
-    id: Date.now()+'',
+  if (!taskContent) { alert('タスク内容を入力してください'); return; }
+  const tid = Date.now()+'';
+  const row = {
+    id: tid, client_id: currentClientId,
     owner: document.getElementById('mtOwner').value,
-    content,
-    startDate: document.getElementById('mtStart').value,
-    due,
+    content: taskContent,
+    start_date: document.getElementById('mtStart').value || null,
+    due_date: due || null,
     priority: document.getElementById('mtPriority').value,
-    done: false, doneDate: '',
-    source: 'manual', minuteId: null,
-    clientId: currentClientId
+    done: false, source: 'manual', minute_id: null
   };
-  tasks.unshift(task);
-  await saveTasksData();
+  const { error } = await sb.from('tasks').insert(row);
+  if (error) { alert('保存に失敗しました: ' + error.message); return; }
+  tasks.unshift({ id: tid, owner: row.owner, content: taskContent, startDate: row.start_date, due, priority: row.priority, done: false, doneDate: '', source: 'manual', minuteId: null, clientId: currentClientId });
   hideManualTaskForm();
   document.getElementById('mtContent').value = '';
   document.getElementById('mtDue').value = '';
   renderTasks();
+  updateTaskBadge();
   setStatus('タスクを追加しました', 'ok');
 }
 
@@ -2194,17 +2237,19 @@ function showCompleteInput(id) {
 }
 
 async function confirmComplete(id, dateVal) {
+  const doneDate = dateVal || new Date().toISOString().split('T')[0];
+  await sb.from('tasks').update({ done: true, done_date: doneDate }).eq('id', id);
   const t = tasks.find(x => x.id === id);
-  if (!t) return;
-  t.done = true; t.doneDate = dateVal || new Date().toISOString().split('T')[0];
+  if (t) { t.done = true; t.doneDate = doneDate; }
   await saveTasksData();
   renderTasks();
-  if (document.getElementById('sec-minutes').classList.contains('active')) renderMinutes();
+  if (document.getElementById('sec-minutes') && document.getElementById('sec-minutes').classList.contains('active')) renderMinutes();
   setStatus('タスクを完了しました', 'ok');
 }
 
 async function deleteTask(id) {
   if (!confirm('このタスクを削除しますか？')) return;
+  await sb.from('tasks').delete().eq('id', id);
   tasks = tasks.filter(t => t.id !== id);
   await saveTasksData();
   renderTasks();
@@ -2311,16 +2356,17 @@ function editTask(id) {
 }
 
 async function updateTask(id) {
-  const content = document.getElementById('mtContent').value.trim();
+  const taskContent = document.getElementById('mtContent').value.trim();
   const due = document.getElementById('mtDue').value;
-  if (!content) { alert('タスク内容を入力してください'); return; }
+  if (!taskContent) { alert('タスク内容を入力してください'); return; }
   const t = tasks.find(x => x.id === id);
   if (!t) return;
   t.owner = document.getElementById('mtOwner').value;
-  t.content = content;
+  t.content = taskContent;
   t.startDate = document.getElementById('mtStart').value;
   t.due = due;
   t.priority = document.getElementById('mtPriority').value;
+  await sb.from('tasks').update({ owner: t.owner, content: taskContent, start_date: t.startDate||null, due_date: due||null, priority: t.priority }).eq('id', id);
   await saveTasksData();
   hideManualTaskForm();
   // ボタンを「追加」モードに戻す
@@ -2330,10 +2376,295 @@ async function updateTask(id) {
   setStatus('タスクを更新しました', 'ok');
 }
 
+
+// ========================================
+// カレンダー機能（議事録・タスク）
+// ========================================
+function renderMinutesCalendar() {
+  const el = document.getElementById('minutesCalendar');
+  if (!el) return;
+  const monthInput = document.getElementById('calMonth');
+  const now = new Date();
+  const ym = monthInput && monthInput.value ? monthInput.value : now.toISOString().slice(0,7);
+  const [y, m] = ym.split('-').map(Number);
+  const firstDay = new Date(y, m-1, 1).getDay();
+  const daysInMonth = new Date(y, m, 0).getDate();
+
+  // 議事録がある日を集計
+  const minuteDates = new Set(minutes.filter(mn => mn.date && mn.date.startsWith(ym)).map(mn => mn.date));
+  // タスクの期限がある日を集計（警告色用）
+  const today = now.toISOString().split('T')[0];
+  const taskDates = {};
+  tasks.filter(t => !t.done && t.due && t.due.startsWith(ym)).forEach(t => {
+    taskDates[t.due] = (taskDates[t.due] || 0) + 1;
+  });
+
+  const days = ['日','月','火','水','木','金','土'];
+  let html = `<div style="background:#fafafa;border-radius:10px;padding:.875rem;border:1px solid #e8e8e6;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+      <button class="btn-sm" onclick="changeCalMonth(-1)">‹ 前月</button>
+      <span style="font-size:12px;font-weight:600;">${y}年${m}月</span>
+      <button class="btn-sm" onclick="changeCalMonth(1)">次月 ›</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;">
+      ${days.map((d,i)=>`<div style="font-size:10px;font-weight:600;color:${i===0?'#D85A30':i===6?'#378ADD':'#666'};padding:4px 0;">${d}</div>`).join('')}
+      ${Array(firstDay).fill('<div></div>').join('')}
+      ${Array.from({length:daysInMonth},(_,i)=>{
+        const day = i+1;
+        const dateStr = ym+'-'+(day<10?'0':'')+day;
+        const hasMins = minuteDates.has(dateStr);
+        const taskCount = taskDates[dateStr] || 0;
+        const isToday = dateStr === today;
+        const isPast = dateStr < today;
+        let bg = 'transparent', border = '1px solid transparent', color = '#1a1a1a';
+        if (isToday) { bg = '#1a1a1a'; color = '#fff'; border = '1px solid #1a1a1a'; }
+        else if (hasMins) { bg = '#e8f4f0'; border = '1px solid #6ab49a'; }
+        return `<div onclick="calDayClick('${dateStr}')" style="cursor:pointer;padding:6px 2px;border-radius:6px;background:${bg};border:${border};color:${color};font-size:11px;position:relative;transition:all .1s;" onmouseover="this.style.background='${isToday?'#333':'#f0faf6'}'" onmouseout="this.style.background='${bg}'">
+          ${day}
+          ${hasMins?'<div style="width:5px;height:5px;background:#6ab49a;border-radius:50%;margin:0 auto;"></div>':''}
+          ${taskCount?`<div style="font-size:8px;color:#D85A30;font-weight:700;">${taskCount}件</div>`:''}
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="margin-top:8px;display:flex;gap:12px;font-size:10px;color:#888;">
+      <span><span style="display:inline-block;width:8px;height:8px;background:#6ab49a;border-radius:50%;margin-right:3px;"></span>議事録あり</span>
+      <span style="color:#D85A30;">数字 = タスク締切数</span>
+    </div>
+  </div>`;
+  el.innerHTML = html;
+}
+
+function changeCalMonth(delta) {
+  const input = document.getElementById('calMonth');
+  if (!input) return;
+  const [y, m] = (input.value || new Date().toISOString().slice(0,7)).split('-').map(Number);
+  const d = new Date(y, m-1+delta, 1);
+  input.value = d.toISOString().slice(0,7);
+  renderMinutesCalendar();
+  renderMinutes();
+}
+
+function calDayClick(dateStr) {
+  // クリックした日の議事録があれば表示、なければ新規作成ダイアログ
+  const existing = minutes.filter(m => m.date === dateStr);
+  if (existing.length > 0) {
+    // その日の議事録にスクロール
+    renderMinutes();
+    setTimeout(() => {
+      const el = document.getElementById('minute_' + existing[0].id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  } else {
+    if (confirm(dateStr + 'の議事録を作成しますか？')) {
+      showMinutesForm();
+      document.getElementById('mDate').value = dateStr;
+    }
+  }
+}
+
+function showMinutesFormForDate() {
+  showMinutesForm();
+  const calInput = document.getElementById('calMonth');
+  if (calInput && calInput.value) {
+    document.getElementById('mDate').value = calInput.value + '-01';
+  }
+}
+
+function renderTaskCalendar() {
+  const el = document.getElementById('taskCalendar');
+  if (!el) return;
+  const monthInput = document.getElementById('taskCalMonth');
+  if (!monthInput || !monthInput.value) { el.innerHTML = ''; return; }
+  const ym = monthInput.value;
+  const [y, m] = ym.split('-').map(Number);
+  const firstDay = new Date(y, m-1, 1).getDay();
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const today = new Date().toISOString().split('T')[0];
+
+  const tasksByDate = {};
+  tasks.filter(t => t.due && t.due.startsWith(ym)).forEach(t => {
+    if (!tasksByDate[t.due]) tasksByDate[t.due] = [];
+    tasksByDate[t.due].push(t);
+  });
+
+  const days = ['日','月','火','水','木','金','土'];
+  let html = `<div style="background:#fafafa;border-radius:10px;padding:.875rem;border:1px solid #e8e8e6;">
+    <div style="font-size:11px;font-weight:600;color:#666;margin-bottom:.75rem;">${y}年${m}月 タスクカレンダー</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;">
+      ${days.map((d,i)=>`<div style="font-size:10px;font-weight:600;color:${i===0?'#D85A30':i===6?'#378ADD':'#666'};padding:4px 0;">${d}</div>`).join('')}
+      ${Array(firstDay).fill('<div></div>').join('')}
+      ${Array.from({length:daysInMonth},(_,i)=>{
+        const day = i+1;
+        const dateStr = ym+'-'+(day<10?'0':'')+day;
+        const dayTasks = tasksByDate[dateStr] || [];
+        const isToday = dateStr === today;
+        const hasOverdue = dayTasks.some(t => !t.done && dateStr < today);
+        const bg = isToday?'#1a1a1a':hasOverdue?'#fff5f5':dayTasks.length?'#f0f6ff':'transparent';
+        const color = isToday?'#fff':'#1a1a1a';
+        const pendingCount = dayTasks.filter(t => !t.done).length;
+        const doneCount = dayTasks.filter(t => t.done).length;
+        return `<div style="padding:4px 2px;border-radius:6px;background:${bg};font-size:11px;color:${color};min-height:44px;cursor:${dayTasks.length?'pointer':'default'};" onclick="${dayTasks.length?`showTasksForDate('${dateStr}')`:''}"}>
+          <div>${day}</div>
+          ${pendingCount?`<div style="font-size:9px;color:${hasOverdue?'#D85A30':'#378ADD'};font-weight:700;">${pendingCount}件</div>`:''}
+          ${doneCount?`<div style="font-size:9px;color:#3B6D11;">✓${doneCount}</div>`:''}
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="margin-top:6px;font-size:10px;color:#888;display:flex;gap:12px;">
+      <span style="color:#378ADD;">■ タスクあり</span>
+      <span style="color:#D85A30;">■ 期限超過</span>
+      <span style="color:#3B6D11;">✓ 完了</span>
+    </div>
+  </div>`;
+  el.innerHTML = html;
+}
+
+function showTasksForDate(dateStr) {
+  // その日のタスクをフィルター表示
+  document.getElementById('taskFilter').value = 'all';
+  // 該当タスクをハイライト
+  renderTasks();
+  setTimeout(() => {
+    const rows = document.querySelectorAll('#taskList [data-due="'+dateStr+'"]');
+    if (rows.length) rows[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 100);
+}
+
 // タスク残数カウント（クライアント管理用）
 function getPendingTaskCount(clientId) {
   return tasks.filter(t => (t.clientId === clientId || !t.minuteId) && !t.done).length;
 }
+// ========================================
+// マスター管理
+// ========================================
+function renderManage() {
+  const map = { media:'mlMed', status:'mlSt', agency:'mlAg', hire:'mlHire', dept:'mlDept' };
+  Object.entries(map).forEach(([key, id]) => {
+    const el = document.getElementById(id); if (!el) return;
+    el.innerHTML = (masters[key]||[]).map((v,i) =>
+      `<li>${v}<button class="btn-del" onclick="delM('${key}',${i})">削除</button></li>`
+    ).join('');
+  });
+}
+
+async function addM(key) {
+  const idMap = { media:'miMed', status:'miSt', agency:'miAg', hire:'miHire', dept:'miDept' };
+  const el = document.getElementById(idMap[key]);
+  const v = el.value.trim(); if (!v) return;
+  if ((masters[key]||[]).includes(v)) return alert('すでに存在します');
+  const cid = isAdmin ? 'admin' : currentClientId;
+  const { error } = await sb.from('masters').insert({ client_id: cid, type: key, value: v });
+  if (error) { alert('追加に失敗しました'); return; }
+  if (!masters[key]) masters[key] = [];
+  masters[key].push(v); el.value = '';
+  renderManage(); popSelects();
+  setStatus(v + ' を追加しました', 'ok');
+}
+
+async function delM(key, i) {
+  if (!confirm('削除しますか？')) return;
+  const v = masters[key][i];
+  const cid = isAdmin ? 'admin' : currentClientId;
+  await sb.from('masters').delete().eq('client_id', cid).eq('type', key).eq('value', v);
+  masters[key].splice(i, 1);
+  renderManage(); popSelects();
+}
+
+async function chgPw() {
+  const a = document.getElementById('np1').value;
+  const b = document.getElementById('np2').value;
+  if (!a || a !== b) return alert('パスワードが一致しません');
+  if (isAdmin) {
+    await sb.from('system_config').upsert({ key: 'admin_pw', value: a });
+  } else {
+    await sb.from('clients').update({ password: a }).eq('client_id', currentClientId);
+  }
+  document.getElementById('pwOk').style.display = 'inline';
+  setTimeout(() => document.getElementById('pwOk').style.display = 'none', 2000);
+}
+
+// ========================================
+// クライアント管理
+// ========================================
+async function renderAdmin() {
+  const { data } = await sb.from('clients').select('*').order('created_at', { ascending: true });
+  const clients = data || [];
+  const tb = document.getElementById('clientTableBody');
+  if (!clients.length) {
+    tb.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#aaa;padding:1.5rem;font-size:12px;">クライアントがまだいません</td></tr>`;
+    return;
+  }
+  tb.innerHTML = clients.map((c, i) => `<tr>
+    <td style="font-weight:500;">${c.name}</td>
+    <td><code style="background:#f8f8f7;padding:2px 7px;border-radius:4px;font-size:11px;">${c.client_id}</code></td>
+    <td style="font-size:11px;color:#888;">${c.password}</td>
+    <td><span id="cnt_${c.client_id}" class="badge bgr">—</span></td>
+    <td><button class="btn-del" onclick="delClient('${c.client_id}')">削除</button></td>
+  </tr>`).join('');
+  clients.forEach(async c => {
+    const { data: appData } = await sb.from('applicants').select('hire_status').eq('client_id', c.client_id);
+    const total = (appData || []).length;
+    const hired = (appData || []).filter(r => ['内定','内定承諾','採用'].includes(r.hire_status)).length;
+    let taskCount = 0;
+    try {
+      const tr = await window.storage.get(`saiyo_tasks_${c.client_id}_v1`);
+      if (tr && tr.value) taskCount = JSON.parse(tr.value).filter(t => !t.done).length;
+    } catch(e) {}
+    const el = document.getElementById('cnt_' + c.client_id);
+    if (el) el.innerHTML = `<span class="badge bgr">${total}名</span> <span class="badge bg" style="margin-left:4px;">採用${hired}名</span> <span class="badge ba" style="margin-left:4px;">タスク${taskCount}件</span>`;
+  });
+}
+
+async function addClient() {
+  const name = document.getElementById('newCName').value.trim();
+  const id = document.getElementById('newCId').value.trim();
+  const pw = document.getElementById('newCPw').value.trim();
+  if (!name || !id || !pw) { alert('クライアント名・ID・パスワードを入力してください'); return; }
+  if (id === 'admin') { alert('adminは使用できません'); return; }
+  const { error } = await sb.from('clients').insert({ name, client_id: id, password: pw });
+  if (error) { alert('追加に失敗しました。IDが重複している可能性があります。'); return; }
+  document.getElementById('newCName').value = '';
+  document.getElementById('newCId').value = '';
+  document.getElementById('newCPw').value = '';
+  renderAdmin();
+}
+
+async function delClient(id) {
+  const { data } = await sb.from('clients').select('name').eq('client_id', id).single();
+  if (!confirm(`クライアント「${data?.name}」を削除しますか？`)) return;
+  await sb.from('clients').delete().eq('client_id', id);
+  renderAdmin();
+}
+
+function renderDashTasks() {
+  const el = document.getElementById('dashTaskList');
+  const badge = document.getElementById('dashTaskBadge');
+  if (!el) return;
+  const today = new Date().toISOString().split('T')[0];
+  const pending = tasks.filter(t => !t.done).sort((a,b) => (a.due||'9999') > (b.due||'9999') ? 1 : -1).slice(0,8);
+  if (badge) {
+    const overdue = tasks.filter(t => !t.done && t.due && t.due < today).length;
+    if (pending.length > 0) {
+      badge.style.display = 'inline';
+      badge.textContent = overdue > 0 ? `！${pending.length}件(期限超過${overdue}件)` : `${pending.length}件`;
+      badge.style.background = overdue > 0 ? '#D85A30' : '#378ADD';
+    } else badge.style.display = 'none';
+  }
+  if (!pending.length) { el.innerHTML = '<div style="font-size:11px;color:#aaa;padding:.5rem 0;">未完了タスクはありません 🎉</div>'; return; }
+  el.innerHTML = pending.map(t => {
+    const isOv = t.due && t.due < today;
+    const isSoon = t.due && t.due >= today && t.due <= new Date(Date.now()+3*86400000).toISOString().split('T')[0];
+    const bg = isOv ? '#fff5f5' : isSoon ? '#fffbf0' : '#fafafa';
+    const border = isOv ? 'border-left:3px solid #D85A30' : isSoon ? 'border-left:3px solid #EF9F27' : 'border-left:3px solid #e8e8e6';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:${bg};${border};border-radius:6px;margin-bottom:5px;font-size:11px;">
+      <span class="badge ${t.owner==='LinkCore'?'bb':'ba'}" style="flex-shrink:0;">${t.owner}</span>
+      <span style="flex:1;">${t.content}</span>
+      ${t.due ? `<span style="color:${isOv?'#D85A30':isSoon?'#854F0B':'#aaa'};font-size:10px;">${t.due}</span>` : ''}
+      <span class="badge ${t.priority==='高'?'br':t.priority==='低'?'bg':'bgr'}" style="flex-shrink:0;">${t.priority||'中'}</span>
+    </div>`;
+  }).join('');
+}
+
 
 </script>
 </body>
