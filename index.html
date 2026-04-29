@@ -214,7 +214,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
           <button class="nb" onclick="showSec('import')">一括取り込み</button>
           <button class="nb" onclick="showSec('analytics')">分析</button>
           <button class="nb" onclick="showSec('minutes')">議事録</button>
-          <button class="nb" onclick="showSec('tasks')">タスク</button>
+          <button class="nb" onclick="showSec('tasks')" id="taskNavBtn">タスク</button>
           <button class="nb" onclick="showSec('master')">マスター管理</button>
         </nav>
         <button id="adminNavBtn" class="nb" style="display:none;border-color:#378ADD;color:#378ADD;" onclick="showSec('admin')">クライアント管理</button>
@@ -252,6 +252,18 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
           <thead><tr><th>応募日</th><th>名前</th><th>職種</th><th>部署</th><th>媒体</th><th>ステータス</th><th>採用可否</th><th></th></tr></thead>
           <tbody id="dashRecentBody"></tbody>
         </table>
+      </div>
+
+      <!-- タスクサマリー -->
+      <div style="margin-top:1.25rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <strong style="font-size:12px;">未完了タスク</strong>
+            <span id="dashTaskBadge" style="display:none;background:#D85A30;color:#fff;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;"></span>
+          </div>
+          <button class="btn-sm" onclick="showSec('tasks')">全件表示 →</button>
+        </div>
+        <div id="dashTaskList"></div>
       </div>
     </div>
 
@@ -542,48 +554,69 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
     </div>
 
     <!-- 分析 -->
-    <div id="sec-analytics" class="sec">
-      <!-- フィルター -->
-      <div class="filter-row" style="margin-bottom:.75rem;">
-        <label style="font-size:11px;color:#666;">期間：</label>
-        <input type="date" id="anFrom" onchange="renderAn()">
-        <span style="font-size:10px;color:#aaa;">〜</span>
-        <input type="date" id="anTo" onchange="renderAn()">
-        <button class="btn-sm" onclick="setPeriod('month')">今月</button>
-        <button class="btn-sm" onclick="setPeriod('quarter')">3ヶ月</button>
-        <button class="btn-sm" onclick="setPeriod('year')">1年</button>
-        <button class="btn-sm" onclick="setPeriod('all')">累計</button>
-        <select id="anDept" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;color:#1a1a1a;">
-          <option value="">部署（全て）</option>
-        </select>
-        <select id="anJob" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;color:#1a1a1a;">
-          <option value="">職種（全て）</option>
-        </select>
-        <div style="margin-left:auto;"><button class="btn-exp" onclick="exportPDF()">レポートPDF出力</button></div>
+    <div id="sec-analytics" class="sec" style="padding:0;background:transparent;box-shadow:none;">
+
+      <!-- 上部固定サマリー -->
+      <div style="background:#fff;border-radius:10px;padding:1.125rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:.875rem;">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <label style="font-size:11px;color:#666;font-weight:500;">期間A：</label>
+            <input type="date" id="anFrom" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;">
+            <span style="font-size:10px;color:#aaa;">〜</span>
+            <input type="date" id="anTo" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;">
+            <button class="btn-sm" onclick="setPeriod('month')">今月</button>
+            <button class="btn-sm" onclick="setPeriod('quarter')">3ヶ月</button>
+            <button class="btn-sm" onclick="setPeriod('year')">1年</button>
+            <button class="btn-sm" onclick="setPeriod('all')">累計</button>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <select id="anDept" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;">
+              <option value="">部署（全て）</option>
+            </select>
+            <select id="anJob" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;">
+              <option value="">職種（全て）</option>
+            </select>
+            <button class="btn-exp" onclick="exportPDF()">PDF出力</button>
+          </div>
+        </div>
+
+        <!-- 比較機能 -->
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-top:.75rem;border-top:1px solid #f0f0ee;">
+          <label style="font-size:11px;color:#378ADD;font-weight:600;">比較期間B：</label>
+          <input type="date" id="anFrom2" style="padding:5px 8px;border:1px solid #c8ddf5;border-radius:8px;font-size:11px;font-family:inherit;">
+          <span style="font-size:10px;color:#aaa;">〜</span>
+          <input type="date" id="anTo2" style="padding:5px 8px;border:1px solid #c8ddf5;border-radius:8px;font-size:11px;font-family:inherit;">
+          <button class="btn-sm" onclick="setCompare('lastMonth')">先月</button>
+          <button class="btn-sm" onclick="setCompare('last3m')">前3ヶ月</button>
+          <button class="btn-sm" onclick="setCompare('lastYear')">前年同期</button>
+          <button class="btn-sm" onclick="clearCompare()">比較クリア</button>
+          <span id="compareStatus" style="font-size:11px;color:#378ADD;"></span>
+        </div>
+
+        <!-- KPIグリッド -->
+        <div class="metric-grid" id="anMetrics" style="margin-top:.875rem;margin-bottom:.5rem;"></div>
+
+        <!-- ファネル -->
+        <div id="anFunnelBar"></div>
       </div>
-
-      <!-- KPIサマリー -->
-      <div class="metric-grid" id="anMetrics" style="margin-bottom:1rem;"></div>
-
-      <!-- 採用ファネル（歩留り） -->
-      <div id="anFunnelBar" style="background:#f8f8f7;border-radius:10px;padding:1rem;margin-bottom:1.25rem;"></div>
 
       <!-- 分析タブ -->
-      <div class="tab-row" style="flex-wrap:wrap;">
-        <button class="tab active" onclick="setAnTab('monthly_all',this)">📊 月別集計（全体）</button>
-        <button class="tab" onclick="setAnTab('monthly_ref',this)">紹介別</button>
-        <button class="tab" onclick="setAnTab('age',this)">年代別</button>
-        <button class="tab" onclick="setAnTab('media',this)">媒体別</button>
-        <button class="tab" onclick="setAnTab('job',this)">職種別</button>
-        <button class="tab" onclick="setAnTab('dept',this)">部署別</button>
-        <button class="tab" onclick="setAnTab('gender',this)">性別</button>
-        <button class="tab" onclick="setAnTab('status',this)">ステータス別</button>
-        <button class="tab" onclick="setAnTab('hire',this)">採用可否別</button>
-        <button class="tab" onclick="setAnTab('trend',this)">📈 月次トレンド</button>
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+        <div class="tab-row" style="flex-wrap:wrap;margin-bottom:.875rem;">
+          <button class="tab active" onclick="setAnTab('monthly_all',this)">月別（全体）</button>
+          <button class="tab" onclick="setAnTab('monthly_ref',this)">紹介別</button>
+          <button class="tab" onclick="setAnTab('age',this)">年代別</button>
+          <button class="tab" onclick="setAnTab('media',this)">媒体別</button>
+          <button class="tab" onclick="setAnTab('job',this)">職種別</button>
+          <button class="tab" onclick="setAnTab('dept',this)">部署別</button>
+          <button class="tab" onclick="setAnTab('gender',this)">性別</button>
+          <button class="tab" onclick="setAnTab('status',this)">ステータス別</button>
+          <button class="tab" onclick="setAnTab('hire',this)">採用可否別</button>
+          <button class="tab" onclick="setAnTab('trend',this)">月次トレンド</button>
+          <button class="tab" onclick="setAnTab('ai',this)">🤖 AI分析</button>
+        </div>
+        <div id="anContent"></div>
       </div>
-
-      <!-- コンテンツエリア -->
-      <div id="anContent"></div>
     </div>
 
     <!-- マスター管理 -->
@@ -703,6 +736,7 @@ async function startApp() {
   await loadMasters();
   await loadApplicants();
   await loadMinutesAndTasks();
+  updateTaskBadge();
   renderDashboard();
 }
 
@@ -1164,6 +1198,174 @@ function exportPDF() {
 // ========================================
 // 分析
 // ========================================
+
+// ========================================
+// 分析拡張：比較・AI・タスクバッジ
+// ========================================
+
+function updateTaskBadge() {
+  const btn = document.getElementById('taskNavBtn');
+  if (!btn) return;
+  const today = new Date().toISOString().split('T')[0];
+  const pending = tasks.filter(t => !t.done).length;
+  const overdue = tasks.filter(t => !t.done && t.due && t.due < today).length;
+  if (pending > 0) {
+    btn.innerHTML = `タスク <span style="background:${overdue>0?'#D85A30':'#378ADD'};color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:3px;">${overdue>0?'!':''} ${pending}</span>`;
+  } else {
+    btn.textContent = 'タスク';
+  }
+}
+
+function setCompare(mode) {
+  const from = document.getElementById('anFrom').value;
+  const to = document.getElementById('anTo').value;
+  const now = new Date();
+  let f2='', t2='';
+  if (mode === 'lastMonth') {
+    const d = new Date(now.getFullYear(), now.getMonth()-1, 1);
+    const d2 = new Date(now.getFullYear(), now.getMonth(), 0);
+    f2 = d.toISOString().split('T')[0]; t2 = d2.toISOString().split('T')[0];
+  } else if (mode === 'last3m') {
+    const d = new Date(now); d.setMonth(d.getMonth()-6);
+    const d2 = new Date(now); d2.setMonth(d2.getMonth()-3);
+    f2 = d.toISOString().split('T')[0]; t2 = d2.toISOString().split('T')[0];
+  } else if (mode === 'lastYear') {
+    if (from && to) {
+      const df=new Date(from); df.setFullYear(df.getFullYear()-1);
+      const dt=new Date(to); dt.setFullYear(dt.getFullYear()-1);
+      f2=df.toISOString().split('T')[0]; t2=dt.toISOString().split('T')[0];
+    }
+  }
+  document.getElementById('anFrom2').value = f2;
+  document.getElementById('anTo2').value = t2;
+  document.getElementById('compareStatus').textContent = f2&&t2?`比較中: ${f2} 〜 ${t2}`:'';
+  renderAn();
+}
+
+function clearCompare() {
+  document.getElementById('anFrom2').value = '';
+  document.getElementById('anTo2').value = '';
+  document.getElementById('compareStatus').textContent = '';
+  renderAn();
+}
+
+function getCompareData() {
+  const f=document.getElementById('anFrom2').value, t=document.getElementById('anTo2').value;
+  if (!f && !t) return null;
+  return applicants.filter(a=>{ if(f&&a.appDate<f)return false; if(t&&a.appDate>t)return false; return true; });
+}
+
+function renderCompareBar(dataA, dataB, labelA, labelB) {
+  if (!dataB) return '';
+  const metrics = [
+    {label:'応募数', a:dataA.length, b:dataB.length},
+    {label:'1次面接', a:dataA.filter(x=>x.int1Date).length, b:dataB.filter(x=>x.int1Date).length},
+    {label:'採用', a:dataA.filter(x=>['内定','内定承諾','採用'].includes(x.hireStatus)).length, b:dataB.filter(x=>['内定','内定承諾','採用'].includes(x.hireStatus)).length},
+    {label:'面接率', a:dataA.length?Math.round(dataA.filter(x=>x.int1Date).length/dataA.length*100):0, b:dataB.length?Math.round(dataB.filter(x=>x.int1Date).length/dataB.length*100):0, pct:true},
+    {label:'採用率', a:dataA.length?Math.round(dataA.filter(x=>['内定','内定承諾','採用'].includes(x.hireStatus)).length/dataA.length*100):0, b:dataB.length?Math.round(dataB.filter(x=>['内定','内定承諾','採用'].includes(x.hireStatus)).length/dataB.length*100):0, pct:true},
+  ];
+  return `<div style="background:#f0f6ff;border-radius:8px;padding:.875rem;margin-bottom:1rem;border-left:3px solid #378ADD;">
+    <div style="font-size:11px;font-weight:600;color:#378ADD;margin-bottom:8px;">📊 期間比較: ${labelA} vs ${labelB}</div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">
+      ${metrics.map(m=>{
+        const diff=m.a-m.b; const up=diff>=0;
+        return`<div style="text-align:center;background:#fff;border-radius:6px;padding:7px;">
+          <div style="font-size:10px;color:#aaa;margin-bottom:3px;">${m.label}</div>
+          <div style="font-size:15px;font-weight:700;color:#1a1a1a;">${m.a}${m.pct?'%':''}</div>
+          <div style="font-size:10px;color:${up?'#3B6D11':'#D85A30'};margin-top:2px;">${up?'▲':'▼'}${Math.abs(diff)}${m.pct?'%':''}</div>
+          <div style="font-size:10px;color:#aaa;">B: ${m.b}${m.pct?'%':''}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+async function renderAiAnalysis(data) {
+  const el = document.getElementById('anContent');
+  el.innerHTML = '<div style="padding:2rem;text-align:center;color:#aaa;font-size:13px;">🤖 AI分析を生成中...</div>';
+  
+  const total = data.length;
+  if (!total) { el.innerHTML = '<div class="empty">データがありません</div>'; return; }
+
+  // データ集計
+  const mediaCounts = {}, jobCounts = {}, ageCounts = {}, genderCounts = {}, statusCounts = {};
+  const int1n = data.filter(a=>a.int1Date).length;
+  const hiredn = data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
+  data.forEach(a=>{
+    if(a.media) mediaCounts[a.media]=(mediaCounts[a.media]||0)+1;
+    if(a.jobType) jobCounts[a.jobType]=(jobCounts[a.jobType]||0)+1;
+    if(a.gender) genderCounts[a.gender]=(genderCounts[a.gender]||0)+1;
+    if(a.status) statusCounts[a.status]=(statusCounts[a.status]||0)+1;
+    const age=parseInt(a.age);
+    if(age){const b=age<30?'20代以下':age<40?'30代':age<50?'40代':age<60?'50代':'60代以上';ageCounts[b]=(ageCounts[b]||0)+1;}
+  });
+
+  // プロンプトを文字列結合で構築（テンプレートリテラルのネスト回避）
+  const mediaLines = Object.entries(mediaCounts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>'- '+k+': '+v+'名（'+Math.round(v/total*100)+'%）').join('\n');
+  const jobLines = Object.entries(jobCounts).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>'- '+k+': '+v+'名').join('\n');
+  const ageLines = Object.entries(ageCounts).map(([k,v])=>'- '+k+': '+v+'名（'+Math.round(v/total*100)+'%）').join('\n');
+  const genderLines = Object.entries(genderCounts).map(([k,v])=>'- '+k+': '+v+'名（'+Math.round(v/total*100)+'%）').join('\n');
+  const statusLines = Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>'- '+k+': '+v+'名').join('\n');
+  const intRate = total?Math.round(int1n/total*100):0;
+  const hireRate = total?Math.round(hiredn/total*100):0;
+  const prompt = [
+    'あなたは採用コンサルタントです。以下の採用データを分析してアドバイスをしてください。',
+    '',
+    '【採用データサマリー】',
+    '- 総応募数: '+total+'名',
+    '- 1次面接実施: '+int1n+'名（面接率: '+intRate+'%）',
+    '- 内定・採用: '+hiredn+'名（採用率: '+hireRate+'%）',
+    '',
+    '【媒体別応募数】', mediaLines,
+    '【職種別応募数】', jobLines,
+    '【年代別応募数】', ageLines,
+    '【性別比率】', genderLines,
+    '【ステータス別】', statusLines,
+    '',
+    '以下の観点で日本語でアドバイスしてください（各項目に具体的な数値を使って）：',
+    '1. 全体傾向と総評',
+    '2. 媒体戦略（効果的な媒体と改善すべき媒体）',
+    '3. 職種・年代・性別の特徴と採用戦略へのアドバイス',
+    '4. 採用ファネルの課題と改善提案',
+    '5. 今後の採用活動へのアクションアイテム（3つ）',
+    '',
+    '各項目は見出し付きで、採用担当者がすぐに行動できるレベルで具体的に書いてください。'
+  ].join('\n');
+
+    try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const json = await res.json();
+    const text = json.content?.[0]?.text || 'AI分析の生成に失敗しました';
+    
+    // マークダウン風にレンダリング
+    const html = text
+      .replace(/^### (.+)$/gm, '<h4 style="font-size:13px;font-weight:700;color:#1a1a1a;margin:1rem 0 .5rem;">$1</h4>')
+      .replace(/^## (.+)$/gm, '<h3 style="font-size:14px;font-weight:700;color:#378ADD;margin:1.25rem 0 .5rem;padding-bottom:4px;border-bottom:1px solid #e8e8e6;">$1</h3>')
+      .replace(/^\*\*(.+)\*\*$/gm, '<strong>$1</strong>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/^(\d+\..+)$/gm, '<div style="padding:4px 0 4px 1rem;font-size:12px;color:#1a1a1a;">$1</div>')
+      .replace(/^- (.+)$/gm, '<div style="padding:3px 0 3px 1rem;font-size:12px;color:#444;">• $1</div>')
+    
+    el.innerHTML = `<div style="margin-top:.5rem;">
+      <div style="background:linear-gradient(135deg,#f0f6ff,#f8fbff);border-radius:8px;padding:1rem;margin-bottom:1rem;border-left:3px solid #378ADD;">
+        <div style="font-size:11px;color:#378ADD;font-weight:600;margin-bottom:4px;">🤖 AI採用分析レポート</div>
+        <div style="font-size:10px;color:#888;">分析対象: ${total}名のデータ</div>
+      </div>
+      <div style="font-size:12px;line-height:1.8;color:#2a2a2a;">${html}</div>
+    </div>`;
+  } catch(e) {
+    el.innerHTML = `<div style="color:#D85A30;padding:1rem;">AI分析の実行中にエラーが発生しました: ${e.message}</div>`;
+  }
+}
+
 function getAnData() {
   const from=document.getElementById('anFrom').value, to=document.getElementById('anTo').value;
   const dept=document.getElementById('anDept')?document.getElementById('anDept').value:'';
@@ -1393,7 +1595,7 @@ function renderAnContent(){
     const headerCols=usedBands.map(b=>`<th style="${thStyle}">${b}</th>`).join('');
     const bodyRows=months.map(m=>`<tr>
       <td style="${tdStyleL}">${m}</td>
-      ${usedBands.map(b=>`<td style="${tdStyle}">${matrix[m][b]||''}</td>`).join('')}
+      ${usedBands.map(b=>{const v=matrix[m][b]||0;const p=monthTotals[m]?Math.round(v/monthTotals[m]*100):0;return`<td style="${tdStyle}">${v?`${v}人<span style='font-size:9px;color:#aaa;margin-left:2px;'>${p}%</span>`:''}`;}).join('')}
       <td style="${tdStyle};font-weight:600;">${monthTotals[m]||0}人</td>
     </tr>`).join('');
     const footCols=usedBands.map(b=>`<td style="${tfStyle}">${totals[b]}人</td>`).join('');
@@ -1455,13 +1657,32 @@ function renderAnContent(){
     </div>`;
 
   } else if(anTab==='trend'){
-    // 月次トレンドグラフ
     if(anChart){anChart.destroy();anChart=null;}
-    const months={};
-    data.forEach(a=>{if(a.appDate){const k=a.appDate.substring(0,7);months[k]=(months[k]||0)+1;}});
-    const lbs=Object.keys(months).sort(),vs=lbs.map(l=>months[l]);
-    el.innerHTML=`<div style="margin-top:1rem;position:relative;width:100%;height:260px;"><canvas id="anC" role="img" aria-label="月次トレンド">月次トレンド</canvas></div>`;
-    anChart=new Chart(document.getElementById('anC'),{type:'line',data:{labels:lbs,datasets:[{label:'応募数',data:vs,borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.07)',tension:0.3,fill:true,pointRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,callback:v=>Math.round(v)},grid:{color:'rgba(0,0,0,.04)'}},x:{grid:{display:false},ticks:{autoSkip:false,maxRotation:45}}}}});
+    const months={},int1m={},hirem={};
+    data.forEach(a=>{if(a.appDate){const k=a.appDate.substring(0,7);months[k]=(months[k]||0)+1;if(a.int1Date)int1m[k]=(int1m[k]||0)+1;if(['内定','内定承諾','採用'].includes(a.hireStatus))hirem[k]=(hirem[k]||0)+1;}});
+    const lbs=Object.keys(months).sort();
+    el.innerHTML=`<div style="margin-top:.5rem;position:relative;width:100%;height:280px;"><canvas id="anC" role="img" aria-label="月次トレンド">月次トレンド</canvas></div>`;
+    anChart=new Chart(document.getElementById('anC'),{type:'line',data:{labels:lbs,datasets:[
+      {label:'応募数',data:lbs.map(l=>months[l]),borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.07)',tension:0.3,fill:true,pointRadius:4},
+      {label:'1次面接',data:lbs.map(l=>int1m[l]||0),borderColor:'#5DCAA5',backgroundColor:'transparent',tension:0.3,pointRadius:4,borderDash:[4,2]},
+      {label:'採用',data:lbs.map(l=>hirem[l]||0),borderColor:'#639922',backgroundColor:'transparent',tension:0.3,pointRadius:4,borderDash:[4,2]},
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'top'}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,callback:v=>Math.round(v)},grid:{color:'rgba(0,0,0,.04)'}},x:{grid:{display:false},ticks:{autoSkip:false,maxRotation:45}}}}});
+
+  } else if(anTab==='ai'){
+    renderAiAnalysis(data);
+    return;
+  }
+
+  // 比較データがあればcompareBarを先頭に追加
+  const dataB = getCompareData();
+  if (dataB !== null && el.innerHTML) {
+    const from=document.getElementById('anFrom').value||'期間A';
+    const to=document.getElementById('anTo').value||'';
+    const from2=document.getElementById('anFrom2').value||'期間B';
+    const to2=document.getElementById('anTo2').value||'';
+    const labelA=`${from}〜${to}`;
+    const labelB=`${from2}〜${to2}`;
+    el.innerHTML = renderCompareBar(data, dataB, labelA, labelB) + el.innerHTML;
   }
 }
 
@@ -1654,6 +1875,36 @@ function renderDashboard() {
       <td>${a.hireStatus?`<span class="badge ${hireColorMap[a.hireStatus]||'bgr'}">${a.hireStatus}</span>`:''}</td>
       <td><button class="btn-sm" onclick="openDetailFromDash('${a.id}')">詳細</button></td>
     </tr>`;
+  }).join('');
+
+  // タスクサマリー
+  renderDashTasks();
+  updateTaskBadge();
+}
+
+function renderDashTasks() {
+  const el = document.getElementById('dashTaskList');
+  const badge = document.getElementById('dashTaskBadge');
+  if (!el) return;
+  const today = new Date().toISOString().split('T')[0];
+  const pending = tasks.filter(t => !t.done).sort((a,b)=>(a.due||'9999')>(b.due||'9999')?1:-1).slice(0,8);
+  if (badge) {
+    const overdue = tasks.filter(t=>!t.done&&t.due&&t.due<today).length;
+    if (pending.length>0) { badge.style.display='inline'; badge.textContent=overdue>0?`！${pending.length}件(期限超過${overdue}件)`:`${pending.length}件`; badge.style.background=overdue>0?'#D85A30':'#378ADD'; }
+    else badge.style.display='none';
+  }
+  if (!pending.length) { el.innerHTML='<div style="font-size:11px;color:#aaa;padding:.5rem 0;">未完了タスクはありません 🎉</div>'; return; }
+  el.innerHTML = pending.map(t=>{
+    const isOv=t.due&&t.due<today;
+    const isSoon=t.due&&t.due>=today&&t.due<=new Date(Date.now()+3*86400000).toISOString().split('T')[0];
+    const bg=isOv?'#fff5f5':isSoon?'#fffbf0':'#fafafa';
+    const border=isOv?'border-left:3px solid #D85A30':isSoon?'border-left:3px solid #EF9F27':'border-left:3px solid #e8e8e6';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:${bg};${border};border-radius:6px;margin-bottom:5px;font-size:11px;">
+      <span class="badge ${t.owner==='LinkCore'?'bb':'ba'}" style="flex-shrink:0;">${t.owner}</span>
+      <span style="flex:1;">${t.content}</span>
+      ${t.due?`<span style="color:${isOv?'#D85A30':isSoon?'#854F0B':'#aaa'};font-size:10px;">${t.due}</span>`:''}
+      <span class="badge ${t.priority==='高'?'br':t.priority==='低'?'bg':'bgr'}" style="flex-shrink:0;">${t.priority||'中'}</span>
+    </div>`;
   }).join('');
 }
 
@@ -1890,6 +2141,8 @@ async function saveMinutesData() {
 }
 async function saveTasksData() {
   try { await window.storage.set(TASKS_KEY(), JSON.stringify(tasks)); } catch(e) {}
+  updateTaskBadge();
+  if(document.getElementById("sec-dashboard").classList.contains("active")) renderDashTasks();
 }
 
 // 議事録フォーム
