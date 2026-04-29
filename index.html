@@ -1200,6 +1200,276 @@ function exportPDF() {
 // ========================================
 
 // ========================================
+// ダッシュボード
+// ========================================
+function renderDashboard() {
+  const now = new Date();
+  const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+  const monthAgo = new Date(now); monthAgo.setMonth(monthAgo.getMonth() - 1);
+  const toStr = d => d.toISOString().split('T')[0];
+  const h = now.getHours();
+  const greet = h < 12 ? 'おはようございます' : h < 18 ? 'こんにちは' : 'お疲れ様です';
+  document.getElementById('dashGreet').textContent = greet + '、' + currentClientName + ' さん';
+  document.getElementById('dashDate').textContent = now.toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+  const total = applicants.length;
+  const inProgress = applicants.filter(a => a.status && !['内定','入社','不採用','辞退','内定承諾','採用'].includes(a.status)).length;
+  const hired = applicants.filter(a => ['内定','内定承諾','採用'].includes(a.hireStatus)).length;
+  const rate = total ? Math.round(hired / total * 100) : 0;
+  const thisMonth = applicants.filter(a => a.appDate && a.appDate >= toStr(monthAgo)).length;
+  document.getElementById('dashKpi').innerHTML = `
+    <div class="mc" style="border-left:3px solid #378ADD;">
+      <div class="mc-lbl">総応募数</div><div class="mc-val">${total}</div><div class="mc-sub">累計</div>
+    </div>
+    <div class="mc" style="border-left:3px solid #1D9E75;">
+      <div class="mc-lbl">選考中</div><div class="mc-val">${inProgress}</div><div class="mc-sub">名</div>
+    </div>
+    <div class="mc" style="border-left:3px solid #639922;">
+      <div class="mc-lbl">内定・採用</div><div class="mc-val">${hired}</div><div class="mc-sub">名</div>
+    </div>
+    <div class="mc" style="border-left:3px solid #EF9F27;">
+      <div class="mc-lbl">採用率</div><div class="mc-val">${rate}%</div><div class="mc-sub">累計</div>
+    </div>
+    <div class="mc" style="border-left:3px solid #85B7EB;">
+      <div class="mc-lbl">今月の応募</div><div class="mc-val">${thisMonth}</div><div class="mc-sub">件</div>
+    </div>`;
+  const uncontacted = applicants.filter(a => a.status === '未対応').length;
+  const int1Soon = applicants.filter(a => a.status === '1次面接調整' || a.status === '1次面接済').length;
+  const int2Soon = applicants.filter(a => a.status === '2次面接調整' || a.status === '2次面接済').length;
+  const newThisWeek = applicants.filter(a => a.appDate && a.appDate >= toStr(weekAgo)).length;
+  const newThisMonth = applicants.filter(a => a.appDate && a.appDate >= toStr(monthAgo)).length;
+  const offer = applicants.filter(a => ['内定','内定承諾','採用'].includes(a.hireStatus)).length;
+  const todoItems = [
+    { label: '未コンタクト（未対応）', count: uncontacted, color: '#D85A30', bg: '#FFF3F0', action: "filterAndGo('未対応')" },
+    { label: '1次面接 関連', count: int1Soon, color: '#378ADD', bg: '#E6F1FB', action: "filterAndGo('1次面接調整')" },
+    { label: '2次面接 関連', count: int2Soon, color: '#185FA5', bg: '#dce8f7', action: "filterAndGo('2次面接調整')" },
+    { label: '内定者', count: offer, color: '#3B6D11', bg: '#EAF3DE', action: "filterAndGo('内定')" },
+    { label: '今週の新規応募', count: newThisWeek, color: '#854F0B', bg: '#FAEEDA', action: "showSec('list')" },
+    { label: '今月の新規応募', count: newThisMonth, color: '#5F5E5A', bg: '#F1EFE8', action: "showSec('list')" },
+  ];
+  document.getElementById('dashTodo').innerHTML = todoItems.map(t => `
+    <div onclick="${t.action}" style="background:${t.bg};border-radius:10px;padding:1rem 1.125rem;cursor:pointer;transition:opacity .15s;display:flex;align-items:center;justify-content:space-between;" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+      <div>
+        <div style="font-size:11px;color:${t.color};font-weight:500;margin-bottom:4px;">${t.label}</div>
+        <div style="font-size:26px;font-weight:700;color:${t.color};">${t.count}<span style="font-size:13px;margin-left:3px;">名</span></div>
+      </div>
+      <div style="font-size:18px;color:${t.color};opacity:.4;">→</div>
+    </div>`).join('');
+  const recent = [...applicants].sort((a,b) => b.appDate > a.appDate ? 1 : -1).slice(0, 10);
+  const tb = document.getElementById('dashRecentBody');
+  const hireColorMap = {'内定':'bg','内定承諾':'bt','採用':'bg','不採用':'br','保留':'ba'};
+  if (!recent.length) {
+    tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:1.5rem;color:#aaa;font-size:12px;">応募者データがありません</td></tr>';
+  } else {
+    tb.innerHTML = recent.map(a => {
+      const hireOk2 = ['内定','内定承諾','採用'].includes(a.hireStatus);
+      const hireNg2 = a.hireStatus === '不採用' || a.status === '不採用';
+      const rBg = hireOk2 ? 'background:linear-gradient(90deg,#fff0f5,#fff5f8);' : hireNg2 ? 'background:linear-gradient(90deg,#eef4ff,#f0f6ff);' : '';
+      return `<tr style="${rBg}">
+        <td>${a.appDate||''}</td>
+        <td style="font-weight:500;">${a.name}</td>
+        <td>${a.jobType||''}</td>
+        <td>${a.dept||''}</td>
+        <td>${a.media?`<span class="badge bb">${a.media}</span>`:''}</td>
+        <td>${a.status?`<span class="badge ${stColor(a.status)}">${a.status}</span>`:''}</td>
+        <td>${a.hireStatus?`<span class="badge ${hireColorMap[a.hireStatus]||'bgr'}">${a.hireStatus}</span>`:''}</td>
+        <td><button class="btn-sm" onclick="openDetailFromDash('${a.id}')">詳細</button></td>
+      </tr>`;
+    }).join('');
+  }
+  renderDashTasks();
+  updateTaskBadge();
+}
+
+function filterAndGo(status) {
+  showSec('list');
+  document.getElementById('fSt').value = status;
+  renderList();
+}
+
+function openDetailFromDash(id) {
+  showSec('list');
+  setTimeout(() => openDetail(id), 100);
+}
+
+// ========================================
+// 分析
+// ========================================
+function getAnData() {
+  const from=document.getElementById('anFrom').value, to=document.getElementById('anTo').value;
+  const dept=document.getElementById('anDept')?document.getElementById('anDept').value:'';
+  const job=document.getElementById('anJob')?document.getElementById('anJob').value:'';
+  return applicants.filter(a=>{
+    if(from&&a.appDate<from)return false;
+    if(to&&a.appDate>to)return false;
+    if(dept&&a.dept!==dept)return false;
+    if(job&&a.jobType!==job)return false;
+    return true;
+  });
+}
+
+function setPeriod(p) {
+  const now=new Date(); let from='',to=now.toISOString().split('T')[0];
+  if(p==='month')from=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];
+  else if(p==='quarter'){const d=new Date(now);d.setMonth(d.getMonth()-3);from=d.toISOString().split('T')[0];}
+  else if(p==='year'){const d=new Date(now);d.setFullYear(d.getFullYear()-1);from=d.toISOString().split('T')[0];}
+  document.getElementById('anFrom').value=from;
+  document.getElementById('anTo').value=to;
+  renderAn();
+}
+
+let anTab='monthly_all';
+function setAnTab(t,btn){
+  anTab=t;
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderAnContent();
+}
+function setTab(t,btn){ setAnTab(t,btn); }
+
+function renderAn() {
+  const anDept=document.getElementById('anDept');
+  const anJob=document.getElementById('anJob');
+  if(anDept){
+    const cur=anDept.value;
+    anDept.innerHTML='<option value="">部署（全て）</option>';
+    [...new Set(applicants.map(a=>a.dept).filter(Boolean))].forEach(v=>anDept.innerHTML+=`<option ${cur===v?'selected':''}>${v}</option>`);
+  }
+  if(anJob){
+    const cur=anJob.value;
+    anJob.innerHTML='<option value="">職種（全て）</option>';
+    [...new Set(applicants.map(a=>a.jobType).filter(Boolean))].forEach(v=>anJob.innerHTML+=`<option ${cur===v?'selected':''}>${v}</option>`);
+  }
+  const data=getAnData(),total=data.length;
+  const hired=data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
+  const rate=total?Math.round(hired/total*100):0;
+  const int1=data.filter(a=>a.int1Date).length;
+  const int2=data.filter(a=>a.int2Date).length;
+  const active=data.filter(a=>a.status&&!['内定','入社','不採用','辞退','内定承諾','採用'].includes(a.status)).length;
+  const rejected=data.filter(a=>a.status==='不採用'||a.hireStatus==='不採用').length;
+  const withdrew=data.filter(a=>a.status&&(a.status.includes('辞退')||a.status.includes('連絡不通'))).length;
+  document.getElementById('anMetrics').innerHTML=`
+    <div class="mc" style="border-left:3px solid #378ADD;"><div class="mc-lbl">総応募数</div><div class="mc-val">${total}</div></div>
+    <div class="mc" style="border-left:3px solid #85B7EB;"><div class="mc-lbl">1次面接</div><div class="mc-val">${int1}</div><div class="mc-sub">${total?Math.round(int1/total*100):0}%</div></div>
+    <div class="mc" style="border-left:3px solid #5DCAA5;"><div class="mc-lbl">2次面接</div><div class="mc-val">${int2}</div><div class="mc-sub">${total?Math.round(int2/total*100):0}%</div></div>
+    <div class="mc" style="border-left:3px solid #639922;"><div class="mc-lbl">内定・採用</div><div class="mc-val">${hired}</div><div class="mc-sub">採用率 ${rate}%</div></div>
+    <div class="mc" style="border-left:3px solid #A32D2D;"><div class="mc-lbl">不採用</div><div class="mc-val">${rejected}</div></div>
+    <div class="mc" style="border-left:3px solid #EF9F27;"><div class="mc-lbl">選考中</div><div class="mc-val">${active}</div></div>`;
+  const fEl=document.getElementById('anFunnelBar');
+  if(fEl&&total>0){
+    const steps=[{label:'応募',n:total,color:'#378ADD'},{label:'1次面接',n:int1,color:'#5DCAA5'},{label:'2次面接',n:int2,color:'#1D9E75'},{label:'内定・採用',n:hired,color:'#639922'}];
+    fEl.innerHTML=`<div style="font-size:11px;font-weight:600;color:#666;margin-bottom:10px;">採用ファネル（歩留り率）</div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${steps.map((s,i)=>{const p=total?Math.round(s.n/total*100):0;const prev=i>0?steps[i-1].n:total;const step=prev?Math.round(s.n/prev*100):0;return`<div style="display:flex;flex-direction:column;align-items:center;gap:4px;"><div style="background:${s.color};color:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:90px;"><div style="font-size:11px;opacity:.85;">${s.label}</div><div style="font-size:20px;font-weight:700;">${s.n}</div><div style="font-size:10px;opacity:.8;">全体 ${p}%</div></div>${i>0?`<div style="font-size:10px;color:#aaa;">↓ ${step}%</div>`:''}</div>${i<steps.length-1?'<div style="font-size:18px;color:#ddd;align-self:center;margin-top:-16px;">›</div>':''}`;}).join('')}</div>`;
+  } else if(fEl){fEl.innerHTML='';}
+  renderAnContent();
+}
+
+const thStyle='padding:7px 9px;text-align:right;background:#f0f0ee;font-size:10px;font-weight:600;border-bottom:2px solid #e0e0de;white-space:nowrap;';
+const thStyleL='padding:7px 9px;text-align:left;background:#f0f0ee;font-size:10px;font-weight:600;border-bottom:2px solid #e0e0de;white-space:nowrap;';
+const tdStyle='padding:6px 9px;text-align:right;border-bottom:1px solid #f5f5f5;font-size:11px;';
+const tdStyleL='padding:6px 9px;text-align:left;border-bottom:1px solid #f5f5f5;font-size:11px;font-weight:500;';
+const tfStyle='padding:7px 9px;text-align:right;background:#f8f8f7;font-size:11px;font-weight:700;border-top:2px solid #e0e0de;';
+const tfStyleL='padding:7px 9px;text-align:left;background:#f8f8f7;font-size:11px;font-weight:700;border-top:2px solid #e0e0de;';
+function pct(n,d){return d?Math.round(n/d*100)+'%':'-';}
+function pctColor(n,d,good){good=good||10;const v=d?n/d*100:0;return v>=good?'#3B6D11':v>=good/2?'#854F0B':'#666';}
+
+function buildMonthStats(data){
+  const months={};
+  data.forEach(a=>{
+    if(!a.appDate)return;
+    const m=a.appDate.substring(0,7);
+    if(!months[m])months[m]={total:0,int1:0,int2:0,hired:0,rejected:0,active:0,withdrew:0};
+    months[m].total++;
+    if(a.int1Date)months[m].int1++;
+    if(a.int2Date)months[m].int2++;
+    if(['内定','内定承諾','採用'].includes(a.hireStatus))months[m].hired++;
+    else if(a.status==='不採用'||a.hireStatus==='不採用')months[m].rejected++;
+    else if(a.status&&(a.status.includes('辞退')||a.status.includes('連絡不通')))months[m].withdrew++;
+    else months[m].active++;
+  });
+  return months;
+}
+
+function renderMonthTable(months,title){
+  const sorted=Object.keys(months).sort();
+  if(!sorted.length)return'<div class="empty">データがありません</div>';
+  const rows=sorted.map(m=>{const d=months[m];return`<tr><td style="${tdStyleL}">${m}</td><td style="${tdStyle}">${d.total}</td><td style="${tdStyle}">${d.int1}</td><td style="${tdStyle}">${d.int2}</td><td style="${tdStyle};color:#639922;font-weight:600;">${d.hired}</td><td style="${tdStyle};color:#A32D2D;">${d.rejected}</td><td style="${tdStyle};color:#EF9F27;">${d.active}</td><td style="${tdStyle};color:#888;">${d.withdrew}</td><td style="${tdStyle};color:${pctColor(d.int1,d.total,10)};font-weight:600;">${pct(d.int1,d.total)}</td><td style="${tdStyle};color:${pctColor(d.hired,d.total,5)};font-weight:600;">${pct(d.hired,d.total)}</td></tr>`;}).join('');
+  const tot=sorted.reduce((a,m)=>{const d=months[m];a.total+=d.total;a.int1+=d.int1;a.int2+=d.int2;a.hired+=d.hired;a.rejected+=d.rejected;a.active+=d.active;a.withdrew+=d.withdrew;return a;},{total:0,int1:0,int2:0,hired:0,rejected:0,active:0,withdrew:0});
+  return`<div style="overflow-x:auto;margin-bottom:1rem;"><table style="width:100%;border-collapse:collapse;min-width:700px;"><caption style="text-align:left;font-size:11px;font-weight:600;color:#666;padding:0 0 8px;caption-side:top;">${title}</caption><thead><tr><th style="${thStyleL}">月</th><th style="${thStyle}">応募数</th><th style="${thStyle}">1次面接</th><th style="${thStyle}">2次面接</th><th style="${thStyle};color:#639922;">内定・採用</th><th style="${thStyle};color:#A32D2D;">不採用</th><th style="${thStyle};color:#EF9F27;">選考中</th><th style="${thStyle};color:#888;">辞退・連絡不通</th><th style="${thStyle};color:#378ADD;">面接率</th><th style="${thStyle};color:#3B6D11;">採用率</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td style="${tfStyleL}">合計/平均</td><td style="${tfStyle}">${tot.total}</td><td style="${tfStyle}">${tot.int1}</td><td style="${tfStyle}">${tot.int2}</td><td style="${tfStyle};color:#639922;">${tot.hired}</td><td style="${tfStyle};color:#A32D2D;">${tot.rejected}</td><td style="${tfStyle};color:#EF9F27;">${tot.active}</td><td style="${tfStyle};color:#888;">${tot.withdrew}</td><td style="${tfStyle};color:#378ADD;">${pct(tot.int1,tot.total)}</td><td style="${tfStyle};color:#3B6D11;">${pct(tot.hired,tot.total)}</td></tr></tfoot></table></div>`;
+}
+
+function getCompareData(){
+  const f=document.getElementById('anFrom2').value,t=document.getElementById('anTo2').value;
+  if(!f&&!t)return null;
+  return applicants.filter(a=>{if(f&&a.appDate<f)return false;if(t&&a.appDate>t)return false;return true;});
+}
+
+function renderCompareBar(dataA,dataB,labelA,labelB){
+  if(!dataB)return'';
+  const metrics=[
+    {label:'応募数',a:dataA.length,b:dataB.length},
+    {label:'1次面接',a:dataA.filter(x=>x.int1Date).length,b:dataB.filter(x=>x.int1Date).length},
+    {label:'採用',a:dataA.filter(x=>['内定','内定承諾','採用'].includes(x.hireStatus)).length,b:dataB.filter(x=>['内定','内定承諾','採用'].includes(x.hireStatus)).length},
+    {label:'面接率',a:dataA.length?Math.round(dataA.filter(x=>x.int1Date).length/dataA.length*100):0,b:dataB.length?Math.round(dataB.filter(x=>x.int1Date).length/dataB.length*100):0,pct:true},
+    {label:'採用率',a:dataA.length?Math.round(dataA.filter(x=>['内定','内定承諾','採用'].includes(x.hireStatus)).length/dataA.length*100):0,b:dataB.length?Math.round(dataB.filter(x=>['内定','内定承諾','採用'].includes(x.hireStatus)).length/dataB.length*100):0,pct:true},
+  ];
+  return`<div style="background:#f0f6ff;border-radius:8px;padding:.875rem;margin-bottom:1rem;border-left:3px solid #378ADD;"><div style="font-size:11px;font-weight:600;color:#378ADD;margin-bottom:8px;">📊 期間比較: ${labelA} vs ${labelB}</div><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">${metrics.map(m=>{const diff=m.a-m.b;const up=diff>=0;return`<div style="text-align:center;background:#fff;border-radius:6px;padding:7px;"><div style="font-size:10px;color:#aaa;margin-bottom:3px;">${m.label}</div><div style="font-size:15px;font-weight:700;color:#1a1a1a;">${m.a}${m.pct?'%':''}</div><div style="font-size:10px;color:${up?'#3B6D11':'#D85A30'};margin-top:2px;">${up?'▲':'▼'}${Math.abs(diff)}${m.pct?'%':''}</div><div style="font-size:10px;color:#aaa;">B: ${m.b}${m.pct?'%':''}</div></div>`;}).join('')}</div></div>`;
+}
+
+function renderAnContent(){
+  const data=getAnData();
+  const el=document.getElementById('anContent');
+  if(!el)return;
+  if(!data.length){el.innerHTML='<div class="empty" style="margin-top:1rem;">この期間のデータがありません</div>';return;}
+  const dataB=getCompareData();
+  const from=document.getElementById('anFrom').value||'期間A';
+  const to=document.getElementById('anTo').value||'';
+  const from2=document.getElementById('anFrom2')?document.getElementById('anFrom2').value||'':'';
+  const to2=document.getElementById('anTo2')?document.getElementById('anTo2').value||'':'';
+  const cmpBar=dataB?renderCompareBar(data,dataB,from+'〜'+to,from2+'〜'+to2):'';
+
+  if(anTab==='monthly_all'){
+    el.innerHTML=cmpBar+renderMonthTable(buildMonthStats(data),'▼ 全体　月別×面接実施率×採用率');
+  } else if(anTab==='monthly_ref'){
+    const ref=data.filter(a=>a.agency&&a.agency.trim());
+    const nonRef=data.filter(a=>!a.agency||!a.agency.trim());
+    el.innerHTML=cmpBar+renderMonthTable(buildMonthStats(data),'▼ 全体')+renderMonthTable(buildMonthStats(nonRef),'▼ 紹介以外')+renderMonthTable(buildMonthStats(ref),'▼ 紹介');
+  } else if(anTab==='age'){
+    const ageBands=['10代','20代以下','30代','40代','50代','60代以上'];
+    const getAgeBand=a=>{const age=parseInt(a.age);if(!age)return null;if(age<20)return'10代';if(age<30)return'20代以下';if(age<40)return'30代';if(age<50)return'40代';if(age<60)return'50代';return'60代以上';};
+    const months=[...new Set(data.map(a=>a.appDate?a.appDate.substring(0,7):null).filter(Boolean))].sort();
+    const matrix={};months.forEach(m=>matrix[m]={});
+    const totals={};ageBands.forEach(b=>totals[b]=0);
+    const monthTotals={};months.forEach(m=>monthTotals[m]=0);
+    let grand=0;
+    data.forEach(a=>{if(!a.appDate)return;const m=a.appDate.substring(0,7);const b=getAgeBand(a);if(!b)return;matrix[m][b]=(matrix[m][b]||0)+1;totals[b]=(totals[b]||0)+1;monthTotals[m]=(monthTotals[m]||0)+1;grand++;});
+    const usedBands=ageBands.filter(b=>totals[b]>0);
+    const headerCols=usedBands.map(b=>`<th style="${thStyle}">${b}</th>`).join('');
+    const bodyRows=months.map(m=>`<tr><td style="${tdStyleL}">${m}</td>${usedBands.map(b=>{const v=matrix[m][b]||0;const p=monthTotals[m]?Math.round(v/monthTotals[m]*100):0;return`<td style="${tdStyle}">${v?v+'人<span style="font-size:9px;color:#aaa;margin-left:2px;">('+p+'%)</span>':''}</td>`;}).join('')}<td style="${tdStyle};font-weight:600;">${monthTotals[m]||0}人</td></tr>`).join('');
+    const footCols=usedBands.map(b=>{const p=grand?Math.round(totals[b]/grand*100):0;return`<td style="${tfStyle}">${totals[b]}人<span style="font-size:9px;color:#aaa;">(${p}%)</span></td>`;}).join('');
+    el.innerHTML=cmpBar+`<div style="overflow-x:auto;"><div style="font-size:11px;font-weight:600;color:#666;margin-bottom:8px;">▼ 年代別　月別集計</div><table style="width:100%;border-collapse:collapse;min-width:600px;"><thead><tr><th style="${thStyleL}">月</th>${headerCols}<th style="${thStyle}">総計</th></tr></thead><tbody>${bodyRows}</tbody><tfoot><tr><td style="${tfStyleL}">総計</td>${footCols}<td style="${tfStyle}">${grand}人</td></tr></tfoot></table></div>`;
+  } else if(['media','job','dept','gender','status','hire'].includes(anTab)){
+    const keyMap={media:'media',job:'jobType',dept:'dept',gender:'gender',status:'status',hire:'hireStatus'};
+    const labelMap={media:'媒体別',job:'職種別',dept:'部署別',gender:'性別別',status:'ステータス別',hire:'採用可否別'};
+    const key=keyMap[anTab];const label=labelMap[anTab];
+    const counts={},int1c={},hiredc={};
+    data.forEach(a=>{const v=a[key]||'(未設定)';counts[v]=(counts[v]||0)+1;if(a.int1Date)int1c[v]=(int1c[v]||0)+1;if(['内定','内定承諾','採用'].includes(a.hireStatus))hiredc[v]=(hiredc[v]||0)+1;});
+    const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+    const rows=sorted.map(([k,v])=>`<tr><td style="${tdStyleL}">${k}</td><td style="${tdStyle}">${v}</td><td style="${tdStyle}">${pct(v,data.length)}</td><td style="${tdStyle}">${int1c[k]||0}</td><td style="${tdStyle};color:${pctColor(int1c[k]||0,v,10)};font-weight:600;">${pct(int1c[k]||0,v)}</td><td style="${tdStyle};color:#639922;font-weight:600;">${hiredc[k]||0}</td><td style="${tdStyle};color:${pctColor(hiredc[k]||0,v,5)};font-weight:600;">${pct(hiredc[k]||0,v)}</td></tr>`).join('');
+    el.innerHTML=cmpBar+`<div style="overflow-x:auto;"><div style="font-size:11px;font-weight:600;color:#666;margin-bottom:8px;">▼ ${label}集計</div><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${thStyleL}">${label.replace('別','')}</th><th style="${thStyle}">応募数</th><th style="${thStyle}">構成比</th><th style="${thStyle}">1次面接数</th><th style="${thStyle};color:#378ADD;">面接率</th><th style="${thStyle};color:#639922;">採用数</th><th style="${thStyle};color:#3B6D11;">採用率</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td style="${tfStyleL}">合計</td><td style="${tfStyle}">${data.length}</td><td style="${tfStyle}">100%</td><td style="${tfStyle}">${data.filter(a=>a.int1Date).length}</td><td style="${tfStyle};color:#378ADD;">${pct(data.filter(a=>a.int1Date).length,data.length)}</td><td style="${tfStyle};color:#639922;">${data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length}</td><td style="${tfStyle};color:#3B6D11;">${pct(data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length,data.length)}</td></tr></tfoot></table></div>`;
+  } else if(anTab==='trend'){
+    if(typeof anChart!=='undefined'&&anChart){anChart.destroy();anChart=null;}
+    const months={},int1m={},hirem={};
+    data.forEach(a=>{if(a.appDate){const k=a.appDate.substring(0,7);months[k]=(months[k]||0)+1;if(a.int1Date)int1m[k]=(int1m[k]||0)+1;if(['内定','内定承諾','採用'].includes(a.hireStatus))hirem[k]=(hirem[k]||0)+1;}});
+    const lbs=Object.keys(months).sort();
+    el.innerHTML=cmpBar+`<div style="position:relative;width:100%;height:280px;"><canvas id="anC" role="img" aria-label="月次トレンド">月次トレンド</canvas></div>`;
+    anChart=new Chart(document.getElementById('anC'),{type:'line',data:{labels:lbs,datasets:[{label:'応募数',data:lbs.map(l=>months[l]),borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.07)',tension:0.3,fill:true,pointRadius:4},{label:'1次面接',data:lbs.map(l=>int1m[l]||0),borderColor:'#5DCAA5',backgroundColor:'transparent',tension:0.3,pointRadius:4,borderDash:[4,2]},{label:'採用',data:lbs.map(l=>hirem[l]||0),borderColor:'#639922',backgroundColor:'transparent',tension:0.3,pointRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'top'}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,callback:v=>Math.round(v)},grid:{color:'rgba(0,0,0,.04)'}},x:{grid:{display:false},ticks:{autoSkip:false,maxRotation:45}}}}});
+  } else if(anTab==='ai'){
+    renderAiAnalysis(data);
+    return;
+  }
+}
+
+
+// ========================================
 // 分析拡張：比較・AI・タスクバッジ
 // ========================================
 
