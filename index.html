@@ -2415,6 +2415,93 @@ function setPeriod(p) {
   renderAn();
 }
 
+// ========================================
+// 月別集計のデータ生成と表示
+// ========================================
+function buildMonthStats(data) {
+  // 月ごとに、各コアステータスへの累積到達数をカウント
+  const stats = {};
+  data.forEach(a => {
+    if (!a.appDate) return;
+    const m = a.appDate.substring(0, 7);
+    if (!stats[m]) {
+      stats[m] = { total: 0, applied: 0, in_progress: 0, interview: 0, hired: 0, joined: 0, resigned: 0, other: 0 };
+    }
+    stats[m].total++;
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
+    const rank = FUNNEL_ORDER.indexOf(cid);
+    // そのステップ以上に到達した数をカウント(ファネル累積)
+    FUNNEL_ORDER.forEach((id, idx) => {
+      if (rank >= idx) stats[m][id]++;
+    });
+    if (cid === 'other') stats[m].other++;
+  });
+  return stats;
+}
+
+function renderMonthTable(stats, title) {
+  const months = Object.keys(stats).sort();
+  const titleHtml = title ? `<div style="font-size:11px;font-weight:600;color:#666;margin:.75rem 0 .25rem;">${title}</div>` : '';
+  if (!months.length) {
+    return titleHtml + '<div class="empty" style="padding:1rem;text-align:center;color:#aaa;font-size:12px;">該当する月のデータがありません</div>';
+  }
+  const thL = 'padding:7px 10px;background:#f0f0ee;font-size:10px;font-weight:700;border-bottom:2px solid #e0e0de;text-align:left;color:#666;';
+  const thR = thL.replace('text-align:left', 'text-align:right');
+  const tdL = 'padding:6px 10px;font-size:11px;border-bottom:1px solid #f5f5f5;';
+  const tdR = tdL + 'text-align:right;';
+  const tfL = 'padding:7px 10px;font-size:11px;font-weight:700;background:#f8f8f7;border-top:2px solid #e0e0de;';
+  const tfR = tfL + 'text-align:right;';
+
+  // 合計
+  const tot = { total:0, in_progress:0, interview:0, hired:0, joined:0 };
+  months.forEach(m => {
+    const s = stats[m];
+    tot.total += s.total;
+    tot.in_progress += s.in_progress;
+    tot.interview += s.interview;
+    tot.hired += s.hired;
+    tot.joined += s.joined;
+  });
+
+  let rows = '';
+  months.forEach(m => {
+    const s = stats[m];
+    const rate = s.total ? Math.round(s.hired / s.total * 100) : 0;
+    rows += `<tr>
+      <td style="${tdL}">${m}</td>
+      <td style="${tdR}">${s.total}</td>
+      <td style="${tdR};color:#EF9F27;">${s.in_progress}</td>
+      <td style="${tdR};color:#9B59B6;">${s.interview}</td>
+      <td style="${tdR};color:#27AE60;font-weight:600;">${s.hired}</td>
+      <td style="${tdR};color:#1D9E75;">${s.joined}</td>
+      <td style="${tdR};color:${rate>10?'#3B6D11':'#aaa'};">${rate}%</td>
+    </tr>`;
+  });
+  const totRate = tot.total ? Math.round(tot.hired / tot.total * 100) : 0;
+
+  return titleHtml + `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">
+    <thead><tr>
+      <th style="${thL}">月</th>
+      <th style="${thR}">応募</th>
+      <th style="${thR}">対応中以上</th>
+      <th style="${thR}">面接以上</th>
+      <th style="${thR}">採用</th>
+      <th style="${thR}">入社</th>
+      <th style="${thR}">採用率</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr>
+      <td style="${tfL}">合計</td>
+      <td style="${tfR}">${tot.total}</td>
+      <td style="${tfR};color:#EF9F27;">${tot.in_progress}</td>
+      <td style="${tfR};color:#9B59B6;">${tot.interview}</td>
+      <td style="${tfR};color:#27AE60;">${tot.hired}</td>
+      <td style="${tfR};color:#1D9E75;">${tot.joined}</td>
+      <td style="${tfR};color:${totRate>10?'#3B6D11':'#aaa'};">${totRate}%</td>
+    </tr></tfoot>
+  </table></div>`;
+}
+
 let anTab='monthly_all';
 function setAnTab(t,btn){
   anTab=t;
