@@ -215,6 +215,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
           <button class="nb" onclick="showSec('analytics')">分析</button>
           <button class="nb" onclick="showSec('minutes')">議事録</button>
           <button class="nb" onclick="showSec('tasks')" id="taskNavBtn">タスク</button>
+          <button class="nb" onclick="showSec('budget')">💰 予算管理</button>
           <button class="nb" onclick="showSec('master')">マスター管理</button>
         </nav>
         <button id="adminNavBtn" class="nb" style="display:none;border-color:#378ADD;color:#378ADD;" onclick="showSec('admin')">クライアント管理</button>
@@ -302,6 +303,27 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
           <span style="font-size:11px;color:#aaa;">〜</span>
           <input type="date" id="fDateTo" onchange="renderList()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;">
           <button class="btn-sm" onclick="clearDateFilter()">期間クリア</button>
+          <div style="margin-left:auto;position:relative;">
+            <button onclick="toggleSortPanel()" style="padding:5px 10px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;cursor:pointer;display:flex;align-items:center;gap:4px;">
+              並び替え: <span id="sortLabel" style="color:#378ADD;">応募日↓</span> <span style="font-size:9px;color:#aaa;">▾</span>
+            </button>
+            <div id="sortPanel" style="display:none;position:absolute;top:110%;right:0;background:#fff;border:1px solid #e8e8e6;border-radius:10px;padding:10px 14px;z-index:300;min-width:210px;box-shadow:0 4px 16px rgba(0,0,0,.12);">
+              <div style="font-size:10px;color:#aaa;margin-bottom:8px;font-weight:600;">ソート項目（複数可・上が優先）</div>
+              <div style="display:flex;flex-direction:column;gap:3px;">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;padding:2px 0;"><input type="checkbox" id="sck_appDate" checked onchange="applyMultiSort()"> 応募日</label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;padding:2px 0;"><input type="checkbox" id="sck_name" onchange="applyMultiSort()"> 名前</label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;padding:2px 0;"><input type="checkbox" id="sck_jobType" onchange="applyMultiSort()"> 職種</label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;padding:2px 0;"><input type="checkbox" id="sck_dept" onchange="applyMultiSort()"> 部署</label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;padding:2px 0;"><input type="checkbox" id="sck_media" onchange="applyMultiSort()"> 媒体</label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;padding:2px 0;"><input type="checkbox" id="sck_status" onchange="applyMultiSort()"> ステータス</label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;padding:2px 0;"><input type="checkbox" id="sck_hireStatus" onchange="applyMultiSort()"> 採用可否</label>
+              </div>
+              <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f0f0ee;display:flex;gap:12px;">
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;"><input type="radio" name="sDir" id="sDirAsc" onchange="applyMultiSort()"> 昇順</label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;"><input type="radio" name="sDir" id="sDirDesc" checked onchange="applyMultiSort()"> 降順</label>
+              </div>
+            </div>
+          </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <span id="listCnt" style="font-size:13px;font-weight:600;color:#1a1a1a;"></span>
@@ -312,28 +334,10 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
         <table>
           <thead><tr>
   <th style="width:36px;"><input type="checkbox" id="checkAll" onclick="toggleCheckAll(this)" style="cursor:pointer;width:14px;height:14px;"></th>
-  <th style="cursor:pointer;position:relative;">
-    <div onclick="toggleSortPanel()" style="display:flex;align-items:center;gap:4px;user-select:none;">
-      応募日 <span id="sortIndicator" style="font-size:10px;color:#378ADD;">↓</span>
-      <span style="font-size:10px;color:#aaa;">▾</span>
-    </div>
-    <div id="sortPanel" style="display:none;position:absolute;top:100%;left:0;background:#fff;border:1px solid #e8e8e6;border-radius:8px;padding:8px 12px;z-index:100;min-width:180px;box-shadow:0 4px 12px rgba(0,0,0,.1);font-weight:400;">
-      <div style="font-size:10px;color:#aaa;margin-bottom:6px;">ソート順（チェックした順に優先）</div>
-      <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:11px;"><input type="checkbox" id="sortChk_appDate" onchange="applyMultiSort()" checked> 応募日</label>
-      <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:11px;"><input type="checkbox" id="sortChk_jobType" onchange="applyMultiSort()"> 職種</label>
-      <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:11px;"><input type="checkbox" id="sortChk_dept" onchange="applyMultiSort()"> 部署</label>
-      <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:11px;"><input type="checkbox" id="sortChk_name" onchange="applyMultiSort()"> 名前</label>
-      <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:11px;"><input type="checkbox" id="sortChk_status" onchange="applyMultiSort()"> ステータス</label>
-      <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:11px;"><input type="checkbox" id="sortChk_hireStatus" onchange="applyMultiSort()"> 採用可否</label>
-      <div style="margin-top:6px;padding-top:6px;border-top:1px solid #f0f0ee;">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;"><input type="radio" name="sortDir" id="sortDirAsc" onchange="applyMultiSort()"> 昇順</label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;margin-top:3px;"><input type="radio" name="sortDir" id="sortDirDesc" onchange="applyMultiSort()" checked> 降順</label>
-      </div>
-    </div>
-  </th>
-  <th>名前</th>
-  <th>職種</th>
-  <th>部署</th>
+  <th onclick="quickSort('appDate')" style="cursor:pointer;">応募日 <span id="sort_appDate">↓</span></th>
+  <th onclick="quickSort('name')" style="cursor:pointer;">名前 <span id="sort_name"></span></th>
+  <th onclick="quickSort('jobType')" style="cursor:pointer;">職種 <span id="sort_jobType"></span></th>
+  <th onclick="quickSort('dept')" style="cursor:pointer;">部署 <span id="sort_dept"></span></th>
   <th>媒体</th>
   <th>ステータス</th>
   <th>採用可否</th>
@@ -723,9 +727,10 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
             <span style="font-size:10px;color:#aaa;">クリックで選択・解除</span>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+            <button id="maxis_appMonth"  class="btn-sm" onclick="toggleMultiAxis('appMonth')"  style="background:#fafafa;">月別</button>
+            <button id="maxis_media"    class="btn-sm" onclick="toggleMultiAxis('media')"    style="background:#fafafa;">媒体</button>
             <button id="maxis_jobType"  class="btn-sm" onclick="toggleMultiAxis('jobType')"  style="background:#fafafa;">職種</button>
             <button id="maxis_dept"     class="btn-sm" onclick="toggleMultiAxis('dept')"     style="background:#fafafa;">部署</button>
-            <button id="maxis_media"    class="btn-sm" onclick="toggleMultiAxis('media')"    style="background:#fafafa;">媒体</button>
             <button id="maxis_agency"   class="btn-sm" onclick="toggleMultiAxis('agency')"   style="background:#fafafa;">人材紹介会社</button>
             <button id="maxis_ageGroup" class="btn-sm" onclick="toggleMultiAxis('ageGroup')" style="background:#fafafa;">年代</button>
             <button id="maxis_gender"   class="btn-sm" onclick="toggleMultiAxis('gender')"   style="background:#fafafa;">性別</button>
@@ -733,7 +738,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
             <button id="maxis_hireStatus" class="btn-sm" onclick="toggleMultiAxis('hireStatus')" style="background:#fafafa;">採用可否</button>
           </div>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-            <span id="multiAxisPreview" style="font-size:11px;color:#378ADD;">軸を選択してください（最大3軸・2軸で通常クロス表、3軸で第1軸でグループ分け）</span>
+            <span id="multiAxisPreview" style="font-size:11px;color:#378ADD;">軸を選択してください（最大3軸）　例：月別→媒体→年代 で画像2のようなピボット表になります</span>
             <button class="btn btn-p" style="padding:6px 14px;font-size:12px;flex-shrink:0;" onclick="addMultiAxisSection()">追加</button>
           </div>
         </div>
@@ -742,6 +747,90 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
         <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid #f0f0ee;display:flex;justify-content:flex-end;">
           <button class="btn-sm" onclick="activeSections=[];renderCustomSections();" style="color:#D85A30;border-color:#D85A30;">全セクションをクリア</button>
         </div>
+      </div>
+    </div>
+
+
+    <!-- 予算管理 -->
+    <div id="sec-budget" class="sec" style="padding:0;background:transparent;box-shadow:none;">
+
+      <!-- 上部：月選択・フィルター -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <h2 style="font-size:14px;font-weight:700;margin:0;">💰 予算管理・費用対効果分析</h2>
+          <div style="display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap;">
+            <input type="month" id="budgetMonth" onchange="renderBudget()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;">
+            <select id="budgetDeptFilter" onchange="renderBudget()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;"><option value="">部署（全て）</option></select>
+            <select id="budgetJobFilter" onchange="renderBudget()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;"><option value="">職種（全て）</option></select>
+            <button class="btn-sm" onclick="exportBudgetCSV()">CSV出力</button>
+            <button class="btn btn-p" style="padding:6px 12px;font-size:12px;" onclick="showBudgetForm()">＋ 予算入力</button>
+          </div>
+        </div>
+        <!-- KPIサマリー -->
+        <div class="metric-grid" id="budgetKpi" style="margin-top:.875rem;"></div>
+      </div>
+
+      <!-- 予算入力フォーム -->
+      <div id="budgetForm" style="display:none;background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:.75rem;">予算・実績データを入力</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end;">
+          <div class="fg"><label style="font-size:10px;">月<span class="req">*</span></label>
+            <input type="month" id="bMonth" style="padding:7px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;width:100%;">
+          </div>
+          <div class="fg"><label style="font-size:10px;">媒体・紹介会社<span class="req">*</span></label>
+            <select id="bMedia" style="padding:7px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;background:#fff;width:100%;">
+              <option value="">選択</option>
+            </select>
+          </div>
+          <div class="fg"><label style="font-size:10px;">種別</label>
+            <select id="bType" style="padding:7px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;background:#fff;width:100%;">
+              <option value="media">求人媒体</option>
+              <option value="agency">人材紹介</option>
+            </select>
+          </div>
+          <div class="fg"><label style="font-size:10px;">広告費（円）<span class="req">*</span></label>
+            <input type="number" id="bAmount" placeholder="0" min="0" style="padding:7px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;width:100%;">
+          </div>
+          <button class="btn btn-p" style="padding:7px 14px;font-size:12px;" onclick="saveBudget()">保存</button>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+          <button class="btn-sm" onclick="hideBudgetForm()">キャンセル</button>
+        </div>
+      </div>
+
+      <!-- 媒体別集計テーブル -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:.75rem;">媒体別 費用対効果</div>
+        <div style="overflow-x:auto;"><table id="budgetTable" style="width:100%;border-collapse:collapse;font-size:12px;min-width:700px;"></table></div>
+      </div>
+
+      <!-- 月別推移グラフ -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:.75rem;">月別推移グラフ</div>
+        <div style="position:relative;height:260px;"><canvas id="budgetTrendChart"></canvas></div>
+      </div>
+
+      <!-- 採用シミュレーター -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:.75rem;">🎯 採用目標から必要予算を逆算</div>
+        <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+          <div class="fg"><label style="font-size:10px;">採用目標人数</label>
+            <input type="number" id="simHireTarget" placeholder="5" min="1" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;width:100px;">
+          </div>
+          <div class="fg"><label style="font-size:10px;">対象媒体</label>
+            <select id="simMedia" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;">
+              <option value="">全媒体平均</option>
+            </select>
+          </div>
+          <button class="btn btn-p" style="padding:7px 14px;font-size:12px;" onclick="runSimulation()">シミュレーション</button>
+        </div>
+        <div id="simResult" style="margin-top:1rem;"></div>
+      </div>
+
+      <!-- 予算データ一覧 -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+        <div style="font-size:12px;font-weight:600;margin-bottom:.75rem;">入力済み予算データ</div>
+        <div id="budgetDataList"></div>
       </div>
     </div>
 
@@ -862,6 +951,7 @@ async function startApp() {
   await loadMasters();
   await loadApplicants();
   await loadMinutesAndTasks();
+  await loadBudgetData();
   updateTaskBadge();
   renderDashboard();
 }
@@ -979,7 +1069,7 @@ function showSec(s) {
   document.querySelectorAll('.sec').forEach(e => e.classList.remove('active'));
   document.querySelectorAll('.nb').forEach(e => e.classList.remove('active'));
   document.getElementById('sec-' + s).classList.add('active');
-  const navMap = { dashboard: 0, list: 1, add: 2, import: 3, analytics: 4, minutes: 5, tasks: 6, master: 7 };
+  const navMap = { dashboard: 0, list: 1, add: 2, import: 3, analytics: 4, minutes: 5, tasks: 6, budget: 7, master: 8 };
   if (navMap[s] !== undefined) document.querySelectorAll('.nb')[navMap[s]].classList.add('active');
   if (s === 'dashboard') renderDashboard();
   if (s === 'list') { closeDetail(); renderList(); }
@@ -988,6 +1078,7 @@ function showSec(s) {
   if (s === 'admin') renderAdmin();
   if (s === 'add' && !editId) resetForm();
   if (s === 'import') cancelImport();
+  if (s === 'budget') { renderBudget(); }
   if (s === 'minutes') {
     // カレンダーの月を今月に初期化
     const calInput = document.getElementById('calMonth');
@@ -1040,14 +1131,14 @@ function clearDateFilter() {
 function toggleSortPanel() {
   const panel = document.getElementById('sortPanel');
   if (!panel) return;
-  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-  // パネル外クリックで閉じる
-  if (panel.style.display === 'block') {
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
     setTimeout(() => {
-      document.addEventListener('click', function closeSortPanel(e) {
-        if (!panel.contains(e.target) && !e.target.closest('th')) {
+      document.addEventListener('click', function closeSP(e) {
+        if (!panel.contains(e.target) && !e.target.closest('[onclick*="toggleSortPanel"]')) {
           panel.style.display = 'none';
-          document.removeEventListener('click', closeSortPanel);
+          document.removeEventListener('click', closeSP);
         }
       });
     }, 100);
@@ -1055,19 +1146,50 @@ function toggleSortPanel() {
 }
 
 function applyMultiSort() {
-  const keys = ['appDate','jobType','dept','name','status','hireStatus'];
-  const checkedKeys = keys.filter(k => {
-    const el = document.getElementById('sortChk_'+k);
-    return el && el.checked;
-  });
-  const descEl = document.getElementById('sortDirDesc');
+  const keyDefs = [
+    {id:'sck_appDate', key:'appDate', label:'応募日'},
+    {id:'sck_name', key:'name', label:'名前'},
+    {id:'sck_jobType', key:'jobType', label:'職種'},
+    {id:'sck_dept', key:'dept', label:'部署'},
+    {id:'sck_media', key:'media', label:'媒体'},
+    {id:'sck_status', key:'status', label:'ステータス'},
+    {id:'sck_hireStatus', key:'hireStatus', label:'採用可否'},
+  ];
+  const descEl = document.getElementById('sDirDesc');
   const desc = descEl && descEl.checked;
-  // ソートキーを更新
-  sortKeys = checkedKeys.length > 0 ? checkedKeys : ['appDate'];
-  sortDesc = desc;
-  // ソートインジケータ更新
-  const ind = document.getElementById('sortIndicator');
-  if (ind) ind.textContent = desc ? '↓' : '↑';
+  const dir = desc ? -1 : 1;
+  const checked = keyDefs.filter(d => { const el=document.getElementById(d.id); return el&&el.checked; });
+  sortKeys = checked.length > 0 ? checked.map(d=>({key:d.key,dir})) : [{key:'appDate',dir:-1}];
+  // ラベル更新
+  const lbl = document.getElementById('sortLabel');
+  if (lbl) {
+    const names = checked.map(d=>d.label);
+    lbl.textContent = (names.length>0?names.join('・'):'応募日') + (desc?'↓':'↑');
+  }
+  renderList();
+}
+
+function quickSort(key) {
+  // ヘッダークリックで単一キーソート（降順/昇順トグル）
+  const existing = sortKeys.find(s=>s.key===key);
+  if (existing) { existing.dir = existing.dir * -1; }
+  else { sortKeys = [{key, dir:-1}]; }
+  // チェックボックスUIを同期
+  ['appDate','name','jobType','dept','media','status','hireStatus'].forEach(k=>{
+    const el=document.getElementById('sck_'+k); if(el) el.checked=(k===key);
+  });
+  const descEl=document.getElementById('sDirDesc');
+  const ascEl=document.getElementById('sDirAsc');
+  if(descEl&&ascEl){ const d=sortKeys[0].dir===-1; descEl.checked=d; ascEl.checked=!d; }
+  const lbl=document.getElementById('sortLabel');
+  const labels={appDate:'応募日',name:'名前',jobType:'職種',dept:'部署',media:'媒体',status:'ステータス',hireStatus:'採用可否'};
+  if(lbl) lbl.textContent=(labels[key]||key)+(sortKeys[0]&&sortKeys[0].dir===-1?'↓':'↑');
+  // ヘッダーのスパン更新
+  ['appDate','name','jobType','dept'].forEach(k=>{
+    const sp=document.getElementById('sort_'+k); if(sp) sp.textContent='';
+  });
+  const sp=document.getElementById('sort_'+key);
+  if(sp) sp.textContent=sortKeys[0]&&sortKeys[0].dir===-1?'↓':'↑';
   renderList();
 }
 
@@ -1803,45 +1925,104 @@ function buildMultiAxisHTML(data, axes, secId) {
   if (!data.length) return '<div class="empty">データがありません</div>';
   const getVal = (a, key) => {
     if (key==='ageGroup'){const age=parseInt(a.age);if(!age)return'不明';if(age<30)return'20代以下';if(age<40)return'30代';if(age<50)return'40代';if(age<60)return'50代';return'60代以上';}
+    if (key==='appMonth') return a.appDate?a.appDate.substring(0,7):'不明';
     return a[key]||'(未設定)';
   };
-  const labels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否'};
+  const labels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否',appMonth:'月別'};
 
   if (axes.length === 2) {
-    // 2軸は通常クロス表＋グラフ
     const rowKey=axes[0], colKey=axes[1];
-    const tableHtml = renderCrossTable(data, rowKey, colKey, labels[rowKey], labels[colKey]);
+    const tableHtml = renderCrossTable(data, rowKey, colKey, labels[rowKey]||rowKey, labels[colKey]||colKey);
     const chartDiv = `<div style="margin-top:1rem;" id="cross_chart_${secId}"></div>`;
     return tableHtml + chartDiv;
   }
 
-  // 3軸：第1軸でグループ化し、各グループでクロス表
+  // 3軸：画像2のようなネストピボット表（第1軸×第2軸が行、第3軸が列）
   const [ax1, ax2, ax3] = axes;
-  const groups = {};
-  data.forEach(a => {
-    const g = getVal(a, ax1);
-    if (!groups[g]) groups[g] = [];
-    groups[g].push(a);
-  });
-  const sortedGroups = Object.keys(groups).sort((a,b)=>groups[b].length-groups[a].length);
-  const totalCount = data.length;
-  let html = `<div style="font-size:10px;color:#666;margin-bottom:8px;">
-    ${labels[ax1]}ごとに ${labels[ax2]}×${labels[ax3]} をクロス集計（全${totalCount}名）
-  </div>`;
+  const getAgeBand = age => {if(!age)return'不明';if(age<20)return'10代';if(age<30)return'20代';if(age<40)return'30代';if(age<50)return'40代';if(age<60)return'50代';if(age<70)return'60代';return'70代以上';};
 
-  html += sortedGroups.map(g => {
-    const gData = groups[g];
-    const pct = Math.round(gData.length/totalCount*100);
-    const crossHtml = renderCrossTable(gData, ax2, ax3, labels[ax2], labels[ax3]);
-    return `<details style="margin-bottom:.75rem;border:1px solid #e8e8e6;border-radius:8px;overflow:hidden;" open>
-      <summary style="padding:.625rem 1rem;background:#f8f8f7;cursor:pointer;font-size:12px;font-weight:600;list-style:none;display:flex;align-items:center;justify-content:space-between;">
-        <span>${labels[ax1]}：${g}</span>
-        <span style="font-size:11px;color:#aaa;font-weight:400;">${gData.length}名（${pct}%）</span>
-      </summary>
-      <div style="padding:.75rem 1rem;">${crossHtml}</div>
-    </details>`;
-  }).join('');
-  return html;
+  // 全ユニーク値を収集
+  const ax1Vals = [...new Set(data.map(a=>getVal(a,ax1)).filter(Boolean))].sort();
+  const ax2Vals = [...new Set(data.map(a=>getVal(a,ax2)).filter(Boolean))].sort();
+  const ax3Vals = [...new Set(data.map(a=>getVal(a,ax3)).filter(Boolean))].sort();
+
+  // 3次元マトリクス構築
+  const matrix = {};
+  const ax1Totals = {}; const ax2Totals = {}; const ax3Totals = {};
+  let grand = 0;
+  data.forEach(a => {
+    const v1=getVal(a,ax1), v2=getVal(a,ax2), v3=getVal(a,ax3);
+    if (!matrix[v1]) matrix[v1] = {};
+    if (!matrix[v1][v2]) matrix[v1][v2] = {};
+    matrix[v1][v2][v3] = (matrix[v1][v2][v3]||0)+1;
+    ax1Totals[v1] = (ax1Totals[v1]||0)+1;
+    ax2Totals[v2] = (ax2Totals[v2]||0)+1;
+    ax3Totals[v3] = (ax3Totals[v3]||0)+1;
+    grand++;
+  });
+
+  // 列ヘッダー（ax3の値）- 多い順上位8
+  const topAx3 = ax3Vals.sort((a,b)=>(ax3Totals[b]||0)-(ax3Totals[a]||0)).slice(0,8);
+
+  const thS = 'padding:7px 9px;background:#e8ebf0;font-size:10px;font-weight:700;border-bottom:2px solid #c8cdd8;text-align:right;white-space:nowrap;';
+  const thSL = 'padding:7px 9px;background:#e8ebf0;font-size:10px;font-weight:700;border-bottom:2px solid #c8cdd8;text-align:left;';
+  const tdS = 'padding:6px 9px;font-size:11px;text-align:right;border-bottom:1px solid #f0f0ee;';
+  const tdSL = 'padding:6px 9px;font-size:11px;font-weight:500;border-bottom:1px solid #f0f0ee;';
+  const subTotS = 'padding:6px 9px;font-size:11px;font-weight:700;background:#f0f4f8;border-bottom:2px solid #d8dde8;text-align:right;';
+  const subTotSL = 'padding:6px 9px;font-size:11px;font-weight:700;background:#f0f4f8;border-bottom:2px solid #d8dde8;';
+
+  const headerCols = topAx3.map(v3=>`<th style="${thS}">${v3}</th>`).join('');
+
+  let bodyRows = '';
+  ax1Vals.forEach((v1,idx1) => {
+    const ax2InGroup = ax2Vals.filter(v2=>matrix[v1]&&matrix[v1][v2]);
+    if (!ax2InGroup.length) return;
+    const rowBg = idx1%2===0 ? '' : 'background:#fafbfd;';
+
+    // ax1グループ各行
+    ax2InGroup.forEach((v2, idx2) => {
+      const rowData = matrix[v1]?.[v2] || {};
+      const rowTotal = Object.values(rowData).reduce((s,v)=>s+v,0);
+      const cells = topAx3.map(v3=>{
+        const v = rowData[v3]||0;
+        return `<td style="${tdS}">${v||''}</td>`;
+      }).join('');
+      const v1Cell = idx2===0
+        ? `<td rowspan="${ax2InGroup.length}" style="${tdSL}font-weight:700;${rowBg}border-right:2px solid #d8dde8;vertical-align:top;padding-top:10px;">${v1}</td>`
+        : '';
+      bodyRows += `<tr style="${rowBg}">${v1Cell}<td style="${tdSL}${rowBg}padding-left:1.5rem;">${v2}</td>${cells}<td style="${tdS}font-weight:700;${rowBg}">${rowTotal}人</td></tr>`;
+    });
+
+    // ax1グループの小計行
+    const groupTotals = {};
+    topAx3.forEach(v3=>{
+      groupTotals[v3]=ax2InGroup.reduce((s,v2)=>(matrix[v1]?.[v2]?.[v3]||0)+s,0);
+    });
+    const groupTotal = ax2InGroup.reduce((s,v2)=>Object.values(matrix[v1]?.[v2]||{}).reduce((a,b)=>a+b,0)+s,0);
+    const subtotalCells = topAx3.map(v3=>`<td style="${subTotS}">${groupTotals[v3]||''}</td>`).join('');
+    bodyRows += `<tr><td style="${subTotSL}" colspan="2">${v1} の合計</td>${subtotalCells}<td style="${subTotS}">${groupTotal}人</td></tr>`;
+  });
+
+  // 総計行
+  const grandCells = topAx3.map(v3=>`<td style="${subTotS}font-size:12px;">${ax3Totals[v3]||0}人</td>`).join('');
+
+  return `<div style="font-size:10px;color:#666;margin-bottom:8px;">${labels[ax1]||ax1} × ${labels[ax2]||ax2} × ${labels[ax3]||ax3} のピボット集計（全${grand}名）</div>
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;min-width:500px;">
+      <thead><tr>
+        <th style="${thSL}">${labels[ax1]||ax1}</th>
+        <th style="${thSL}">${labels[ax2]||ax2}</th>
+        ${headerCols}
+        <th style="${thS}">総計</th>
+      </tr></thead>
+      <tbody>${bodyRows}</tbody>
+      <tfoot><tr>
+        <td style="${subTotSL}font-size:12px;font-weight:700;" colspan="2">総計</td>
+        ${grandCells}
+        <td style="${subTotS}font-size:12px;">${grand}人</td>
+      </tr></tfoot>
+    </table>
+  </div>`;
 }
 
 function renderCustomSections() {
@@ -3009,6 +3190,254 @@ function showTasksForDate(dateStr) {
     const rows = document.querySelectorAll('#taskList [data-due="'+dateStr+'"]');
     if (rows.length) rows[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, 100);
+}
+
+
+// ========================================
+// 予算管理・費用対効果分析
+// ========================================
+let budgetData = []; // {id, month, media, type, amount, clientId}
+let budgetChart = null;
+const BUDGET_KEY = () => `saiyo_budget_${currentClientId}_v1`;
+
+async function loadBudgetData() {
+  try {
+    const r = await window.storage.get(BUDGET_KEY());
+    if (r && r.value) budgetData = JSON.parse(r.value);
+  } catch(e) { budgetData = []; }
+}
+async function saveBudgetData() {
+  try { await window.storage.set(BUDGET_KEY(), JSON.stringify(budgetData)); } catch(e) {}
+}
+
+function showBudgetForm() {
+  const form = document.getElementById('budgetForm');
+  if (!form) return;
+  form.style.display = 'block';
+  // 媒体セレクト更新
+  const sel = document.getElementById('bMedia');
+  const allMedia = [...(masters.media||[]), ...(masters.agency||[])];
+  sel.innerHTML = '<option value="">選択</option>' + allMedia.map(v=>`<option>${v}</option>`).join('');
+  // 今月をデフォルト
+  document.getElementById('bMonth').value = new Date().toISOString().slice(0,7);
+}
+function hideBudgetForm() {
+  document.getElementById('budgetForm').style.display = 'none';
+}
+
+async function saveBudget() {
+  const month = document.getElementById('bMonth').value;
+  const media = document.getElementById('bMedia').value;
+  const type = document.getElementById('bType').value;
+  const amount = parseInt(document.getElementById('bAmount').value) || 0;
+  if (!month || !media || !amount) { alert('月・媒体・金額を入力してください'); return; }
+  const existing = budgetData.findIndex(d => d.month===month && d.media===media);
+  const entry = { id: existing>=0?budgetData[existing].id:Date.now()+'', month, media, type, amount, clientId:currentClientId };
+  if (existing >= 0) budgetData[existing] = entry;
+  else budgetData.push(entry);
+  await saveBudgetData();
+  hideBudgetForm();
+  document.getElementById('bAmount').value = '';
+  renderBudget();
+  setStatus('予算データを保存しました', 'ok');
+}
+
+async function deleteBudget(id) {
+  if (!confirm('この予算データを削除しますか？')) return;
+  budgetData = budgetData.filter(d => d.id !== id);
+  await saveBudgetData();
+  renderBudget();
+}
+
+function renderBudget() {
+  const monthEl = document.getElementById('budgetMonth');
+  if (monthEl && !monthEl.value) monthEl.value = new Date().toISOString().slice(0,7);
+  const selMonth = monthEl ? monthEl.value : '';
+  const selDept = document.getElementById('budgetDeptFilter')?.value || '';
+  const selJob = document.getElementById('budgetJobFilter')?.value || '';
+
+  // フィルター更新
+  const dEl=document.getElementById('budgetDeptFilter');
+  const jEl=document.getElementById('budgetJobFilter');
+  if(dEl){const cur=dEl.value;dEl.innerHTML='<option value="">部署（全て）</option>';(masters.dept||[]).forEach(v=>dEl.innerHTML+=`<option ${cur===v?'selected':''}>${v}</option>`);}
+  if(jEl){const cur=jEl.value;jEl.innerHTML='<option value="">職種（全て）</option>';[...new Set(applicants.map(a=>a.jobType).filter(Boolean))].forEach(v=>jEl.innerHTML+=`<option ${cur===v?'selected':''}>${v}</option>`);}
+
+  // 対象応募者（フィルター適用）
+  let appFiltered = applicants.filter(a => {
+    if (selMonth && a.appDate && !a.appDate.startsWith(selMonth)) return false;
+    if (selDept && a.dept !== selDept) return false;
+    if (selJob && a.jobType !== selJob) return false;
+    return true;
+  });
+
+  // 媒体別集計
+  const mediaStats = {};
+  appFiltered.forEach(a => {
+    const m = a.media || '(未設定)';
+    if (!mediaStats[m]) mediaStats[m] = { apps:0, hires:0 };
+    mediaStats[m].apps++;
+    if (['内定','内定承諾','採用'].includes(a.hireStatus)) mediaStats[m].hires++;
+  });
+
+  // 予算データと結合（選択月のみ）
+  const monthBudgets = budgetData.filter(d => !selMonth || d.month === selMonth);
+  monthBudgets.forEach(d => {
+    if (!mediaStats[d.media]) mediaStats[d.media] = { apps:0, hires:0 };
+    mediaStats[d.media].budget = (mediaStats[d.media].budget||0) + d.amount;
+  });
+
+  // KPI
+  const totalApps = appFiltered.length;
+  const totalHires = appFiltered.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
+  const totalBudget = monthBudgets.reduce((s,d)=>s+d.amount,0);
+  const totalCPA = totalBudget && totalApps ? Math.round(totalBudget/totalApps) : 0;
+  const totalCPO = totalBudget && totalHires ? Math.round(totalBudget/totalHires) : 0;
+  const hireRate = totalApps ? Math.round(totalHires/totalApps*100) : 0;
+
+  const kpiEl = document.getElementById('budgetKpi');
+  if (kpiEl) kpiEl.innerHTML = `
+    <div class="mc" style="border-left:3px solid #378ADD;"><div class="mc-lbl">総広告費</div><div class="mc-val">${totalBudget.toLocaleString()}円</div></div>
+    <div class="mc" style="border-left:3px solid #85B7EB;"><div class="mc-lbl">応募数</div><div class="mc-val">${totalApps}</div></div>
+    <div class="mc" style="border-left:3px solid #639922;"><div class="mc-lbl">採用数</div><div class="mc-val">${totalHires}</div></div>
+    <div class="mc" style="border-left:3px solid #EF9F27;"><div class="mc-lbl">CPA（応募単価）</div><div class="mc-val">${totalCPA?totalCPA.toLocaleString()+'円':'-'}</div></div>
+    <div class="mc" style="border-left:3px solid #D85A30;"><div class="mc-lbl">CPO（採用単価）</div><div class="mc-val">${totalCPO?totalCPO.toLocaleString()+'円':'-'}</div></div>
+    <div class="mc" style="border-left:3px solid #1D9E75;"><div class="mc-lbl">採用率</div><div class="mc-val">${hireRate}%</div></div>`;
+
+  // テーブル
+  const thS='padding:8px 10px;background:#f0f0ee;font-size:11px;font-weight:700;border-bottom:2px solid #e0e0de;text-align:right;white-space:nowrap;';
+  const thSL='padding:8px 10px;background:#f0f0ee;font-size:11px;font-weight:700;border-bottom:2px solid #e0e0de;text-align:left;';
+  const tdS='padding:7px 10px;font-size:12px;text-align:right;border-bottom:1px solid #f5f5f5;';
+  const tdSL='padding:7px 10px;font-size:12px;font-weight:500;border-bottom:1px solid #f5f5f5;';
+
+  const sorted = Object.entries(mediaStats).sort((a,b)=>b[1].apps-a[1].apps);
+  const rows = sorted.map(([m,s])=>{
+    const budget = s.budget||0;
+    const cpa = budget&&s.apps?Math.round(budget/s.apps):0;
+    const cpo = budget&&s.hires?Math.round(budget/s.hires):0;
+    const hr = s.apps?Math.round(s.hires/s.apps*100):0;
+    const cpaColor = cpa===0?'#aaa':cpa<10000?'#3B6D11':cpa<50000?'#854F0B':'#D85A30';
+    return `<tr>
+      <td style="${tdSL}">${m}</td>
+      <td style="${tdS}">${budget?budget.toLocaleString()+'円':'未入力'}</td>
+      <td style="${tdS}">${s.apps}</td>
+      <td style="${tdS}">${s.hires}</td>
+      <td style="${tdS};color:${hr>10?'#3B6D11':'#aaa'};">${hr}%</td>
+      <td style="${tdS};color:${cpaColor};font-weight:600;">${cpa?cpa.toLocaleString()+'円':'-'}</td>
+      <td style="${tdS};color:${cpo?'#D85A30':'#aaa'};font-weight:600;">${cpo?cpo.toLocaleString()+'円':'-'}</td>
+    </tr>`;
+  }).join('');
+
+  const tbl = document.getElementById('budgetTable');
+  if (tbl) tbl.innerHTML = `<thead><tr>
+    <th style="${thSL}">媒体</th><th style="${thS}">広告費</th><th style="${thS}">応募数</th>
+    <th style="${thS}">採用数</th><th style="${thS}">採用率</th>
+    <th style="${thS}">CPA（応募単価）</th><th style="${thS}">CPO（採用単価）</th>
+  </tr></thead><tbody>${rows}</tbody>`;
+
+  // 月別推移グラフ
+  renderBudgetTrend();
+
+  // シミュレーター媒体セレクト更新
+  const simSel=document.getElementById('simMedia');
+  if(simSel){simSel.innerHTML='<option value="">全媒体平均</option>'+Object.keys(mediaStats).map(m=>`<option>${m}</option>`).join('');}
+
+  // 入力済みデータ一覧
+  const dlEl=document.getElementById('budgetDataList');
+  if(dlEl){
+    const sorted2=[...budgetData].filter(d=>!selMonth||d.month===selMonth).sort((a,b)=>b.month>a.month?1:-1);
+    dlEl.innerHTML=sorted2.length?`<table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr><th style="${thSL}">月</th><th style="${thSL}">媒体</th><th style="${thS}">金額</th><th style="${thSL}">種別</th><th style="${thS}"></th></tr></thead>
+      <tbody>${sorted2.map(d=>`<tr><td style="${tdSL}">${d.month}</td><td style="${tdSL}">${d.media}</td><td style="${tdS}">${d.amount.toLocaleString()}円</td><td style="${tdSL}">${d.type==='agency'?'人材紹介':'求人媒体'}</td><td style="${tdS}"><button class="btn-del" onclick="deleteBudget('${d.id}')">削除</button></td></tr>`).join('')}</tbody>
+    </table>`:'<div class="empty">予算データがありません。「＋ 予算入力」から追加してください。</div>';
+  }
+}
+
+function renderBudgetTrend() {
+  if (budgetChart) { budgetChart.destroy(); budgetChart=null; }
+  const el=document.getElementById('budgetTrendChart'); if(!el) return;
+
+  // 月ごとの広告費・応募数・採用数を集計
+  const months={};
+  applicants.forEach(a=>{if(a.appDate){const m=a.appDate.substring(0,7);if(!months[m])months[m]={apps:0,hires:0,budget:0};months[m].apps++;if(['内定','内定承諾','採用'].includes(a.hireStatus))months[m].hires++;}});
+  budgetData.forEach(d=>{if(!months[d.month])months[d.month]={apps:0,hires:0,budget:0};months[d.month].budget+=d.amount;});
+
+  const lbs=Object.keys(months).sort();
+  if(!lbs.length){el.parentElement.innerHTML='<div class="empty" style="padding:2rem;text-align:center;">データがありません</div>';return;}
+
+  budgetChart=new Chart(el,{type:'bar',data:{labels:lbs,datasets:[
+    {label:'広告費（万円）',data:lbs.map(m=>(months[m].budget/10000).toFixed(1)),backgroundColor:'rgba(239,159,39,0.2)',borderColor:'#EF9F27',borderWidth:1.5,yAxisID:'y2'},
+    {label:'応募数',data:lbs.map(m=>months[m].apps),type:'line',borderColor:'#378ADD',backgroundColor:'transparent',tension:0.3,pointRadius:3,yAxisID:'y'},
+    {label:'採用数',data:lbs.map(m=>months[m].hires),type:'line',borderColor:'#639922',backgroundColor:'transparent',tension:0.3,pointRadius:3,yAxisID:'y'},
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:true,position:'top',labels:{font:{size:10},boxWidth:12}}},
+    scales:{
+      y:{beginAtZero:true,position:'left',title:{display:true,text:'人数',font:{size:10}},ticks:{font:{size:10},stepSize:1}},
+      y2:{beginAtZero:true,position:'right',title:{display:true,text:'万円',font:{size:10}},grid:{display:false},ticks:{font:{size:10}}},
+      x:{grid:{display:false},ticks:{font:{size:10},maxRotation:45}}
+    }}});
+}
+
+function runSimulation() {
+  const target = parseInt(document.getElementById('simHireTarget').value) || 0;
+  const media = document.getElementById('simMedia').value;
+  if (!target) { alert('採用目標人数を入力してください'); return; }
+
+  // 過去データから採用率・CPA・CPOを計算
+  let apps=applicants, budgets=budgetData;
+  if(media) {apps=apps.filter(a=>a.media===media); budgets=budgets.filter(d=>d.media===media);}
+
+  const totalApps=apps.length;
+  const totalHires=apps.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
+  const totalBudget=budgets.reduce((s,d)=>s+d.amount,0);
+  const hireRate=totalApps?totalHires/totalApps:0;
+  const cpa=totalBudget&&totalApps?totalBudget/totalApps:0;
+  const cpo=totalBudget&&totalHires?totalBudget/totalHires:0;
+
+  if(!hireRate){document.getElementById('simResult').innerHTML='<div style="color:#aaa;font-size:12px;">過去データから採用率を算出できませんでした。データを入力してください。</div>';return;}
+
+  const neededApps=Math.ceil(target/hireRate);
+  const neededBudget=cpa?Math.round(cpa*neededApps):null;
+  const estimatedBudgetByCPO=cpo?Math.round(cpo*target):null;
+
+  document.getElementById('simResult').innerHTML=`
+    <div style="background:#f0f6ff;border-radius:10px;padding:1rem;border-left:3px solid #378ADD;">
+      <div style="font-size:12px;font-weight:700;color:#378ADD;margin-bottom:.75rem;">📊 シミュレーション結果（${media||'全媒体'}の過去実績から算出）</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:.75rem;">
+        <div style="background:#fff;border-radius:8px;padding:.75rem;text-align:center;">
+          <div style="font-size:10px;color:#aaa;">過去の採用率</div>
+          <div style="font-size:18px;font-weight:700;color:#1a1a1a;">${Math.round(hireRate*100)}%</div>
+        </div>
+        <div style="background:#fff;border-radius:8px;padding:.75rem;text-align:center;">
+          <div style="font-size:10px;color:#aaa;">必要応募数</div>
+          <div style="font-size:18px;font-weight:700;color:#378ADD;">${neededApps}名</div>
+        </div>
+        <div style="background:#fff;border-radius:8px;padding:.75rem;text-align:center;">
+          <div style="font-size:10px;color:#aaa;">採用目標</div>
+          <div style="font-size:18px;font-weight:700;color:#639922;">${target}名</div>
+        </div>
+      </div>
+      <div style="font-size:12px;color:#1a1a1a;line-height:2;">
+        ${neededBudget?`📌 推定必要予算（CPA基準）：<strong style="color:#D85A30;">${neededBudget.toLocaleString()}円</strong>（CPA ${Math.round(cpa).toLocaleString()}円 × ${neededApps}名）<br>`:
+          '<span style="color:#aaa;">※ 予算データを入力するとCPAベースの試算が可能になります</span><br>'}
+        ${estimatedBudgetByCPO?`📌 推定必要予算（CPO基準）：<strong style="color:#854F0B;">${estimatedBudgetByCPO.toLocaleString()}円</strong>（CPO ${Math.round(cpo).toLocaleString()}円 × ${target}名）`:''}
+      </div>
+    </div>`;
+}
+
+function exportBudgetCSV() {
+  const rows=[['月','媒体','種別','広告費','応募数','採用数','採用率','CPA（応募単価）','CPO（採用単価）']];
+  const stats={};
+  applicants.forEach(a=>{const m=a.media||'未設定';if(!stats[m])stats[m]={apps:0,hires:0,budget:0};stats[m].apps++;if(['内定','内定承諾','採用'].includes(a.hireStatus))stats[m].hires++;});
+  budgetData.forEach(d=>{if(!stats[d.media])stats[d.media]={apps:0,hires:0,budget:0};stats[d.media].budget+=d.amount;});
+  Object.entries(stats).forEach(([m,s])=>{
+    const cpa=s.budget&&s.apps?Math.round(s.budget/s.apps):0;
+    const cpo=s.budget&&s.hires?Math.round(s.budget/s.hires):0;
+    const hr=s.apps?Math.round(s.hires/s.apps*100):0;
+    rows.push(['全期間',m,'',s.budget,s.apps,s.hires,hr+'%',cpa?cpa+'円':'-',cpo?cpo+'円':'-']);
+  });
+  const csvStr = rows.map(r=>r.join(',')).join('\r\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csvStr);
+  a.download='budget_analysis_'+new Date().toISOString().split('T')[0]+'.csv';a.click();
 }
 
 // タスク残数カウント（クライアント管理用）
