@@ -1606,28 +1606,77 @@ function renderCustomSections() {
   Object.values(sectionCharts).forEach(charts => charts.forEach(c => { try { c.destroy(); } catch(e) {} }));
   Object.keys(sectionCharts).forEach(k => delete sectionCharts[k]);
   const data = getAnData();
+  // HTML生成（secIdをacc_body_に一致させる）
   container.innerHTML = activeSections.map(s => {
     const title = s.type === 'custom_cross'
       ? '🔀 ' + getKeyLabel(s.opts.row) + ' × ' + getKeyLabel(s.opts.col)
       : getSectionTitle(s.type);
-    return `<div id="${s.id}" style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.04);overflow:hidden;">
+    // コンテンツを直接生成（setTimeout不要）
+    let bodyHtml = buildSectionInline(data, s);
+    return `<div id="${s.id}" style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.04);overflow:hidden;margin-bottom:0;">
       <div onclick="toggleAccordion('${s.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:.875rem 1rem;cursor:pointer;border-bottom:1px solid #f0f0ee;" onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
         <div style="font-size:12px;font-weight:600;color:#1a1a1a;">${title}</div>
         <div style="display:flex;gap:6px;align-items:center;">
-          <span id="acc_icon_${s.id}" style="font-size:16px;color:#aaa;transition:transform .2s;">▼</span>
+          <span id="acc_icon_${s.id}" style="font-size:14px;color:#aaa;">▼</span>
           <button class="btn-del" onclick="event.stopPropagation();removeSection('${s.id}')" style="font-size:10px;padding:2px 8px;">✕</button>
         </div>
       </div>
-      <div id="acc_body_${s.id}" style="padding:1rem;">
-        <div style="color:#aaa;font-size:11px;text-align:center;padding:.5rem;">読み込み中...</div>
-      </div>
+      <div id="acc_body_${s.id}" style="padding:1rem;">${bodyHtml}</div>
     </div>`;
   }).join('');
-  // 非同期でコンテンツを描画（DOMが確定してから）
+  // グラフはDOM生成後にまとめて描画
   activeSections.forEach(s => {
-    setTimeout(() => renderSectionContent(s, data), 10);
+    if (s.type === 'trend') renderTrendInSection(data, s.id);
+    else if (s.type === 'custom_cross') {
+      const viz = s.opts.viz || 'both';
+      if (viz !== 'table') renderCrossChart(data, s.opts.row, s.opts.col, viz, s.id);
+    } else if (['media','job','dept','gender','status','hire'].includes(s.type)) {
+      renderSimpleChart(data, s.type, s.id);
+    } else if (s.type === 'ai') {
+      renderAiAnalysis(data, 'acc_body_' + s.id);
+    }
   });
 }
+
+function buildSectionInline(data, s) {
+  if (!data.length) return '<div class="empty">データがありません</div>';
+  const type = s.type;
+  const secId = s.id;
+  if (type === 'monthly_ref') {
+    const ref = data.filter(a => a.agency && a.agency.trim());
+    const nonRef = data.filter(a => !a.agency || !a.agency.trim());
+    return renderMonthTable(buildMonthStats(nonRef),'▼ 紹介以外') + renderMonthTable(buildMonthStats(ref),'▼ 紹介');
+  } else if (type === 'age') {
+    return renderAgeTable(data);
+  } else if (type === 'trend') {
+    return `<div style="position:relative;width:100%;height:240px;"><canvas id="trend_${secId}"></canvas></div>`;
+  } else if (type === 'ai') {
+    return '<div style="color:#aaa;font-size:12px;padding:.5rem;text-align:center;">分析中...</div>';
+  } else if (type === 'custom_cross') {
+    const { row, col, viz } = s.opts;
+    const tableHtml = renderCrossTable(data, row, col, getKeyLabel(row), getKeyLabel(col));
+    if (viz === 'table') return tableHtml;
+    const chartHtml = `<div style="margin-top:1rem;" id="cross_chart_${secId}"></div>`;
+    return tableHtml + chartHtml;
+  } else if (['media','job','dept','gender','status','hire'].includes(type)) {
+    const keyMap = {media:'media',job:'jobType',dept:'dept',gender:'gender',status:'status',hire:'hireStatus'};
+    const tableHtml = renderSimpleTable(data, keyMap[type]);
+    return tableHtml + `<div style="margin-top:1rem;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div><div style="font-size:10px;color:#666;font-weight:600;margin-bottom:4px;">棒グラフ（応募数）</div><div style="position:relative;height:200px;"><canvas id="bar_${type}_${secId}"></canvas></div></div>
+      <div><div style="font-size:10px;color:#666;font-weight:600;margin-bottom:4px;">円グラフ（構成比）</div><div style="position:relative;height:200px;"><canvas id="pie_${type}_${secId}"></canvas></div></div>
+    </div>`;
+  } else if (type === 'dept_job') {
+    return renderCrossTable(data,'dept','jobType','部署','職種');
+  } else if (type === 'age_job') {
+    return renderCrossTable(data,'ageGroup','jobType','年代','職種');
+  } else if (type === 'job_status') {
+    return renderCrossTable(data,'jobType','status','職種','ステータス');
+  } else if (type === 'media_hire') {
+    return renderCrossTable(data,'media','hireStatus','媒体','採用可否');
+  }
+  return '<div class="empty">不明なセクションタイプです</div>';
+}
+
 
 function toggleAccordion(id) {
   const body = document.getElementById('acc_body_' + id);
