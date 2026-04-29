@@ -4391,6 +4391,122 @@ function runSimulation() {
 
 
 // ========================================
+// マスター管理UI（媒体・部署・人材紹介会社）
+// ========================================
+function renderManage() {
+  // 既存のマスター項目を表示
+  renderMasterList('media', 'mlMed');
+  renderMasterList('dept', 'mlDept');
+  renderMasterList('agency', 'mlAg');
+  // ステータスマスターも更新
+  renderStatusMaster();
+}
+
+function renderMasterList(type, listId) {
+  const ul = document.getElementById(listId);
+  if (!ul) return;
+  const items = masters[type] || [];
+  if (!items.length) {
+    ul.innerHTML = '<li style="color:#aaa;font-size:11px;padding:8px 6px;font-style:italic;justify-content:flex-start;background:transparent;">登録なし</li>';
+    return;
+  }
+  // 既存CSS .mg-list li のスタイル(背景色・パディング)を活かしつつ削除ボタンを追加
+  ul.innerHTML = items.map((v, i) => `
+    <li>
+      <span style="color:#1a1a1a;">${escapeHtml(v)}</span>
+      <button onclick="deleteM('${type}', ${i})" title="削除"
+        style="background:transparent;border:none;color:#D85A30;cursor:pointer;font-size:13px;padding:0 4px;line-height:1;opacity:.5;transition:opacity .15s;"
+        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.5'">✕</button>
+    </li>
+  `).join('');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function addM(type) {
+  const inputId = { media: 'miMed', dept: 'miDept', agency: 'miAg' }[type];
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const value = (input.value || '').trim();
+  if (!value) { alert('項目名を入力してください'); return; }
+  if ((masters[type] || []).includes(value)) {
+    alert('既に登録されています');
+    return;
+  }
+  // Supabaseに追加
+  const cid = isAdmin ? 'admin' : currentClientId;
+  const { error } = await sb.from('masters').insert({ client_id: cid, type, value });
+  if (error) {
+    alert('追加に失敗しました: ' + error.message);
+    return;
+  }
+  // ローカルに反映
+  if (!masters[type]) masters[type] = [];
+  masters[type].push(value);
+  input.value = '';
+  setStatus('追加しました', 'ok');
+  // 関連UIをリフレッシュ
+  renderManage();
+  popSelects();
+}
+
+async function deleteM(type, index) {
+  const items = masters[type] || [];
+  const value = items[index];
+  if (value === undefined) return;
+  if (!confirm(`「${value}」を削除しますか？`)) return;
+  // Supabaseから削除
+  const cid = isAdmin ? 'admin' : currentClientId;
+  const { error } = await sb.from('masters').delete().eq('client_id', cid).eq('type', type).eq('value', value);
+  if (error) {
+    alert('削除に失敗しました: ' + error.message);
+    return;
+  }
+  // ローカルから削除
+  masters[type].splice(index, 1);
+  setStatus('削除しました', 'ok');
+  renderManage();
+  popSelects();
+}
+
+// パスワード変更
+async function chgPw() {
+  const np1 = document.getElementById('np1');
+  const np2 = document.getElementById('np2');
+  const pwOk = document.getElementById('pwOk');
+  if (!np1 || !np2) return;
+  const p1 = (np1.value || '').trim();
+  const p2 = (np2.value || '').trim();
+  if (!p1 || !p2) { alert('パスワードを入力してください'); return; }
+  if (p1 !== p2) { alert('パスワードが一致しません'); return; }
+  if (p1.length < 4) { alert('パスワードは4文字以上にしてください'); return; }
+
+  if (isAdmin) {
+    // 管理者：system_configのadmin_pwを更新
+    const { error } = await sb.from('system_config').update({ value: p1 }).eq('key', 'admin_pw');
+    if (error) {
+      // upsertで作成
+      const { error: e2 } = await sb.from('system_config').upsert({ key: 'admin_pw', value: p1 });
+      if (e2) { alert('変更に失敗しました: ' + e2.message); return; }
+    }
+  } else {
+    // クライアント：clientsテーブルのpasswordを更新
+    const { error } = await sb.from('clients').update({ password: p1 }).eq('id', currentClientId);
+    if (error) { alert('変更に失敗しました: ' + error.message); return; }
+  }
+
+  np1.value = ''; np2.value = '';
+  if (pwOk) {
+    pwOk.style.display = 'inline';
+    setTimeout(() => { pwOk.style.display = 'none'; }, 3000);
+  }
+  setStatus('パスワードを変更しました', 'ok');
+}
+
+
+// ========================================
 // ステータスマスター管理UI
 // ========================================
 function renderStatusMaster() {
