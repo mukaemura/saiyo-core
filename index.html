@@ -556,10 +556,12 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
     <!-- 分析 -->
     <div id="sec-analytics" class="sec" style="padding:0;background:transparent;box-shadow:none;">
 
-      <!-- 上部固定サマリー -->
+      <!-- 上部固定：フィルター＋KPI＋ファネル -->
       <div style="background:#fff;border-radius:10px;padding:1.125rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:.875rem;">
-          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+
+        <!-- フィルター行 -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:.75rem;">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
             <label style="font-size:11px;color:#666;font-weight:500;">期間A：</label>
             <input type="date" id="anFrom" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;">
             <span style="font-size:10px;color:#aaa;">〜</span>
@@ -568,54 +570,67 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
             <button class="btn-sm" onclick="setPeriod('quarter')">3ヶ月</button>
             <button class="btn-sm" onclick="setPeriod('year')">1年</button>
             <button class="btn-sm" onclick="setPeriod('all')">累計</button>
-          </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
             <select id="anDept" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;">
               <option value="">部署（全て）</option>
             </select>
             <select id="anJob" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;">
               <option value="">職種（全て）</option>
             </select>
-            <button class="btn-exp" onclick="exportPDF()">PDF出力</button>
           </div>
+          <button class="btn-exp" onclick="exportPDF()">PDF出力</button>
         </div>
 
-        <!-- 比較機能 -->
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-top:.75rem;border-top:1px solid #f0f0ee;">
-          <label style="font-size:11px;color:#378ADD;font-weight:600;">比較期間B：</label>
-          <input type="date" id="anFrom2" style="padding:5px 8px;border:1px solid #c8ddf5;border-radius:8px;font-size:11px;font-family:inherit;">
+        <!-- 比較期間 -->
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:.625rem .75rem;background:#f0f6ff;border-radius:8px;margin-bottom:.75rem;">
+          <label style="font-size:11px;color:#378ADD;font-weight:600;">比較B：</label>
+          <input type="date" id="anFrom2" onchange="renderAn()" style="padding:4px 7px;border:1px solid #c8ddf5;border-radius:6px;font-size:11px;font-family:inherit;">
           <span style="font-size:10px;color:#aaa;">〜</span>
-          <input type="date" id="anTo2" style="padding:5px 8px;border:1px solid #c8ddf5;border-radius:8px;font-size:11px;font-family:inherit;">
+          <input type="date" id="anTo2" onchange="renderAn()" style="padding:4px 7px;border:1px solid #c8ddf5;border-radius:6px;font-size:11px;font-family:inherit;">
           <button class="btn-sm" onclick="setCompare('lastMonth')">先月</button>
           <button class="btn-sm" onclick="setCompare('last3m')">前3ヶ月</button>
           <button class="btn-sm" onclick="setCompare('lastYear')">前年同期</button>
-          <button class="btn-sm" onclick="clearCompare()">比較クリア</button>
-          <span id="compareStatus" style="font-size:11px;color:#378ADD;"></span>
+          <button class="btn-sm" onclick="clearCompare()">クリア</button>
+          <span id="compareStatus" style="font-size:11px;color:#378ADD;font-weight:500;"></span>
         </div>
 
-        <!-- KPIグリッド -->
-        <div class="metric-grid" id="anMetrics" style="margin-top:.875rem;margin-bottom:.5rem;"></div>
+        <!-- KPI -->
+        <div class="metric-grid" id="anMetrics" style="margin-bottom:.875rem;"></div>
 
-        <!-- ファネル -->
+        <!-- 逆ピラミッドファネル -->
         <div id="anFunnelBar"></div>
       </div>
 
-      <!-- 分析タブ -->
-      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);">
-        <div class="tab-row" style="flex-wrap:wrap;margin-bottom:.875rem;">
-          <button class="tab active" onclick="setAnTab('monthly_all',this)">月別（全体）</button>
-          <button class="tab" onclick="setAnTab('monthly_ref',this)">紹介別</button>
-          <button class="tab" onclick="setAnTab('age',this)">年代別</button>
-          <button class="tab" onclick="setAnTab('media',this)">媒体別</button>
-          <button class="tab" onclick="setAnTab('job',this)">職種別</button>
-          <button class="tab" onclick="setAnTab('dept',this)">部署別</button>
-          <button class="tab" onclick="setAnTab('gender',this)">性別</button>
-          <button class="tab" onclick="setAnTab('status',this)">ステータス別</button>
-          <button class="tab" onclick="setAnTab('hire',this)">採用可否別</button>
-          <button class="tab" onclick="setAnTab('trend',this)">月次トレンド</button>
-          <button class="tab" onclick="setAnTab('ai',this)">🤖 AI分析</button>
+      <!-- 常時表示：月別集計（全体） -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:.75rem;display:flex;align-items:center;gap:6px;">
+          📊 月別集計（全体）
+          <span style="font-size:10px;color:#aaa;font-weight:400;">常時表示</span>
         </div>
-        <div id="anContent"></div>
+        <div id="anMonthlyFixed"></div>
+      </div>
+
+      <!-- カスタムセクション表示エリア -->
+      <div id="anCustomSections" style="display:flex;flex-direction:column;gap:.75rem;"></div>
+
+      <!-- セクション追加コントロール -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:.75rem;">＋ セクションを追加</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn-sm" onclick="addSection('monthly_ref')">紹介別 月次</button>
+          <button class="btn-sm" onclick="addSection('age')">年代別</button>
+          <button class="btn-sm" onclick="addSection('media')">媒体別</button>
+          <button class="btn-sm" onclick="addSection('job')">職種別</button>
+          <button class="btn-sm" onclick="addSection('dept')">部署別</button>
+          <button class="btn-sm" onclick="addSection('dept_job')">部署×職種</button>
+          <button class="btn-sm" onclick="addSection('age_job')">年代×職種</button>
+          <button class="btn-sm" onclick="addSection('job_status')">職種×ステータス</button>
+          <button class="btn-sm" onclick="addSection('media_hire')">媒体×採用可否</button>
+          <button class="btn-sm" onclick="addSection('gender')">性別</button>
+          <button class="btn-sm" onclick="addSection('status')">ステータス別</button>
+          <button class="btn-sm" onclick="addSection('hire')">採用可否別</button>
+          <button class="btn-sm" onclick="addSection('trend')">月次トレンド</button>
+          <button class="btn-sm" onclick="addSection('ai')" style="background:#f0faf6;color:#3B6D11;border-color:#c8e6c9;">🤖 AI分析</button>
+        </div>
       </div>
     </div>
 
@@ -1322,7 +1337,18 @@ function setAnTab(t,btn){
   anTab=t;
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  renderAnContent();
+  // 月別集計（常時表示）を更新
+  const fixedEl = document.getElementById('anMonthlyFixed');
+  if (fixedEl) {
+    const dataB = getCompareData();
+    const cmpBar = dataB ? renderCompareBar(data, dataB,
+      (document.getElementById('anFrom').value||'A')+'〜'+(document.getElementById('anTo').value||''),
+      (document.getElementById('anFrom2').value||'B')+'〜'+(document.getElementById('anTo2').value||'')
+    ) : '';
+    fixedEl.innerHTML = cmpBar + renderMonthTable(buildMonthStats(data), '');
+  }
+  // カスタムセクションを再描画
+  renderCustomSections();
 }
 function setTab(t,btn){ setAnTab(t,btn); }
 
@@ -1357,7 +1383,24 @@ function renderAn() {
   const fEl=document.getElementById('anFunnelBar');
   if(fEl&&total>0){
     const steps=[{label:'応募',n:total,color:'#378ADD'},{label:'1次面接',n:int1,color:'#5DCAA5'},{label:'2次面接',n:int2,color:'#1D9E75'},{label:'内定・採用',n:hired,color:'#639922'}];
-    fEl.innerHTML=`<div style="font-size:11px;font-weight:600;color:#666;margin-bottom:10px;">採用ファネル（歩留り率）</div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${steps.map((s,i)=>{const p=total?Math.round(s.n/total*100):0;const prev=i>0?steps[i-1].n:total;const step=prev?Math.round(s.n/prev*100):0;return`<div style="display:flex;flex-direction:column;align-items:center;gap:4px;"><div style="background:${s.color};color:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:90px;"><div style="font-size:11px;opacity:.85;">${s.label}</div><div style="font-size:20px;font-weight:700;">${s.n}</div><div style="font-size:10px;opacity:.8;">全体 ${p}%</div></div>${i>0?`<div style="font-size:10px;color:#aaa;">↓ ${step}%</div>`:''}</div>${i<steps.length-1?'<div style="font-size:18px;color:#ddd;align-self:center;margin-top:-16px;">›</div>':''}`;}).join('')}</div>`;
+    // 逆ピラミッド形式のファネル
+    fEl.innerHTML=`<div style="font-size:11px;font-weight:600;color:#666;margin-bottom:10px;">採用ファネル（歩留り率）</div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:0;">
+      ${steps.map((s,i)=>{
+        const p=total?Math.round(s.n/total*100):0;
+        const prev=i>0?steps[i-1].n:total;
+        const step=prev?Math.round(s.n/prev*100):0;
+        const w=100-(i*18);
+        return`<div style="width:${w}%;display:flex;flex-direction:column;align-items:center;">
+          ${i>0?`<div style="font-size:10px;color:#aaa;padding:3px 0;">↓ 通過率 ${step}%</div>`:''}
+          <div style="background:${s.color};color:#fff;width:100%;padding:10px;text-align:center;border-radius:6px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:12px;font-weight:600;">${s.label}</span>
+            <span style="font-size:18px;font-weight:700;">${s.n}名</span>
+            <span style="font-size:11px;opacity:.85;">全体比 ${p}%</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
   } else if(fEl){fEl.innerHTML='';}
   renderAnContent();
 }
@@ -1415,63 +1458,262 @@ function renderCompareBar(dataA,dataB,labelA,labelB){
 }
 
 function renderAnContent(){
-  const data=getAnData();
-  const el=document.getElementById('anContent');
-  if(!el)return;
-  if(!data.length){el.innerHTML='<div class="empty" style="margin-top:1rem;">この期間のデータがありません</div>';return;}
-  const dataB=getCompareData();
-  const from=document.getElementById('anFrom').value||'期間A';
-  const to=document.getElementById('anTo').value||'';
-  const from2=document.getElementById('anFrom2')?document.getElementById('anFrom2').value||'':'';
-  const to2=document.getElementById('anTo2')?document.getElementById('anTo2').value||'':'';
-  const cmpBar=dataB?renderCompareBar(data,dataB,from+'〜'+to,from2+'〜'+to2):'';
-
-  if(anTab==='monthly_all'){
-    el.innerHTML=cmpBar+renderMonthTable(buildMonthStats(data),'▼ 全体　月別×面接実施率×採用率');
-  } else if(anTab==='monthly_ref'){
-    const ref=data.filter(a=>a.agency&&a.agency.trim());
-    const nonRef=data.filter(a=>!a.agency||!a.agency.trim());
-    el.innerHTML=cmpBar+renderMonthTable(buildMonthStats(data),'▼ 全体')+renderMonthTable(buildMonthStats(nonRef),'▼ 紹介以外')+renderMonthTable(buildMonthStats(ref),'▼ 紹介');
-  } else if(anTab==='age'){
-    const ageBands=['10代','20代以下','30代','40代','50代','60代以上'];
-    const getAgeBand=a=>{const age=parseInt(a.age);if(!age)return null;if(age<20)return'10代';if(age<30)return'20代以下';if(age<40)return'30代';if(age<50)return'40代';if(age<60)return'50代';return'60代以上';};
-    const months=[...new Set(data.map(a=>a.appDate?a.appDate.substring(0,7):null).filter(Boolean))].sort();
-    const matrix={};months.forEach(m=>matrix[m]={});
-    const totals={};ageBands.forEach(b=>totals[b]=0);
-    const monthTotals={};months.forEach(m=>monthTotals[m]=0);
-    let grand=0;
-    data.forEach(a=>{if(!a.appDate)return;const m=a.appDate.substring(0,7);const b=getAgeBand(a);if(!b)return;matrix[m][b]=(matrix[m][b]||0)+1;totals[b]=(totals[b]||0)+1;monthTotals[m]=(monthTotals[m]||0)+1;grand++;});
-    const usedBands=ageBands.filter(b=>totals[b]>0);
-    const headerCols=usedBands.map(b=>`<th style="${thStyle}">${b}</th>`).join('');
-    const bodyRows=months.map(m=>`<tr><td style="${tdStyleL}">${m}</td>${usedBands.map(b=>{const v=matrix[m][b]||0;const p=monthTotals[m]?Math.round(v/monthTotals[m]*100):0;return`<td style="${tdStyle}">${v?v+'人<span style="font-size:9px;color:#aaa;margin-left:2px;">('+p+'%)</span>':''}</td>`;}).join('')}<td style="${tdStyle};font-weight:600;">${monthTotals[m]||0}人</td></tr>`).join('');
-    const footCols=usedBands.map(b=>{const p=grand?Math.round(totals[b]/grand*100):0;return`<td style="${tfStyle}">${totals[b]}人<span style="font-size:9px;color:#aaa;">(${p}%)</span></td>`;}).join('');
-    el.innerHTML=cmpBar+`<div style="overflow-x:auto;"><div style="font-size:11px;font-weight:600;color:#666;margin-bottom:8px;">▼ 年代別　月別集計</div><table style="width:100%;border-collapse:collapse;min-width:600px;"><thead><tr><th style="${thStyleL}">月</th>${headerCols}<th style="${thStyle}">総計</th></tr></thead><tbody>${bodyRows}</tbody><tfoot><tr><td style="${tfStyleL}">総計</td>${footCols}<td style="${tfStyle}">${grand}人</td></tr></tfoot></table></div>`;
-  } else if(['media','job','dept','gender','status','hire'].includes(anTab)){
-    const keyMap={media:'media',job:'jobType',dept:'dept',gender:'gender',status:'status',hire:'hireStatus'};
-    const labelMap={media:'媒体別',job:'職種別',dept:'部署別',gender:'性別別',status:'ステータス別',hire:'採用可否別'};
-    const key=keyMap[anTab];const label=labelMap[anTab];
-    const counts={},int1c={},hiredc={};
-    data.forEach(a=>{const v=a[key]||'(未設定)';counts[v]=(counts[v]||0)+1;if(a.int1Date)int1c[v]=(int1c[v]||0)+1;if(['内定','内定承諾','採用'].includes(a.hireStatus))hiredc[v]=(hiredc[v]||0)+1;});
-    const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-    const rows=sorted.map(([k,v])=>`<tr><td style="${tdStyleL}">${k}</td><td style="${tdStyle}">${v}</td><td style="${tdStyle}">${pct(v,data.length)}</td><td style="${tdStyle}">${int1c[k]||0}</td><td style="${tdStyle};color:${pctColor(int1c[k]||0,v,10)};font-weight:600;">${pct(int1c[k]||0,v)}</td><td style="${tdStyle};color:#639922;font-weight:600;">${hiredc[k]||0}</td><td style="${tdStyle};color:${pctColor(hiredc[k]||0,v,5)};font-weight:600;">${pct(hiredc[k]||0,v)}</td></tr>`).join('');
-    el.innerHTML=cmpBar+`<div style="overflow-x:auto;"><div style="font-size:11px;font-weight:600;color:#666;margin-bottom:8px;">▼ ${label}集計</div><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${thStyleL}">${label.replace('別','')}</th><th style="${thStyle}">応募数</th><th style="${thStyle}">構成比</th><th style="${thStyle}">1次面接数</th><th style="${thStyle};color:#378ADD;">面接率</th><th style="${thStyle};color:#639922;">採用数</th><th style="${thStyle};color:#3B6D11;">採用率</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td style="${tfStyleL}">合計</td><td style="${tfStyle}">${data.length}</td><td style="${tfStyle}">100%</td><td style="${tfStyle}">${data.filter(a=>a.int1Date).length}</td><td style="${tfStyle};color:#378ADD;">${pct(data.filter(a=>a.int1Date).length,data.length)}</td><td style="${tfStyle};color:#639922;">${data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length}</td><td style="${tfStyle};color:#3B6D11;">${pct(data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length,data.length)}</td></tr></tfoot></table></div>`;
-  } else if(anTab==='trend'){
-    if(typeof anChart!=='undefined'&&anChart){anChart.destroy();anChart=null;}
-    const months={},int1m={},hirem={};
-    data.forEach(a=>{if(a.appDate){const k=a.appDate.substring(0,7);months[k]=(months[k]||0)+1;if(a.int1Date)int1m[k]=(int1m[k]||0)+1;if(['内定','内定承諾','採用'].includes(a.hireStatus))hirem[k]=(hirem[k]||0)+1;}});
-    const lbs=Object.keys(months).sort();
-    el.innerHTML=cmpBar+`<div style="position:relative;width:100%;height:280px;"><canvas id="anC" role="img" aria-label="月次トレンド">月次トレンド</canvas></div>`;
-    anChart=new Chart(document.getElementById('anC'),{type:'line',data:{labels:lbs,datasets:[{label:'応募数',data:lbs.map(l=>months[l]),borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.07)',tension:0.3,fill:true,pointRadius:4},{label:'1次面接',data:lbs.map(l=>int1m[l]||0),borderColor:'#5DCAA5',backgroundColor:'transparent',tension:0.3,pointRadius:4,borderDash:[4,2]},{label:'採用',data:lbs.map(l=>hirem[l]||0),borderColor:'#639922',backgroundColor:'transparent',tension:0.3,pointRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'top'}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,callback:v=>Math.round(v)},grid:{color:'rgba(0,0,0,.04)'}},x:{grid:{display:false},ticks:{autoSkip:false,maxRotation:45}}}}});
-  } else if(anTab==='ai'){
-    renderAiAnalysis(data);
-    return;
-  }
+  // 旧タブ方式の後方互換（今は使わない）
 }
 
+// セクション管理
+let activeSections = []; // 追加済みセクションのリスト
 
-// ========================================
-// 分析拡張：比較・AI・タスクバッジ
-// ========================================
+function addSection(type) {
+  const id = 'sec_' + type + '_' + Date.now();
+  activeSections.push({ id, type });
+  renderCustomSections();
+  // 追加したセクションにスクロール
+  setTimeout(() => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
+}
+
+function removeSection(id) {
+  activeSections = activeSections.filter(s => s.id !== id);
+  renderCustomSections();
+}
+
+function renderCustomSections() {
+  const container = document.getElementById('anCustomSections');
+  if (!container) return;
+  const data = getAnData();
+  container.innerHTML = activeSections.map(s => {
+    const inner = buildSectionHTML(data, s.type);
+    const title = getSectionTitle(s.type);
+    return `<div id="${s.id}" style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+        <div style="font-size:12px;font-weight:600;color:#1a1a1a;">${title}</div>
+        <button class="btn-del" onclick="removeSection('${s.id}')" style="font-size:10px;padding:2px 8px;">✕ 削除</button>
+      </div>
+      ${inner}
+    </div>`;
+  }).join('');
+  // chartを再描画（canvasが新しく生成されるため）
+  activeSections.forEach(s => {
+    if (s.type === 'trend') renderTrendChart(data, s.id + '_chart');
+  });
+}
+
+function getSectionTitle(type) {
+  const map = {
+    monthly_ref: '📊 紹介別 月別集計', age: '👥 年代別', media: '📡 媒体別',
+    job: '💼 職種別', dept: '🏢 部署別', dept_job: '🏢 部署×職種クロス',
+    age_job: '👥 年代×職種クロス', job_status: '💼 職種×ステータスクロス',
+    media_hire: '📡 媒体×採用可否クロス', gender: '⚧ 性別',
+    status: '📋 ステータス別', hire: '✅ 採用可否別',
+    trend: '📈 月次トレンド', ai: '🤖 AI分析'
+  };
+  return map[type] || type;
+}
+
+function buildSectionHTML(data, type) {
+  if (!data.length) return '<div class="empty">データがありません</div>';
+
+  if (type === 'monthly_ref') {
+    const ref = data.filter(a => a.agency && a.agency.trim());
+    const nonRef = data.filter(a => !a.agency || !a.agency.trim());
+    return renderMonthTable(buildMonthStats(nonRef), '▼ 紹介以外') + renderMonthTable(buildMonthStats(ref), '▼ 紹介');
+
+  } else if (type === 'age') {
+    return renderAgeTable(data);
+
+  } else if (type === 'trend') {
+    return `<div style="position:relative;width:100%;height:260px;"><canvas id="trend_canvas_${Date.now()}" class="trendCanvas"></canvas></div>`;
+
+  } else if (type === 'ai') {
+    const div = document.createElement('div');
+    div.id = 'ai_content_' + Date.now();
+    setTimeout(() => renderAiAnalysis(data, div.id), 50);
+    return `<div id="${div.id}"><div style="color:#aaa;font-size:12px;padding:1rem;">分析中...</div></div>`;
+
+  } else if (['media','job','dept','gender','status','hire'].includes(type)) {
+    const keyMap = {media:'media',job:'jobType',dept:'dept',gender:'gender',status:'status',hire:'hireStatus'};
+    return renderSimpleTable(data, keyMap[type]);
+
+  } else if (type === 'dept_job') {
+    return renderCrossTable(data, 'dept', 'jobType', '部署', '職種');
+  } else if (type === 'age_job') {
+    return renderCrossTable(data, 'ageGroup', 'jobType', '年代', '職種');
+  } else if (type === 'job_status') {
+    return renderCrossTable(data, 'jobType', 'status', '職種', 'ステータス');
+  } else if (type === 'media_hire') {
+    return renderCrossTable(data, 'media', 'hireStatus', '媒体', '採用可否');
+  }
+  return '<div class="empty">不明なセクションタイプです</div>';
+}
+
+function renderAgeTable(data) {
+  const ageBands = ['10代','20代','30代','40代','50代','60代','70代以上'];
+  const getAgeBand = a => {
+    const age = parseInt(a.age); if (!age) return null;
+    if (age < 20) return '10代'; if (age < 30) return '20代'; if (age < 40) return '30代';
+    if (age < 50) return '40代'; if (age < 60) return '50代'; if (age < 70) return '60代';
+    return '70代以上';
+  };
+  const months = [...new Set(data.map(a => a.appDate ? a.appDate.substring(0,7) : null).filter(Boolean))].sort();
+  const matrix = {}; months.forEach(m => matrix[m] = {});
+  const totals = {}; ageBands.forEach(b => totals[b] = 0);
+  const monthTotals = {}; months.forEach(m => monthTotals[m] = 0);
+  let grand = 0;
+  data.forEach(a => {
+    if (!a.appDate) return;
+    const m = a.appDate.substring(0,7); const b = getAgeBand(a); if (!b) return;
+    matrix[m][b] = (matrix[m][b] || 0) + 1; totals[b] = (totals[b] || 0) + 1;
+    monthTotals[m] = (monthTotals[m] || 0) + 1; grand++;
+  });
+  const usedBands = ageBands.filter(b => totals[b] > 0);
+  const hc = usedBands.map(b => `<th style="${thStyle}">${b}</th>`).join('');
+  const rows = months.map(m => `<tr>
+    <td style="${tdStyleL}">${m}</td>
+    ${usedBands.map(b => { const v = matrix[m][b]||0; const p = monthTotals[m] ? Math.round(v/monthTotals[m]*100) : 0; return `<td style="${tdStyle}">${v ? v+'人<span style="font-size:9px;color:#aaa;margin-left:2px;">('+p+'%)</span>' : ''}</td>`; }).join('')}
+    <td style="${tdStyle};font-weight:600;">${monthTotals[m]||0}人</td>
+  </tr>`).join('');
+  const fc = usedBands.map(b => { const p = grand ? Math.round(totals[b]/grand*100) : 0; return `<td style="${tfStyle}">${totals[b]}人<span style="font-size:9px;color:#aaa;">(${p}%)</span></td>`; }).join('');
+  return `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:500px;">
+    <thead><tr><th style="${thStyleL}">月</th>${hc}<th style="${thStyle}">総計</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td style="${tfStyleL}">総計</td>${fc}<td style="${tfStyle}">${grand}人</td></tr></tfoot>
+  </table></div>`;
+}
+
+function renderSimpleTable(data, key) {
+  const counts = {}, int1c = {}, hiredc = {};
+  data.forEach(a => {
+    const v = a[key] || '(未設定)';
+    counts[v] = (counts[v]||0) + 1;
+    if (a.int1Date) int1c[v] = (int1c[v]||0) + 1;
+    if (['内定','内定承諾','採用'].includes(a.hireStatus)) hiredc[v] = (hiredc[v]||0) + 1;
+  });
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+  const rows = sorted.map(([k,v]) => `<tr>
+    <td style="${tdStyleL}">${k}</td>
+    <td style="${tdStyle}">${v}</td>
+    <td style="${tdStyle}">${pct(v,data.length)}</td>
+    <td style="${tdStyle}">${int1c[k]||0}</td>
+    <td style="${tdStyle};color:${pctColor(int1c[k]||0,v,10)};font-weight:600;">${pct(int1c[k]||0,v)}</td>
+    <td style="${tdStyle};color:#639922;font-weight:600;">${hiredc[k]||0}</td>
+    <td style="${tdStyle};color:${pctColor(hiredc[k]||0,v,5)};font-weight:600;">${pct(hiredc[k]||0,v)}</td>
+  </tr>`).join('');
+  const tot = data.length;
+  const totInt1 = data.filter(a => a.int1Date).length;
+  const totHired = data.filter(a => ['内定','内定承諾','採用'].includes(a.hireStatus)).length;
+  return `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">
+    <thead><tr>
+      <th style="${thStyleL}">項目</th><th style="${thStyle}">応募数</th><th style="${thStyle}">構成比</th>
+      <th style="${thStyle}">1次面接</th><th style="${thStyle};color:#378ADD;">面接率</th>
+      <th style="${thStyle};color:#639922;">採用数</th><th style="${thStyle};color:#3B6D11;">採用率</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr>
+      <td style="${tfStyleL}">合計</td><td style="${tfStyle}">${tot}</td><td style="${tfStyle}">100%</td>
+      <td style="${tfStyle}">${totInt1}</td><td style="${tfStyle};color:#378ADD;">${pct(totInt1,tot)}</td>
+      <td style="${tfStyle};color:#639922;">${totHired}</td><td style="${tfStyle};color:#3B6D11;">${pct(totHired,tot)}</td>
+    </tr></tfoot>
+  </table></div>`;
+}
+
+function renderCrossTable(data, rowKey, colKey, rowLabel, colLabel) {
+  // rowKeyがageGroupの場合は年代を計算
+  const getVal = (a, key) => {
+    if (key === 'ageGroup') {
+      const age = parseInt(a.age); if (!age) return '不明';
+      if (age < 30) return '20代以下'; if (age < 40) return '30代';
+      if (age < 50) return '40代'; if (age < 60) return '50代'; return '60代以上';
+    }
+    return a[key] || '(未設定)';
+  };
+  const rowVals = [...new Set(data.map(a => getVal(a, rowKey)).filter(Boolean))].sort();
+  const colVals = [...new Set(data.map(a => getVal(a, colKey)).filter(Boolean))].sort();
+  if (!rowVals.length || !colVals.length) return '<div class="empty">データが不足しています</div>';
+  const matrix = {};
+  rowVals.forEach(r => { matrix[r] = {}; colVals.forEach(c => matrix[r][c] = 0); });
+  const rowTotals = {}; rowVals.forEach(r => rowTotals[r] = 0);
+  const colTotals = {}; colVals.forEach(c => colTotals[c] = 0);
+  let grand = 0;
+  data.forEach(a => {
+    const r = getVal(a, rowKey); const c = getVal(a, colKey);
+    if (!matrix[r]) return;
+    matrix[r][c] = (matrix[r][c] || 0) + 1;
+    rowTotals[r] = (rowTotals[r] || 0) + 1;
+    colTotals[c] = (colTotals[c] || 0) + 1;
+    grand++;
+  });
+  // 列を応募数多い順にソート
+  const sortedCols = colVals.sort((a,b) => (colTotals[b]||0) - (colTotals[a]||0)).slice(0, 10);
+  const hc = sortedCols.map(c => `<th style="${thStyle};max-width:80px;overflow:hidden;text-overflow:ellipsis;" title="${c}">${c.length>8?c.slice(0,8)+'…':c}</th>`).join('');
+  const rows = rowVals.map(r => `<tr>
+    <td style="${tdStyleL}">${r}</td>
+    ${sortedCols.map(c => { const v = matrix[r][c]||0; const p = rowTotals[r] ? Math.round(v/rowTotals[r]*100) : 0; return `<td style="${tdStyle}">${v ? `<span style="font-weight:600;">${v}</span><span style="font-size:9px;color:#aaa;margin-left:2px;">(${p}%)</span>` : ''}</td>`; }).join('')}
+    <td style="${tdStyle};font-weight:700;">${rowTotals[r]}人</td>
+  </tr>`).join('');
+  const fc = sortedCols.map(c => `<td style="${tfStyle}">${colTotals[c]||0}人</td>`).join('');
+  return `<div style="overflow-x:auto;font-size:11px;color:#666;margin-bottom:4px;">行：${rowLabel}　列：${colLabel}（上位10列表示）</div>
+  <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:400px;">
+    <thead><tr><th style="${thStyleL}">${rowLabel}</th>${hc}<th style="${thStyle}">合計</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td style="${tfStyleL}">合計</td>${fc}<td style="${tfStyle}">${grand}人</td></tr></tfoot>
+  </table></div>`;
+}
+
+function renderAiAnalysis(data, targetId) {
+  const el = targetId ? document.getElementById(targetId) : document.getElementById('anContent');
+  if (!el) return;
+  el.innerHTML = '<div style="padding:1rem;text-align:center;color:#aaa;font-size:12px;">分析中...</div>';
+  const total = data.length;
+  if (!total) { el.innerHTML = '<div class="empty">データがありません</div>'; return; }
+  const int1n = data.filter(a=>a.int1Date).length;
+  const int2n = data.filter(a=>a.int2Date).length;
+  const hiredn = data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
+  const rejected = data.filter(a=>a.status==='不採用'||a.hireStatus==='不採用').length;
+  const withdrew = data.filter(a=>a.status&&(a.status.includes('辞退')||a.status.includes('連絡不通'))).length;
+  const intRate = total?Math.round(int1n/total*100):0;
+  const hireRate = total?Math.round(hiredn/total*100):0;
+  const mc={},jc={},ac={},gc={},months={};
+  data.forEach(a=>{
+    if(a.media)mc[a.media]=(mc[a.media]||0)+1;
+    if(a.jobType)jc[a.jobType]=(jc[a.jobType]||0)+1;
+    if(a.gender)gc[a.gender]=(gc[a.gender]||0)+1;
+    if(a.appDate){const m=a.appDate.substring(0,7);months[m]=(months[m]||0)+1;}
+    const age=parseInt(a.age);if(age){const b=age<30?'20代以下':age<40?'30代':age<50?'40代':age<60?'50代':'60代以上';ac[b]=(ac[b]||0)+1;}
+  });
+  const topMedia=Object.entries(mc).sort((a,b)=>b[1]-a[1]);
+  const topMediaPct=topMedia[0]&&total?Math.round(topMedia[0][1]/total*100):0;
+  const topAge=Object.entries(ac).sort((a,b)=>b[1]-a[1]);
+  const topAgePct=topAge[0]&&total?Math.round(topAge[0][1]/total*100):0;
+  const mKeys=Object.keys(months).sort();
+  const lastM=mKeys[mKeys.length-1],prevM=mKeys[mKeys.length-2];
+  const mTrend=months[prevM]?Math.round((months[lastM]-months[prevM])/months[prevM]*100):0;
+  const refCount=data.filter(a=>a.agency&&a.agency.trim()).length;
+  const refHired=data.filter(a=>a.agency&&a.agency.trim()&&['内定','内定承諾','採用'].includes(a.hireStatus)).length;
+  const refHireRate=refCount?Math.round(refHired/refCount*100):0;
+  const nonRefCount=total-refCount;
+  const nonRefHired=hiredn-refHired;
+  const nonRefHireRate=nonRefCount?Math.round(nonRefHired/nonRefCount*100):0;
+  const malePct=gc['男性']?Math.round(gc['男性']/total*100):0;
+  const femalePct=gc['女性']?Math.round(gc['女性']/total*100):0;
+  const sections=[];
+  let overall=hireRate>=10?'採用率が'+hireRate+'%と高水準です。現在の選考フローは効果的に機能しています。':hireRate>=5?'採用率は'+hireRate+'%で標準的な水準です。さらなる改善の余地があります。':'採用率が'+hireRate+'%と低めです。母集団の質向上や選考基準の見直しを検討してください。';
+  if(intRate>=20)overall+=' 面接実施率は'+intRate+'%と高く、書類選考の精度が高いです。';else overall+=' 面接実施率は'+intRate+'%です。書類選考基準の適正化を検討してください。';
+  if(mTrend>0)overall+=' 直近月の応募数は前月比+'+mTrend+'%と増加傾向です。';else if(mTrend<0)overall+=' 直近月の応募数は前月比'+mTrend+'%と減少傾向です。';
+  sections.push({title:'📊 総評・全体傾向',content:overall,color:'#1a1a1a'});
+  let mediaText=topMedia.length>0?'最多媒体は「'+topMedia[0][0]+'」('+topMedia[0][1]+'名・'+topMediaPct+'%)。'+(topMedia.length>1?'次いで「'+topMedia[1][0]+'」('+topMedia[1][1]+'名)。':'')+(topMediaPct>60?' 1媒体集中リスクあり。他媒体の強化を推奨。':'')+(refCount>0?' 紹介採用率'+refHireRate+'%、紹介以外'+nonRefHireRate+'%。'+(refHireRate>nonRefHireRate?' 紹介ルートへの投資を優先推奨。':' 紹介以外も効果的です。'):''):'媒体データが不足しています。';
+  sections.push({title:'📡 媒体戦略',content:mediaText+'<br><span style="color:#378ADD;font-size:11px;">【アドバイス】'+( topMedia.length>2?'上位3媒体に予算集中し、採用率低媒体はコスト検証してください。':'複数媒体を活用して母集団を拡大することを推奨します。')+'</span>',color:'#185FA5'});
+  let attrText=topAge.length>0?'応募者の最多年代は「'+(topAge[0][0])+'」('+topAgePct+'%)。':''; const youngPct2=(ac['20代以下']||0)+(ac['30代']||0); if(total&&youngPct2/total>0.5)attrText+='若年層が過半数。ポテンシャル採用中心。';attrText+=' 性別は男性'+malePct+'%・女性'+femalePct+'%。';if(femalePct<20)attrText+=' 女性比率低め。女性向け訴求強化を推奨。';
+  sections.push({title:'👥 属性分析',content:attrText+'<br><span style="color:#378ADD;font-size:11px;">【アドバイス】ターゲット層に合わせた求人票の見直しで応募品質が向上します。</span>',color:'#0F6E56'});
+  let funnelText='応募'+total+'名→1次面接'+int1n+'名('+intRate+'%)→2次面接'+int2n+'名('+( total?Math.round(int2n/total*100):0)+'%)→採用'+hiredn+'名('+hireRate+'%)。';if(intRate<10)funnelText+='書類通過率低め。要件見直し推奨。';const int2Rate2=int1n?Math.round(int2n/int1n*100):0;if(int2Rate2<50&&int2n>0)funnelText+=' 1→2次通過率'+int2Rate2+'%。評価基準の明確化を推奨。';if(withdrew/total>0.15)funnelText+=' 辞退・連絡不通が'+Math.round(withdrew/total*100)+'%と高め。フォロー迅速化を推奨。';
+  sections.push({title:'🔻 ファネル分析',content:funnelText,color:'#A32D2D'});
+  const actions=[];if(intRate<15)actions.push('書類選考基準を見直し、面接実施率'+intRate+'%→20%以上に改善');if(topMediaPct>60)actions.push('「'+(topMedia[0]?topMedia[0][0]:'主要媒体')+'」への依存を下げ、他媒体を強化');if(hireRate<5)actions.push('採用要件を再定義し、求人票の訴求ポイントを見直す');if(withdrew/total>0.1)actions.push('応募者へのコンタクトを24時間以内に行い、辞退・連絡不通を減らす');if(refHireRate>nonRefHireRate&&refCount>0)actions.push('紹介経由の採用率が高いため、紹介ネットワークを強化する');if(actions.length<3)actions.push('採用データを定期分析し、月次で媒体・選考基準を見直す');
+  const actionHtml=actions.slice(0,5).map((a,i)=>'<div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;"><span style="background:#1a1a1a;color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">'+( i+1)+'</span><span style="font-size:12px;">'+a+'</span></div>').join('');
+  sections.push({title:'✅ アクションアイテム',content:actionHtml,color:'#639922'});
+  el.innerHTML='<div style="display:flex;flex-direction:column;gap:.875rem;">'+sections.map(s=>`<div style="border-left:3px solid ${s.color};background:#fafafa;border-radius:0 8px 8px 0;padding:.875rem 1rem;"><div style="font-size:12px;font-weight:700;color:${s.color};margin-bottom:6px;">${s.title}</div><div style="font-size:12px;color:#2a2a2a;line-height:1.8;">${s.content}</div></div>`).join('')+'</div>';
+}
 
 function updateTaskBadge() {
   const btn = document.getElementById('taskNavBtn');
@@ -1550,8 +1792,9 @@ function renderCompareBar(dataA, dataB, labelA, labelB) {
   </div>`;
 }
 
-function renderAiAnalysis(data) {
-  const el = document.getElementById('anContent');
+function renderAiAnalysis(data, targetId) {
+  const el = targetId ? document.getElementById(targetId) : document.getElementById('anContent');
+  if (!el) return;
   el.innerHTML = '<div style="padding:1rem;text-align:center;color:#aaa;font-size:12px;">分析中...</div>';
 
   const total = data.length;
