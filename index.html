@@ -1149,6 +1149,7 @@ async function loadMasters() {
     // DBに保存
     const rows = [];
     Object.entries(masters).forEach(([type, vals]) => vals.forEach(v => rows.push({ client_id: cid, type, value: v })));
+    rows.forEach(r => { if (!r.client_id) r.client_id = currentClientId; }); // マルチテナント強制付与
     if (rows.length) await sb.from('masters').insert(rows);
   }
   popSelects();
@@ -1734,6 +1735,7 @@ async function doImport() {
       memo: r['メモ']||null, docs: []
     };
   });
+  rows.forEach(r => { r.client_id = currentClientId; }); // マルチテナント強制付与
   const { error } = await sb.from('applicants').insert(rows);
   btn.disabled = false; btn.textContent = 'この内容で一括登録する';
   if (error) { alert('登録に失敗しました: ' + error.message); return; }
@@ -3003,6 +3005,7 @@ async function saveMinutes() {
     await sb.from('tasks').delete().eq('minute_id', mid).eq('client_id', currentClientId);
     tasks = tasks.filter(t => t.minuteId !== mid);
   } else {
+    row.client_id = currentClientId; // マルチテナント強制付与
     await sb.from('minutes').insert(row);
     minutes.unshift({ id: mid, date, url, title, tasks: tempMinuteTasks, clientId: cid });
   }
