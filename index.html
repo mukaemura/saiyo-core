@@ -1280,842 +1280,147 @@ function renderCompareBar(dataA, dataB, labelA, labelB) {
   </div>`;
 }
 
-async function renderAiAnalysis(data) {
+function renderAiAnalysis(data) {
   const el = document.getElementById('anContent');
-  el.innerHTML = '<div style="padding:2rem;text-align:center;color:#aaa;font-size:13px;">🤖 AI分析を生成中...</div>';
-  
+  el.innerHTML = '<div style="padding:1rem;text-align:center;color:#aaa;font-size:12px;">分析中...</div>';
+
   const total = data.length;
   if (!total) { el.innerHTML = '<div class="empty">データがありません</div>'; return; }
 
-  // データ集計
-  const mediaCounts = {}, jobCounts = {}, ageCounts = {}, genderCounts = {}, statusCounts = {};
   const int1n = data.filter(a=>a.int1Date).length;
+  const int2n = data.filter(a=>a.int2Date).length;
   const hiredn = data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
-  data.forEach(a=>{
-    if(a.media) mediaCounts[a.media]=(mediaCounts[a.media]||0)+1;
-    if(a.jobType) jobCounts[a.jobType]=(jobCounts[a.jobType]||0)+1;
-    if(a.gender) genderCounts[a.gender]=(genderCounts[a.gender]||0)+1;
-    if(a.status) statusCounts[a.status]=(statusCounts[a.status]||0)+1;
-    const age=parseInt(a.age);
-    if(age){const b=age<30?'20代以下':age<40?'30代':age<50?'40代':age<60?'50代':'60代以上';ageCounts[b]=(ageCounts[b]||0)+1;}
-  });
-
-  // プロンプトを文字列結合で構築（テンプレートリテラルのネスト回避）
-  const mediaLines = Object.entries(mediaCounts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>'- '+k+': '+v+'名（'+Math.round(v/total*100)+'%）').join('\n');
-  const jobLines = Object.entries(jobCounts).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>'- '+k+': '+v+'名').join('\n');
-  const ageLines = Object.entries(ageCounts).map(([k,v])=>'- '+k+': '+v+'名（'+Math.round(v/total*100)+'%）').join('\n');
-  const genderLines = Object.entries(genderCounts).map(([k,v])=>'- '+k+': '+v+'名（'+Math.round(v/total*100)+'%）').join('\n');
-  const statusLines = Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>'- '+k+': '+v+'名').join('\n');
+  const rejected = data.filter(a=>a.status==='不採用'||a.hireStatus==='不採用').length;
+  const withdrew = data.filter(a=>a.status&&(a.status.includes('辞退')||a.status.includes('連絡不通'))).length;
   const intRate = total?Math.round(int1n/total*100):0;
   const hireRate = total?Math.round(hiredn/total*100):0;
-  const prompt = [
-    'あなたは採用コンサルタントです。以下の採用データを分析してアドバイスをしてください。',
-    '',
-    '【採用データサマリー】',
-    '- 総応募数: '+total+'名',
-    '- 1次面接実施: '+int1n+'名（面接率: '+intRate+'%）',
-    '- 内定・採用: '+hiredn+'名（採用率: '+hireRate+'%）',
-    '',
-    '【媒体別応募数】', mediaLines,
-    '【職種別応募数】', jobLines,
-    '【年代別応募数】', ageLines,
-    '【性別比率】', genderLines,
-    '【ステータス別】', statusLines,
-    '',
-    '以下の観点で日本語でアドバイスしてください（各項目に具体的な数値を使って）：',
-    '1. 全体傾向と総評',
-    '2. 媒体戦略（効果的な媒体と改善すべき媒体）',
-    '3. 職種・年代・性別の特徴と採用戦略へのアドバイス',
-    '4. 採用ファネルの課題と改善提案',
-    '5. 今後の採用活動へのアクションアイテム（3つ）',
-    '',
-    '各項目は見出し付きで、採用担当者がすぐに行動できるレベルで具体的に書いてください。'
-  ].join('\n');
 
-    try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-    const json = await res.json();
-    const text = json.content?.[0]?.text || 'AI分析の生成に失敗しました';
-    
-    // マークダウン風にレンダリング
-    const html = text
-      .replace(/^### (.+)$/gm, '<h4 style="font-size:13px;font-weight:700;color:#1a1a1a;margin:1rem 0 .5rem;">$1</h4>')
-      .replace(/^## (.+)$/gm, '<h3 style="font-size:14px;font-weight:700;color:#378ADD;margin:1.25rem 0 .5rem;padding-bottom:4px;border-bottom:1px solid #e8e8e6;">$1</h3>')
-      .replace(/^\*\*(.+)\*\*$/gm, '<strong>$1</strong>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/^(\d+\..+)$/gm, '<div style="padding:4px 0 4px 1rem;font-size:12px;color:#1a1a1a;">$1</div>')
-      .replace(/^- (.+)$/gm, '<div style="padding:3px 0 3px 1rem;font-size:12px;color:#444;">• $1</div>')
-    
-    el.innerHTML = `<div style="margin-top:.5rem;">
-      <div style="background:linear-gradient(135deg,#f0f6ff,#f8fbff);border-radius:8px;padding:1rem;margin-bottom:1rem;border-left:3px solid #378ADD;">
-        <div style="font-size:11px;color:#378ADD;font-weight:600;margin-bottom:4px;">🤖 AI採用分析レポート</div>
-        <div style="font-size:10px;color:#888;">分析対象: ${total}名のデータ</div>
-      </div>
-      <div style="font-size:12px;line-height:1.8;color:#2a2a2a;">${html}</div>
-    </div>`;
-  } catch(e) {
-    el.innerHTML = `<div style="color:#D85A30;padding:1rem;">AI分析の実行中にエラーが発生しました: ${e.message}</div>`;
-  }
-}
+  // 媒体別集計
+  const mc={};
+  data.forEach(a=>{if(a.media)mc[a.media]=(mc[a.media]||0)+1;});
+  const topMedia = Object.entries(mc).sort((a,b)=>b[1]-a[1]);
+  const topMediaName = topMedia[0]?topMedia[0][0]:'';
+  const topMediaPct = topMedia[0]?Math.round(topMedia[0][1]/total*100):0;
 
-function getAnData() {
-  const from=document.getElementById('anFrom').value, to=document.getElementById('anTo').value;
-  const dept=document.getElementById('anDept')?document.getElementById('anDept').value:'';
-  const job=document.getElementById('anJob')?document.getElementById('anJob').value:'';
-  return applicants.filter(a=>{
-    if(from&&a.appDate<from)return false;
-    if(to&&a.appDate>to)return false;
-    if(dept&&a.dept!==dept)return false;
-    if(job&&a.jobType!==job)return false;
-    return true;
-  });
-}
+  // 職種別
+  const jc={};
+  data.forEach(a=>{if(a.jobType)jc[a.jobType]=(jc[a.jobType]||0)+1;});
+  const topJobs = Object.entries(jc).sort((a,b)=>b[1]-a[1]);
 
-function setPeriod(p) {
-  const now=new Date(); let from='',to=now.toISOString().split('T')[0];
-  if(p==='month')from=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];
-  else if(p==='quarter'){const d=new Date(now);d.setMonth(d.getMonth()-3);from=d.toISOString().split('T')[0];}
-  else if(p==='year'){const d=new Date(now);d.setFullYear(d.getFullYear()-1);from=d.toISOString().split('T')[0];}
-  document.getElementById('anFrom').value=from; document.getElementById('anTo').value=to; renderAn();
-}
+  // 年代別
+  const ac={};
+  data.forEach(a=>{const age=parseInt(a.age);if(age){const b=age<30?'20代以下':age<40?'30代':age<50?'40代':age<60?'50代':'60代以上';ac[b]=(ac[b]||0)+1;}});
+  const topAge = Object.entries(ac).sort((a,b)=>b[1]-a[1]);
+  const topAgeName = topAge[0]?topAge[0][0]:'';
+  const topAgePct = topAge[0]&&total?Math.round(topAge[0][1]/total*100):0;
 
-let anTab='monthly_all';
-function setAnTab(t,btn){
-  anTab=t;
-  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  renderAnContent();
-}
-// 後方互換
-function setTab(t,btn){ setAnTab(t,btn); }
+  // 性別
+  const gc={};
+  data.forEach(a=>{if(a.gender)gc[a.gender]=(gc[a.gender]||0)+1;});
+  const malePct = gc['男性']?Math.round(gc['男性']/total*100):0;
+  const femalePct = gc['女性']?Math.round(gc['女性']/total*100):0;
 
-function renderAn() {
-  // 部署・職種フィルターを更新
-  const anDept=document.getElementById('anDept');
-  const anJob=document.getElementById('anJob');
-  if(anDept){
-    const cur=anDept.value;
-    anDept.innerHTML='<option value="">部署（全て）</option>';
-    [...new Set(applicants.map(a=>a.dept).filter(Boolean))].forEach(v=>anDept.innerHTML+=`<option ${cur===v?'selected':''}>${v}</option>`);
-  }
-  if(anJob){
-    const cur=anJob.value;
-    anJob.innerHTML='<option value="">職種（全て）</option>';
-    [...new Set(applicants.map(a=>a.jobType).filter(Boolean))].forEach(v=>anJob.innerHTML+=`<option ${cur===v?'selected':''}>${v}</option>`);
-  }
-
-  const data=getAnData(),total=data.length;
-  const hired=data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
-  const rate=total?Math.round(hired/total*100):0;
-  const int1=data.filter(a=>a.int1Date).length;
-  const int2=data.filter(a=>a.int2Date).length;
-  const active=data.filter(a=>a.status&&!['内定','入社','不採用','辞退','内定承諾','採用'].includes(a.status)&&!a.status.includes('辞退')&&!a.status.includes('連絡不通')).length;
-  const rejected=data.filter(a=>a.status==='不採用'||a.hireStatus==='不採用').length;
-  const withdrew=data.filter(a=>a.status&&(a.status.includes('辞退')||a.status.includes('連絡不通'))).length;
-
-  document.getElementById('anMetrics').innerHTML=`
-    <div class="mc" style="border-left:3px solid #378ADD;"><div class="mc-lbl">総応募数</div><div class="mc-val">${total}</div></div>
-    <div class="mc" style="border-left:3px solid #85B7EB;"><div class="mc-lbl">1次面接</div><div class="mc-val">${int1}</div><div class="mc-sub">${total?Math.round(int1/total*100):0}%</div></div>
-    <div class="mc" style="border-left:3px solid #5DCAA5;"><div class="mc-lbl">2次面接</div><div class="mc-val">${int2}</div><div class="mc-sub">${total?Math.round(int2/total*100):0}%</div></div>
-    <div class="mc" style="border-left:3px solid #639922;"><div class="mc-lbl">内定・採用</div><div class="mc-val">${hired}</div><div class="mc-sub">採用率 ${rate}%</div></div>
-    <div class="mc" style="border-left:3px solid #A32D2D;"><div class="mc-lbl">不採用</div><div class="mc-val">${rejected}</div></div>
-    <div class="mc" style="border-left:3px solid #EF9F27;"><div class="mc-lbl">選考中</div><div class="mc-val">${active}</div></div>
-    <div class="mc" style="border-left:3px solid #B4B2A9;"><div class="mc-lbl">辞退・連絡不通</div><div class="mc-val">${withdrew}</div></div>`;
-
-  // 採用ファネルバー
-  const funnelEl=document.getElementById('anFunnelBar');
-  if(funnelEl&&total>0){
-    const steps=[
-      {label:'応募',n:total,color:'#378ADD'},
-      {label:'1次面接',n:int1,color:'#5DCAA5'},
-      {label:'2次面接',n:int2,color:'#1D9E75'},
-      {label:'内定・採用',n:hired,color:'#639922'},
-    ];
-    funnelEl.innerHTML=`<div style="font-size:11px;font-weight:600;color:#666;margin-bottom:10px;">採用ファネル（歩留り率）</div>
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-      ${steps.map((s,i)=>{
-        const pct=total?Math.round(s.n/total*100):0;
-        const prev=i>0?steps[i-1].n:total;
-        const step=prev?Math.round(s.n/prev*100):0;
-        return`<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-          <div style="background:${s.color};color:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:90px;">
-            <div style="font-size:11px;opacity:.85;">${s.label}</div>
-            <div style="font-size:20px;font-weight:700;">${s.n}</div>
-            <div style="font-size:10px;opacity:.8;">全体 ${pct}%</div>
-          </div>
-          ${i>0?`<div style="font-size:10px;color:#aaa;">↓ ${step}%</div>`:''}
-        </div>
-        ${i<steps.length-1?'<div style="font-size:18px;color:#ddd;align-self:center;margin-top:-16px;">›</div>':''}`;
-      }).join('')}
-    </div>`;
-  } else if(funnelEl){funnelEl.innerHTML='';}
-
-  renderAnContent();
-}
-
-// テーブル共通スタイル
-const thStyle='padding:7px 9px;text-align:right;background:#f0f0ee;font-size:10px;font-weight:600;border-bottom:2px solid #e0e0de;white-space:nowrap;';
-const thStyleL='padding:7px 9px;text-align:left;background:#f0f0ee;font-size:10px;font-weight:600;border-bottom:2px solid #e0e0de;white-space:nowrap;';
-const tdStyle='padding:6px 9px;text-align:right;border-bottom:1px solid #f5f5f5;font-size:11px;';
-const tdStyleL='padding:6px 9px;text-align:left;border-bottom:1px solid #f5f5f5;font-size:11px;font-weight:500;';
-const tfStyle='padding:7px 9px;text-align:right;background:#f8f8f7;font-size:11px;font-weight:700;border-top:2px solid #e0e0de;';
-const tfStyleL='padding:7px 9px;text-align:left;background:#f8f8f7;font-size:11px;font-weight:700;border-top:2px solid #e0e0de;';
-
-function pct(n,d){return d?Math.round(n/d*100)+'%':'-';}
-function pctColor(n,d,good=10){
-  const v=d?n/d*100:0;
-  return v>=good?'#3B6D11':v>=good/2?'#854F0B':'#666';
-}
-
-function buildMonthStats(data){
+  // 月別トレンド（増減）
   const months={};
-  data.forEach(a=>{
-    if(!a.appDate)return;
-    const m=a.appDate.substring(0,7);
-    if(!months[m])months[m]={total:0,int1:0,int2:0,hired:0,rejected:0,active:0,withdrew:0};
-    months[m].total++;
-    if(a.int1Date)months[m].int1++;
-    if(a.int2Date)months[m].int2++;
-    if(['内定','内定承諾','採用'].includes(a.hireStatus))months[m].hired++;
-    else if(a.status==='不採用'||a.hireStatus==='不採用')months[m].rejected++;
-    else if(a.status&&(a.status.includes('辞退')||a.status.includes('連絡不通')))months[m].withdrew++;
-    else months[m].active++;
-  });
-  return months;
-}
+  data.forEach(a=>{if(a.appDate){const m=a.appDate.substring(0,7);months[m]=(months[m]||0)+1;}});
+  const mKeys=Object.keys(months).sort();
+  const lastM=mKeys[mKeys.length-1], prevM=mKeys[mKeys.length-2];
+  const lastMCount=months[lastM]||0, prevMCount=months[prevM]||0;
+  const mTrend=prevMCount?Math.round((lastMCount-prevMCount)/prevMCount*100):0;
 
-function renderMonthTable(months,title){
-  const sorted=Object.keys(months).sort();
-  if(!sorted.length)return`<div class="empty">データがありません</div>`;
-  const rows=sorted.map(m=>{
-    const d=months[m];
-    return`<tr>
-      <td style="${tdStyleL}">${m}</td>
-      <td style="${tdStyle}">${d.total}</td>
-      <td style="${tdStyle}">${d.int1}</td>
-      <td style="${tdStyle}">${d.int2}</td>
-      <td style="${tdStyle};color:#639922;font-weight:600;">${d.hired}</td>
-      <td style="${tdStyle};color:#A32D2D;">${d.rejected}</td>
-      <td style="${tdStyle};color:#EF9F27;">${d.active}</td>
-      <td style="${tdStyle};color:#888;">${d.withdrew}</td>
-      <td style="${tdStyle};color:${pctColor(d.int1,d.total,10)};font-weight:600;">${pct(d.int1,d.total)}</td>
-      <td style="${tdStyle};color:${pctColor(d.hired,d.total,5)};font-weight:600;">${pct(d.hired,d.total)}</td>
-    </tr>`;
-  }).join('');
-  const tot=sorted.reduce((a,m)=>{const d=months[m];a.total+=d.total;a.int1+=d.int1;a.int2+=d.int2;a.hired+=d.hired;a.rejected+=d.rejected;a.active+=d.active;a.withdrew+=d.withdrew;return a;},{total:0,int1:0,int2:0,hired:0,rejected:0,active:0,withdrew:0});
-  return`<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:700px;">
-    <caption style="text-align:left;font-size:11px;font-weight:600;color:#666;padding:0 0 8px;caption-side:top;">${title}</caption>
-    <thead><tr>
-      <th style="${thStyleL}">月</th>
-      <th style="${thStyle}">応募数</th>
-      <th style="${thStyle}">1次面接</th>
-      <th style="${thStyle}">2次面接</th>
-      <th style="${thStyle};color:#639922;">内定・採用</th>
-      <th style="${thStyle};color:#A32D2D;">不採用</th>
-      <th style="${thStyle};color:#EF9F27;">選考中</th>
-      <th style="${thStyle};color:#888;">辞退・連絡不通</th>
-      <th style="${thStyle};color:#378ADD;">面接率</th>
-      <th style="${thStyle};color:#3B6D11;">採用率</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-    <tfoot><tr>
-      <td style="${tfStyleL}">合計/平均</td>
-      <td style="${tfStyle}">${tot.total}</td>
-      <td style="${tfStyle}">${tot.int1}</td>
-      <td style="${tfStyle}">${tot.int2}</td>
-      <td style="${tfStyle};color:#639922;">${tot.hired}</td>
-      <td style="${tfStyle};color:#A32D2D;">${tot.rejected}</td>
-      <td style="${tfStyle};color:#EF9F27;">${tot.active}</td>
-      <td style="${tfStyle};color:#888;">${tot.withdrew}</td>
-      <td style="${tfStyle};color:#378ADD;">${pct(tot.int1,tot.total)}</td>
-      <td style="${tfStyle};color:#3B6D11;">${pct(tot.hired,tot.total)}</td>
-    </tr></tfoot>
-  </table></div>`;
-}
+  // 紹介vs非紹介
+  const refCount=data.filter(a=>a.agency&&a.agency.trim()).length;
+  const refHired=data.filter(a=>a.agency&&a.agency.trim()&&['内定','内定承諾','採用'].includes(a.hireStatus)).length;
+  const nonRefHired=hiredn-refHired;
+  const refHireRate=refCount?Math.round(refHired/refCount*100):0;
+  const nonRefCount=total-refCount;
+  const nonRefHireRate=nonRefCount?Math.round(nonRefHired/nonRefCount*100):0;
 
-function renderAnContent(){
-  const data=getAnData();
-  const el=document.getElementById('anContent');
-  if(!el)return;
-  if(!data.length){el.innerHTML='<div class="empty" style="margin-top:1rem;">この期間のデータがありません</div>';return;}
+  // 分析テキスト生成
+  const sections = [];
 
-  if(anTab==='monthly_all'){
-    const months=buildMonthStats(data);
-    el.innerHTML=`<div style="margin-top:1rem;">${renderMonthTable(months,'▼ 全体　月別×面接実施率×採用率')}</div>`;
+  // 1. 総評
+  let overall = '';
+  if(hireRate>=10) overall='採用率が'+hireRate+'%と高水準です。現在の選考フローは効果的に機能しています。';
+  else if(hireRate>=5) overall='採用率は'+hireRate+'%で業界標準的な水準です。さらなる改善の余地があります。';
+  else overall='採用率が'+hireRate+'%と低めです。母集団の質向上や選考基準の見直しを検討してください。';
+  if(intRate>=20) overall+=' 面接実施率は'+intRate+'%と高く、書類選考の精度が高いと言えます。';
+  else overall+=' 面接実施率は'+intRate+'%です。書類選考基準の適正化を検討してください。';
+  if(mTrend>0) overall+=' 直近月の応募数は前月比+'+mTrend+'%と増加傾向にあります。';
+  else if(mTrend<0) overall+=' 直近月の応募数は前月比'+mTrend+'%と減少傾向にあります。採用施策の強化が必要かもしれません。';
+  sections.push({title:'📊 総評・全体傾向', content:overall, color:'#1a1a1a'});
 
-  } else if(anTab==='monthly_ref'){
-    const ref=data.filter(a=>a.agency&&a.agency.trim());
-    const nonRef=data.filter(a=>!a.agency||!a.agency.trim());
-    const mAll=buildMonthStats(data);
-    const mRef=buildMonthStats(ref);
-    const mNon=buildMonthStats(nonRef);
-    el.innerHTML=`<div style="display:flex;flex-direction:column;gap:1.5rem;margin-top:1rem;">
-      ${renderMonthTable(mAll,'▼ 全体')}
-      ${renderMonthTable(mNon,'▼ 紹介以外')}
-      ${renderMonthTable(mRef,'▼ 紹介')}
-    </div>`;
-
-  } else if(anTab==='age'){
-    // 年代別×月別クロス集計
-    const ageBands=['10代','20代','30代','40代','50代','60代','70代','80代以上'];
-    const getAgeBand=a=>{
-      const age=parseInt(a.age);
-      if(!age)return null;
-      if(age<20)return'10代';if(age<30)return'20代';if(age<40)return'30代';
-      if(age<50)return'40代';if(age<60)return'50代';if(age<70)return'60代';
-      if(age<80)return'70代';return'80代以上';
-    };
-    const months=[...new Set(data.map(a=>a.appDate?a.appDate.substring(0,7):null).filter(Boolean))].sort();
-    const matrix={};
-    months.forEach(m=>matrix[m]={});
-    const totals={};
-    ageBands.forEach(b=>totals[b]=0);
-    const monthTotals={};
-    months.forEach(m=>monthTotals[m]=0);
-    let grand=0;
-    data.forEach(a=>{
-      if(!a.appDate)return;
-      const m=a.appDate.substring(0,7);
-      const b=getAgeBand(a);
-      if(!b)return;
-      matrix[m][b]=(matrix[m][b]||0)+1;
-      totals[b]=(totals[b]||0)+1;
-      monthTotals[m]=(monthTotals[m]||0)+1;
-      grand++;
-    });
-    const usedBands=ageBands.filter(b=>totals[b]>0);
-    const headerCols=usedBands.map(b=>`<th style="${thStyle}">${b}</th>`).join('');
-    const bodyRows=months.map(m=>`<tr>
-      <td style="${tdStyleL}">${m}</td>
-      ${usedBands.map(b=>{const v=matrix[m][b]||0;const p=monthTotals[m]?Math.round(v/monthTotals[m]*100):0;return`<td style="${tdStyle}">${v?`${v}人<span style='font-size:9px;color:#aaa;margin-left:2px;'>${p}%</span>`:''}`;}).join('')}
-      <td style="${tdStyle};font-weight:600;">${monthTotals[m]||0}人</td>
-    </tr>`).join('');
-    const footCols=usedBands.map(b=>`<td style="${tfStyle}">${totals[b]}人</td>`).join('');
-    el.innerHTML=`<div style="margin-top:1rem;overflow-x:auto;">
-      <div style="font-size:11px;font-weight:600;color:#666;margin-bottom:8px;">▼ 年代別　月別集計</div>
-      <table style="width:100%;border-collapse:collapse;min-width:600px;">
-        <thead><tr><th style="${thStyleL}">月</th>${headerCols}<th style="${thStyle}">総計</th></tr></thead>
-        <tbody>${bodyRows}</tbody>
-        <tfoot><tr><td style="${tfStyleL}">総計</td>${footCols}<td style="${tfStyle}">${grand}人</td></tr></tfoot>
-      </table>
-    </div>`;
-
-  } else if(anTab==='media'||anTab==='job'||anTab==='dept'||anTab==='gender'||anTab==='status'||anTab==='hire'){
-    const keyMap={media:'media',job:'jobType',dept:'dept',gender:'gender',status:'status',hire:'hireStatus'};
-    const labelMap={media:'媒体別',job:'職種別',dept:'部署別',gender:'性別別',status:'ステータス別',hire:'採用可否別'};
-    const key=keyMap[anTab];
-    const label=labelMap[anTab];
-    const counts={};
-    const int1c={},hiredc={};
-    data.forEach(a=>{
-      const v=a[key]||'(未設定)';
-      counts[v]=(counts[v]||0)+1;
-      if(a.int1Date)int1c[v]=(int1c[v]||0)+1;
-      if(['内定','内定承諾','採用'].includes(a.hireStatus))hiredc[v]=(hiredc[v]||0)+1;
-    });
-    const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-    const rows=sorted.map(([k,v])=>`<tr>
-      <td style="${tdStyleL}">${k}</td>
-      <td style="${tdStyle}">${v}</td>
-      <td style="${tdStyle}">${pct(v,data.length)}</td>
-      <td style="${tdStyle}">${int1c[k]||0}</td>
-      <td style="${tdStyle};color:${pctColor(int1c[k]||0,v,10)};font-weight:600;">${pct(int1c[k]||0,v)}</td>
-      <td style="${tdStyle};color:#639922;font-weight:600;">${hiredc[k]||0}</td>
-      <td style="${tdStyle};color:${pctColor(hiredc[k]||0,v,5)};font-weight:600;">${pct(hiredc[k]||0,v)}</td>
-    </tr>`).join('');
-    el.innerHTML=`<div style="margin-top:1rem;overflow-x:auto;">
-      <div style="font-size:11px;font-weight:600;color:#666;margin-bottom:8px;">▼ ${label}集計</div>
-      <table style="width:100%;border-collapse:collapse;">
-        <thead><tr>
-          <th style="${thStyleL}">${label.replace('別','')}</th>
-          <th style="${thStyle}">応募数</th>
-          <th style="${thStyle}">構成比</th>
-          <th style="${thStyle}">1次面接数</th>
-          <th style="${thStyle};color:#378ADD;">面接率</th>
-          <th style="${thStyle};color:#639922;">採用数</th>
-          <th style="${thStyle};color:#3B6D11;">採用率</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-        <tfoot><tr>
-          <td style="${tfStyleL}">合計</td>
-          <td style="${tfStyle}">${data.length}</td>
-          <td style="${tfStyle}">100%</td>
-          <td style="${tfStyle}">${data.filter(a=>a.int1Date).length}</td>
-          <td style="${tfStyle};color:#378ADD;">${pct(data.filter(a=>a.int1Date).length,data.length)}</td>
-          <td style="${tfStyle};color:#639922;">${data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length}</td>
-          <td style="${tfStyle};color:#3B6D11;">${pct(data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length,data.length)}</td>
-        </tr></tfoot>
-      </table>
-    </div>`;
-
-  } else if(anTab==='trend'){
-    if(anChart){anChart.destroy();anChart=null;}
-    const months={},int1m={},hirem={};
-    data.forEach(a=>{if(a.appDate){const k=a.appDate.substring(0,7);months[k]=(months[k]||0)+1;if(a.int1Date)int1m[k]=(int1m[k]||0)+1;if(['内定','内定承諾','採用'].includes(a.hireStatus))hirem[k]=(hirem[k]||0)+1;}});
-    const lbs=Object.keys(months).sort();
-    el.innerHTML=`<div style="margin-top:.5rem;position:relative;width:100%;height:280px;"><canvas id="anC" role="img" aria-label="月次トレンド">月次トレンド</canvas></div>`;
-    anChart=new Chart(document.getElementById('anC'),{type:'line',data:{labels:lbs,datasets:[
-      {label:'応募数',data:lbs.map(l=>months[l]),borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.07)',tension:0.3,fill:true,pointRadius:4},
-      {label:'1次面接',data:lbs.map(l=>int1m[l]||0),borderColor:'#5DCAA5',backgroundColor:'transparent',tension:0.3,pointRadius:4,borderDash:[4,2]},
-      {label:'採用',data:lbs.map(l=>hirem[l]||0),borderColor:'#639922',backgroundColor:'transparent',tension:0.3,pointRadius:4,borderDash:[4,2]},
-    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'top'}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,callback:v=>Math.round(v)},grid:{color:'rgba(0,0,0,.04)'}},x:{grid:{display:false},ticks:{autoSkip:false,maxRotation:45}}}}});
-
-  } else if(anTab==='ai'){
-    renderAiAnalysis(data);
-    return;
-  }
-
-  // 比較データがあればcompareBarを先頭に追加
-  const dataB = getCompareData();
-  if (dataB !== null && el.innerHTML) {
-    const from=document.getElementById('anFrom').value||'期間A';
-    const to=document.getElementById('anTo').value||'';
-    const from2=document.getElementById('anFrom2').value||'期間B';
-    const to2=document.getElementById('anTo2').value||'';
-    const labelA=`${from}〜${to}`;
-    const labelB=`${from2}〜${to2}`;
-    el.innerHTML = renderCompareBar(data, dataB, labelA, labelB) + el.innerHTML;
-  }
-}
-
-// 後方互換（古いrenderMonthlyTable呼び出しに対応）
-function renderMonthlyTable(data){}
-
-
-// ========================================
-// マスター管理
-// ========================================
-function renderManage(){
-  const map={media:'mlMed',status:'mlSt',agency:'mlAg',hire:'mlHire',dept:'mlDept'};
-  Object.entries(map).forEach(([key,id])=>{
-    const el=document.getElementById(id); if(!el)return;
-    el.innerHTML=(masters[key]||[]).map((v,i)=>`<li>${v}<button class="btn-del" onclick="delM('${key}',${i})">削除</button></li>`).join('');
-  });
-}
-async function addM(key){
-  const idMap={media:'miMed',status:'miSt',agency:'miAg',hire:'miHire',dept:'miDept'};
-  const el=document.getElementById(idMap[key]);
-  const v=el.value.trim(); if(!v)return;
-  if(masters[key].includes(v))return alert('すでに存在します');
-  const cid=isAdmin?'admin':currentClientId;
-  const {error}=await sb.from('masters').insert({client_id:cid,type:key,value:v});
-  if(error){alert('追加に失敗しました');return;}
-  masters[key].push(v); el.value='';
-  renderManage(); popSelects();
-}
-async function delM(key,i){
-  if(!confirm('削除しますか？'))return;
-  const v=masters[key][i];
-  const cid=isAdmin?'admin':currentClientId;
-  await sb.from('masters').delete().eq('client_id',cid).eq('type',key).eq('value',v);
-  masters[key].splice(i,1);
-  renderManage(); popSelects();
-}
-async function chgPw(){
-  const a=document.getElementById('np1').value, b=document.getElementById('np2').value;
-  if(!a||a!==b)return alert('パスワードが一致しません');
-  if(isAdmin){
-    await sb.from('system_config').upsert({key:'admin_pw',value:a});
-  } else {
-    await sb.from('clients').update({password:a}).eq('client_id',currentClientId);
-  }
-  document.getElementById('pwOk').style.display='inline';
-  setTimeout(()=>document.getElementById('pwOk').style.display='none',2000);
-}
-
-// ========================================
-// クライアント管理
-// ========================================
-async function renderAdmin(){
-  const {data}=await sb.from('clients').select('*').order('created_at',{ascending:true});
-  clients=data||[];
-  const tb=document.getElementById('clientTableBody');
-  if(!clients.length){tb.innerHTML=`<tr><td colspan="5" style="text-align:center;color:#aaa;padding:1.5rem;font-size:12px;">クライアントがまだいません</td></tr>`;return;}
-  tb.innerHTML=clients.map((c,i)=>`<tr>
-    <td style="font-weight:500;">${c.name}</td>
-    <td><code style="background:#f8f8f7;padding:2px 7px;border-radius:4px;font-size:11px;">${c.client_id}</code></td>
-    <td style="font-size:11px;color:#888;">${c.password}</td>
-    <td><span id="cnt_${c.client_id}" class="badge bgr">—</span></td>
-    <td><button class="btn-del" onclick="delClient('${c.client_id}')">削除</button></td>
-  </tr>`).join('');
-  // 応募者数・採用数カウント
-  clients.forEach(async c=>{
-    const {data}=await sb.from('applicants').select('hire_status').eq('client_id',c.client_id);
-    const total=(data||[]).length;
-    const hired=(data||[]).filter(r=>['内定','内定承諾','採用'].includes(r.hire_status)).length;
-    const el=document.getElementById('cnt_'+c.client_id);
-    // タスク残数はstorageから取得
-    let taskCount = 0;
-    try {
-      const tr = await window.storage.get(`saiyo_tasks_${c.client_id}_v1`);
-      if (tr && tr.value) {
-        const clientTasks = JSON.parse(tr.value);
-        taskCount = clientTasks.filter(t => !t.done).length;
-      }
-    } catch(e) {}
-    if(el)el.innerHTML=`<span class="badge bgr">${total}名</span> <span class="badge bg" style="margin-left:4px;">採用${hired}名</span> <span class="badge ba" style="margin-left:4px;">タスク${taskCount}件</span>`;
-  });
-}
-async function addClient(){
-  const name=document.getElementById('newCName').value.trim();
-  const id=document.getElementById('newCId').value.trim();
-  const pw=document.getElementById('newCPw').value.trim();
-  if(!name||!id||!pw){alert('クライアント名・ID・パスワードを入力してください');return;}
-  if(id==='admin'){alert('adminは使用できません');return;}
-  const {error}=await sb.from('clients').insert({name,client_id:id,password:pw});
-  if(error){alert('追加に失敗しました。IDが重複している可能性があります。');return;}
-  document.getElementById('newCName').value='';
-  document.getElementById('newCId').value='';
-  document.getElementById('newCPw').value='';
-  renderAdmin();
-}
-async function delClient(id){
-  const c=clients.find(x=>x.client_id===id);
-  if(!confirm(`クライアント「${c?.name}」を削除しますか？\n※このクライアントの応募者データは残ります`))return;
-  await sb.from('clients').delete().eq('client_id',id);
-  renderAdmin();
-}
-
-
-// ========================================
-// ダッシュボード
-// ========================================
-function renderDashboard() {
-  const now = new Date();
-  const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
-  const monthAgo = new Date(now); monthAgo.setMonth(monthAgo.getMonth() - 1);
-  const toStr = d => d.toISOString().split('T')[0];
-
-  // 挨拶
-  const h = now.getHours();
-  const greet = h < 12 ? 'おはようございます' : h < 18 ? 'こんにちは' : 'お疲れ様です';
-  document.getElementById('dashGreet').textContent = greet + '、' + currentClientName + ' さん';
-  // マスコット画像をダッシュボードヘッダーに表示
-  const dh = document.getElementById('dashHeader');
-  if(dh) dh.innerHTML = `<img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAsICAoIBwsKCQoNDAsNERwSEQ8PESIZGhQcKSQrKigkJyctMkA3LTA9MCcnOEw5PUNFSElIKzZPVU5GVEBHSEX/2wBDAQwNDREPESESEiFFLicuRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUX/wAARCAD6ANUDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD1yiis3XtfsPDmnPe6lNsjHCqOWdvRR3NAGlVW71Sw08Zvb23tx/01lVf5muGiTxb42/fyXDeHtHflI4x/pEq+pPb9Poa0LP4Y+G7Y77i2lvpj96W6lZiT9BgUrgar+OPDKNtOt2WfaUH+VWbbxPod4wW31exkY9AJ1z+WarL4N8OIuBodhj3gU1Wufh/4XulIfRrdM94sof8Ax0ii47HTKwZQykEHoRS1wT/DmTTCZfC+u32myDkRSP5kR9iP8c0tr411TQLyKw8a2awLIdsWpW/MLn/a9P8APFO4jvKKRWV0DIwZWGQQcgiloAKKKZLNHAm+aRI1H8TsAKAH0VjXHi7w/aEifWbFSOwnUn9DVX/hYHhb/oNW35n/AAoA6OisKDxt4buCBHrdlk9mlC/zrXt722u13WtzDMvrG4YfpQBNRRRQAjukUbPIwRFGWZjgAeprg7nxlqviS9lsPBVsjxRnbLqdwP3SH/ZHf9fp3qDWbu58fa/JoGmzNFolk3/EwuYz/rW/55qfw/mewz3Fhp9rpdlFZ2MKQW8QwqKOB/ifek2M45fhu9/iTX/EWp30x5Ijk8tB9Bz/AEpT8MobU+Zo+u6rYzjo3nb1/EcZ/Ou5opXHY4E+IfE/g5gPEtuuq6WDg6haLh4x6uv+fqa7bTNUs9YsY7zT7hJ7eTo6H9D6H2qdlDqVYBlYYIIyCK861iyb4d61Frukqy6LdSCO/tF+7GT0dR2/yO9NMVj0mimxyJLGkkbBkcBlYdCD0NOpiCiiigBk0qQQvLKwWONSzMewHJNee+GbF/G+sSeKdYQvZRSFNNtH5VQD98juc/r9BXY+JoJbnwxqsNvkyyWsiqB3O08VlfDu5hufA2lmAjEcfluB2YE5/wAfxpMEdNRRRUlBRRRQAVV1LTbXV7Cayvollt5l2sp/mPQj1q1XNeJ/G1h4cK2yq17qcnEVnDyxJ6bvQfrTAz/h1dy2dlq2jXs4dNFumhSZzj93zjJ9sH86l1H4k2C3RstBtZ9bvem21HyD6t/hXNeH/htqOpyT3vii7lhivJTPLYQuR5jEk/ORwOvQc/SvStO0ux0i2Ftp1rFbQj+GNcZ+p7n607isceLLx5r/AM15qFtoNu3/ACytl3y49z/9epIvhdpMriTVrzUNUl6lric4/Ic/rXb0UrhY5+38CeGbYAR6LaHHeRN//oWatjwxoQGBo2n4/wCvZP8ACtWigZhzeC/DdwCJNEsue6xBT+mKyLn4W+HJG8y0jubCXs9tOwI/PNdnRQBwv/CN+MNE+bRPEQv4l6W+orkn23c/0rJ8SfEPXNN0O5s9S0ObTtRlXy47lG3Q88FgfXGccmvUKjmgiuYWhnjSWJxhkdQwI9waLisYPgey0yw8MWsOk3MV1HjdLNG2d8h+8T6emD2FdCSFUsxAAGST0FcJqXw8exum1LwdetpV6OTBkmGX2x2/UfSuQ8R+Jte1m8g8P66o0ZAP9ICZH2k9sHpg/XH8qaV2KUlFNs7bVfijolhctbWaz6nOpwRarlR/wLv+GaZpXxS0i9vEtb+3udLlkOENyvyE/Xt+IxXOWdjbafCIrWJY1Hp1P1Pen3FtDdIEuIklUHIDjODW3sdDy/7S974dD1isfxbBFc+EtXjnxsNrI3PYhSQfzAq1o1419pcEz/fI2t7kcVznxKbV5fDRsdGsZrprttkzRDJRByePfp+dYWs7HqRkpRUl1NLwFNJP4H0d5iS/kBefQEgfoBXRV57pPxD0vRbG007U9K1LSkgjWJWngJXgY6jn9K7fTdWsNYthcaddxXMX96Ns49j6H61QFuiiigArzm+tr34daxcanp8D3Xh28ffdW0Yy1s395R6f/q9DXo1BAYEEAg8EHvQBm6TrOn65ZrdabdJcRHrtPKn0I6g/Wr9efPp9r4c+LGnLpkK28OqWsgmij4XcMnOO3QV6DUsoKKK4rxl4lu/tkXhrw7+81i7GHkB4tkPViexx+Q/CgBviXxdeXGpHw74TQXGqtxNcdUtR3JPTI/T3PFaPhbwXZ+HFNzKxvNVl5mvJeWJPULnoP1NWvCvhe08LaYLa3/eTyfNPcMPmlb/D0FblAgooopDCiiigAooooAKKKKACiiigArK1/wAO6d4lsDaalAHX+CQcPGfVT2rVooA8WvrXUfBF8llqzG40yQ4t74Dp/st6f5xWtH+927CpDdGzxj1z6V6RqWm2ur2E1lfQrNbzDDKf5j0I9a8P17wzceHtat9K1W7nbRZGJtpQcBv9lvQj/wDVW8Kj2Z5uJwcZPnjp3PS4PHHhbRLWKyk1iF3jGGMSs4z35AI610Gla9pmuRGTS76G5C/eCN8y/UHkV5hBpGn20eyKzhA90BJ/E1UfRPs2oQaho0/9nXkTA7ox8rDuCv8AnNDpPcVPH07qNrI9nlijnjMc0ayRtwVcAg/ga4jW/AzafM2s+DnNhqUXzNbIf3VwP7u3oP5fTrXcRuJI1dTkMAQfWnVieluY/hLxJH4n0RLxU8qdGMdxCescg6j6d6K841nXZfBfjfXIrM7Yr0xT7ccAlST+pNFUI9O17xHpvhqy+06ncCNTwiAZeQ+ijvXLL428S6mA+i+EZzA33JbuUR598cfzqDwzax+L/FWp+ItQUTQWU5tbCJ+VTb1bHryD9SfavQaTY7HH+HfDeqvrz+IvE88T6h5flQW8H3LdT159ev5nk12FFFIZgeMPEsfhjQ3ugBJdSHy7aLrvkPTj0HX/APXVLwN4Xk0Sykv9SYy6zqB8y5lbkrnnZ/j7/QVjaYv/AAm/j+fVJPn0nRG8m1B+7JL3b+v/AHzXotAgooopDCiiigAooooAKKKKACiiigAooooAKKKKACsvxFoNr4k0ebT7xflcZRwOY37MK1KKAPFdJmurO6uND1QYvrE7cn/lonYj14x+BFbMcbSyLGgy7kKB6mr/AMT9EdYLfxLYJ/pWnkCYD+OInv8ATP5E+la3g/To7i0g1diGWZA0C9cA9z710Rqe7qePXwTdZcmz/A6i3i8i2iiznYgX8hUlFYPi7xLF4Z0Z7j795L+7tYRyZJD049B1P/16wPXWiscBq+hSeMvHGuyWw3R2Rig3dshSD+oNFd34E8Py6B4fVbzJv7tzcXTHrvbt+A/XNFUIxfh640rUtf8ADs52z2121xGD/HG2MEfp+dd5XJ+MfDN5d3Vtr3h91i1qy4APCzp3Q/r+f5R6R8RdLum+y6xu0fUk4kgugVXPsx4x9cVLQ0dhXNePtbbQvCV3NESLmcfZ4cddzcZH0GT+Fb8N3b3KBre4ilU9DG4YfpXDeLR/bXxA8OaL96GDN7Mvbjpn/vn9aBnR+D9DXw94YsrHaBKE3zH1kblv8PwrcoopAFFFFABRRVOLV9OnuDbw6hayTjjy0mUt+WaALlFFNd1jRndgqqMlmOAB60AOorg9T+Kmnw3LW2i2Vxq0qcF4vljH/AsHP5YqpD8V3t3B1nw9dWkJPMsT+YF+oIH86dmS5xTtfU9HoqlpWrWOt2KXmm3KXEDfxL1B9COoPsau0igopCQqlmIAAySe1VLbVdPvJjDa39rPKOqRTKzD8AaALlFFFABRRRQBHcQRXVvLbzoHilQo6nuCMEV514K1y08KNqvhzW76K2Gn3BNu8zbd8bc8fz/4FXpNec+KdLsYvibod3fWkVxa6lG1tIsqhl3j7p578qPwpoTNC++JVjJIbTw5az6zfNwqwoRGD6liOn+c1L4e8I3s+qjxB4rmS51Mf6i3X/V2o9vf/PJ5rrbWytbGPy7O2ht4/wC7EgUfpU9VYQUUUUAFUdT0TTdZj2alYwXKjp5iAkfQ9RV6igDjJvhT4XkctHaz25P/ADynYfzzWJ4M0Kz0v4l67FZeYYLG3SNTK25svtJ5/A16dXCeDRnxt4yc9ftMa/hhqTA7iiiipKCiiigDy/4x+IbuxtrPSbSRokulaSZlOCyg4C/Trn8KwPBmj+ELrwhd3er3aRajGWO4zlHix90ouefyPPFd38RvBcnivT4ZbFlF/aZ2BzgSKeq57HjivI7f4d+KLi7Fv/ZE0ZzgvJhUHvu6flVITPYfhpr1zr/hRJb1zJcW0hgaQ9XAAIJ98HH4VzfjrXLjxBrbeGtPmaOxtsG+lQ8uf7n4fz+ldXo2lReA/BMybxLJbRSXEz9nfGePbgD8K868LwsNLN3Md1xeSNNI56nJ/wAn8aqEeZnLi6zpU7rdmpa2kFjbrBbRrHGvYd/c+pqUgEEEZB6g96Wiuo+ebbd2Y0dxP4J1ZNY0wE2EjBby1H3Sp7gdvb0Psa9ntbmK9tYbm3cSQzIHRh3BGQa8tngS5t5IJRlJFKsPY1u/Ce/kn8MzafOxMmnXDQjP908j9c1z1Y21R7mArupFxlujmfjJ4hukvbfRIJGjtzEJpgpx5hJIAPsMdPeqWjaX4ST4eSanJerFrcaO6yLOVljlBOxVXPTp2711vxL8CXHiZYdQ0va19AnltExx5qZyMH1BJ/OvMrD4ceJ768WA6XLbjOGln+VFHrnv+GazR3HtngbW5vEHhKyvrrm4IaORv7zKcZ/HrXQ1meHtFh8PaHa6ZA29YFwXIxvYnJP4kmtOkUFFFFIArhvimhh0XTtRX79hfxSZ9Bz/AFxXc1x/xTUN4A1DPZoiP++xTQM7JWDKGHQjIparaa5k0y0c9WhQn/vkVZqiQooooAKKKKACuD8LZtviP4utm6yGKZfcY/8Asq7yuCv/APiUfF2wuDxDq9m0BPbevI/kv50mB2lzcrbR7jyTwB61kyXs8hyZCo9F4qXU2JuQvYLxVOuSpNt2O+lTSjdlmK+miYZYuvo1a0Mqzxh06H9KwK0dKY/vV7cGnTm72ZNaC5eZGlRRRXQchh+NInm8GaykYJY2rnA9hk15t4fdZNBsSp4EQH4jg17G6LLGyOoZGBVlPQg9q8d1PQtT8DXcwitZb7QpHLxyRDc0GezD/INa05JPU4sbRlVh7u6NGiseHxVpEoz9q8s+joQR+lPfxLpCDJvkP+6Cf6V0cy7niexqbcr+41au/CcF5fEc6/6qS8AU+pG7P8xXLx6hqHiNzZeGrKaV3+Vrp12xxj1z/n6V6r4V8OxeGNBg06JvMdcvLJj77nqf6D2FY1ZJ6I9XAUJ07ykrXNmiiisD0wpCQBk8AUtVr9itm+O+BSbsrjiruxSudRd2Kwnanr3NV1up1ORK/wCJzUVFcjk273PQUIpWsa9le+f8kmBIPTvXLfFeXb4JlgH3rm4iiUep3Z/pWrAxSeNh1DCsTxz/AMTTxT4X0Ned9z9qlA7Kn/6mropSclqcdaCi9DuraPybaKL+4gX8hUlFFbmAUUUUAFFFFABXG/EvTZrjw/HqdkP9M0mZbqMjrgfe/ofwrsqR0WSNkdQyMCGU9CKAMCK7i1zSLTVrTmOeIMQO3qPwORUNYPhuVvBfim48L3bEafesZ9NkboCesef88j3ruJLCCQ5KbT/snFc9Sld3R1Uq1lZmLWxp9uYYSXGGfnHoKkis4YTuVMt6nmp6IU+V3YqlXmVkFFFFamBzXjTT9ZubG2u/D908d7YyeaIA2FuB3U+v0PvVHSPiZo14nk6q7aTfp8ssFypUA98Nj+eDXZ1Q1HQ9L1bH9o6fbXRHRpYwSPx60wOL8WeJvCH9mzi2g0/VNSnUpBHDCsjFzwCSB2/OsTwTc6J4eWTRvF2m2tlqMT+ZHPdQK29W5A3YPT8vyr0nT/DOi6TN51hpdrBL2kSMbh9D1qxqOkafq8Yj1GygulXp5qBsfQ9qBGHe/EDwtpVrlNSglCj5YbQbyfYY4H41R8Lya94i19vEF+JtP0tYzHaWJYjzAf42H9fpjgc9BZeFdC06US2ekWcUg6OIgSPoTWvQAUUUUhhUc8QmhaM/xCpKKHqNO2pzzo0blHGGHUU2t6W3jnGJEB9D3qEabbqclWPsTXO6LvodSrxtqUbGAyzB24jTkk1zng//AIqTxnrHiZhm1h/0KyJ6FR95h/n+I1Z8eazLBaweHdHAOqar+6VV/wCWUZ+8x9OM/qe1dLoOjQaBotrptt9yBMFsfebqW/E5renDlRzVJ87uaNFFFaGYUUUUAFFFFABRRRQBheLfDEPijSDbM3k3UR8y2nHWNx0/D1rK8IeKpruZ9C15fs+u2g2srcC4Ufxr6n/9f07Kud8V+ELbxLBHKkjWmpW3zW13HwyHsD6igDforhtG8aXOmXq6L4yjFnfDiK86Q3A9c9Af0+ldwCCAQcg8gipKFooopAFFFFABRRRQAUUUUAFFFIzBVLMQFAySTwBQAtct4j8d2Gh3AsbWN9R1VzhLS35IP+0R0+nWsbU/E+p+LtQk0Xwc3l26HbdaofuoPRD/AF6ntjrXSeGfCGm+F4CLRDLdP/rbqXmRz357D2FMRzi6L428S/vdW1YaJbNyLWzGXA9yD/U/SuP1a38R+DtUubiPWri2tYT+4N7c+Ybsj+6gzkH3GB617jWZqWk6TPcx6pqVrDJLZISssoz5ajknHT3ouFjkvhhbpq6Xnii+m+06rcytE+RgQKMfKo7cY/DA9a9DrhvhZE8mjajqTKUj1C/lmjU/3en88/lXc1QgooooAKKKKACiiigAooooAKKKKAKGsaLp+vWLWmp2yTwnpnqp9QeoNcX/AGN4p8FHOhS/21pC/wDLjcH97GPRT3/D8q9DooA5HR/iHoupy/ZrmR9MvgcNb3o2EH0BPH8jXVAhlDKQQeQR3rj/AB3qXhOGLyNdto768YYjt4lzPk9MEcr+f51yXh7wj4xjE13pV5Jodqx3W9ndTGQ47BhjA/EZ9qVh3PXqK8xHjLxlpEzwalpdlqBibazQPsb/AA/SrsXxXgj41DQtStj3KKHA/HijlZCqwbsmj0GiuGHxb8M/xveRn0aA/wCNOHxa8Lf8/FwP+3dqVi7nb0VxJ+LXhYDIubgn0Fu1VJfi9pJ4sdN1G6btiMKP5mizBtLc9AZgilmIVQMkk4AFecajqV98RdSl0fQ5Wt9BgbF5fAf67/ZX2/n1PHXMk8Uaz8Sbs6Bp9m2mWmc3s28swj9DwMZ9O/0zXp+laVaaLp0NhYRCKCIYAHUnuSe5PrRsG4mk6TZaHp0Vjp0IhgjHAHVj3JPcn1q7RRSGFcH401OfXtRj8HaK+Z7jBv5l5EEXUg+5/wAB3q74t8WTWVwmh6Cn2rXbrhVXkQA/xN+HP6n30fCPhSHwxYOGkNxqFyd91dNyZG/wqkhM2NOsINL0+3srVNkFugRB7CrNFFMQUUUUAFFFFABRRRQAUUUUAFFFY/iXxNY+F9NN1esWdjthgT78reg/xoA0L6/tdMtJLq+nSCCMZaRzgCuEk8Sa/wCNZWt/CsTafpgO19UnXDN67B/k/SjT/C+peLrqPV/GRKW4O620pSQiDsX9/br6+ld7FEkMSxRIscaDCoowFHoBSbHYwPDvgnS/Dp8+NGur9uXvLj5pGPfHp+FdDnPSsDxtrf8AYHhS+vEbbMU8qH13twPy5P4U7wVpMmi+E9PtJixm8vzJNxyQzfMR+GcUhnO+IYTDrdzno5Dj8RWZmuu8W6eZYo72MZMY2yY/u9j/AJ9a5GuuDvE+bxVN06rXzGsit95VP1FHlp/cX/vkU6iqOe7GeTFnPlpn12injjpx9KKAMnA5NAXudV4Hs4bWzvJIYUjM025yoxuOOp/OuprP0SyNhpcUTjEh+d/qat3FxDaQPPcypFDGNzu5wFHua45O8nY+mw8XGlFS3Ja4vxF4vuZr86B4UQXerPxLMOY7UdyT0yP0+vFUbnXdW8d3MmneFy9npKnbcao4ILjusY/yfpXX+HvDeneGdPFrp0WM8ySty8h9WNCRrcp+FPCFt4ageR3N1qdx81zeScs5PJAz0FdFRRTEFFFFABRRRQAUUUUAFFFFABRRRQA2SRYo3kc4VAWJ9AK8n0TWtI1HWJvFvijUIIz5hi060c7jEgP3toyc++OuT6V6y6LJGyOMqwII9RXhOi6PqGm+JL/RNO0XTLnUreVnW4vznEfG0qpODxzkAnmgD3NWDqGU5BGQfWlqrpgvV023GptE16EHnGEEJu9qskhQSxAA6k9qgo4Dxf8A8VB460Hw8Pmt7cm9uh2wOgP5Y/4FXoFcB4D/AOJx4n8SeIW+ZZJ/ssDf7C+n4BK7+mIRlDqVYAqRgg965LVfCsiO0un/ADoefKJ5X6etddRTjJx2Mq1CFZWkeYzW09u22aGSMj+8pFRda9SIBGCMikEaA5CKPwrX23kee8t7S/A83ttNvLtgILaRs99uB+ZrqdG8NLZyLcXhV5l5VB91T6+5roaKmVRvQ6KOBp03zPVhXLfEbSH1jwZexxbvNgAuEUfxbeSPfjNdTSEBgQwBB4IPeszuMrwjfW2o+FtOubKKOGJ4QPLjGFRhwwx9Qa2a4LwCx0TXdc8LyHCW8v2m1B7xN6fTK/ma72qJCiiigAooooAKKKKACiiigAooooAKKKKACud8S+DbPxFLDdrNLY6lb/6q8tzh19j6iuiooA4X/hF/GoXyx4yHl9N32Rd2Pr/9eq998Olksbm617X9T1IxRM+wybE4BPTmvQqp6whk0W/RRlmt5AB/wE0Acr8KrUW3gOzbHM8kkp/76I/kors65T4ZyCTwDpeP4Q6n6h2rq6koKKKKQBRRRQAUUUUAFFFFAHCeMv8AiReLdA8SJ8sRk+xXR/2G6E/TJ/IV31cv8QrNL3wPqquOYovOU+hU5/pWl4WvHv8AwtpV1KcyS2sbMfU7Rk1SEzWooopiCiiigAooooAKKKKACiiigAooooAKKKKAChlDKVIyCMEUUUAcF8N3OnHWfDsxxLp12zID3jbof0z+Iruq4jxnp95ous2/i/SIjK8C+VfW69ZYfX6j+gPaup0jWLLXdOivtOmEsEg/FT3BHYipY0XqKKKQwooooAKKKKACiimu6xozyMFRRlmY4AHqaAOX+JF+tj4I1Af8tLkC3jXuxY/4Zrc8PWLaZ4e06yf78FuiN9Qoz+teSeLvFVx4h1yK80uFbjSdElEoDj5bhwRk47jA49ue9evaNq1truk2+o2bboZ13AHqp7g+4PFXaxHMm2l0L1FFFAwooooAKKKKACiiigAooooAKKKKACiiigAooooAzte1m20DRrnUbw/uoVzt7uTwFH1NeL6RHr1hLJrWk3EdncXTmVrILiIqTkLjp/nqK634n3JvNb0XRnbFt813OCcBgMgZ/JvzqorBlDKQVIyCOhrSEU9zz8ZiZUmowNDT/itBCVg8SadPp83QyxqXjPv6/wA662w8VaFqYH2PVrSQn+EyhW/I4NcC6LIhWRVZT1DDIrMuPDWk3JJazRSe8ZK/yodLsRDMl9tfcezqQ4ypDD1BzS4PpXz7qek2umeXBp1xffb5yFgt4ZeWJ+g6V3+l/DO9/s6BtQ8S6tFdsuZEguDsU+gz6Vm420O+lVVWPNHY9DwfSobi7trNC91cRQKOrSuFH61xv/CsInz9o8R63Kvobn/61cFr3hG08O+LPsupedPYXSg2k8sh691Yjvn+lJRuy5z5IuVj0XVvib4d03KQXLahcdFitF3ZP+90/nXGarquv+Mz5d7nS9JJz9ljPzyj/aP+R7VPa6faWIxa20cXuq8/n1qzW8aSW55FXMJSVoKxDbWsNpbrbwRqkSjAUVc+HF8dH8SX/h5z/o1wv2q1B7H+JR+H/oNUri9t7RoluJVjMzbEz3NQ25KfELw20X+tLuGx/dxz/WnUSsRgZyVXX7R7HRRRWB7YUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAebfFjwtdapHa6tYxyTG1Ux3EUX32jJzkeuOfzrhYdcS7vrOz02dbKyt1BkaUgFgP4ea+g68v+KWmWMapOllbrM4y0giUMfqcVSlYxq0Y1NzLn1rTbZS0t7APZXDH8hUNnPq/iWTyfDmnuYycNe3A2xp9PX/ADxTvhtplhd36/abK2mx08yJW/mK9nRFjQIihVUYCqMAVTqNnNTwFOLvLU5bwn4Fs/DjG8nkN9qsg/eXUg6eoUdh+tdVRRWZ37BWbr2g2PiPTHsdRi3xtyrDhkbswPY1pUUAeP33h7xJ4VJUW7azpq/clhH71B7r1P6/WuX1rxFE0trcWr3ENzbP81vKhXcD1B/z3r6IqOS2gmOZYY3Pqyg1XO7WOZ4Wk5c9tTwW/vF8U2v2LSdOvLy4JDI0ceBG3ua9C8DeCLzTLz+2fEEyy6kY/LijU5EK9+e7H29T613aIka7UVVUdlGBS0OTZdKhCkrRCiiipNgooooAKKKKACiiigD/2Q==" style="width:70px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.1));" alt="マスコット">`;
-  document.getElementById('dashDate').textContent = now.toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
-
-  // KPI
-  const total = applicants.length;
-  const inProgress = applicants.filter(a => a.status && !['内定','入社','不採用','辞退'].includes(a.status)).length;
-  const hired = applicants.filter(a => ['内定','内定承諾','採用'].includes(a.hireStatus)).length;
-  const rate = total ? Math.round(hired / total * 100) : 0;
-  const thisMonth = applicants.filter(a => a.appDate && a.appDate >= toStr(monthAgo)).length;
-
-  document.getElementById('dashKpi').innerHTML = `
-    <div class="mc" style="border-left:3px solid #378ADD;">
-      <div class="mc-lbl">総応募数</div><div class="mc-val">${total}</div><div class="mc-sub">累計</div>
-    </div>
-    <div class="mc" style="border-left:3px solid #1D9E75;">
-      <div class="mc-lbl">選考中</div><div class="mc-val">${inProgress}</div><div class="mc-sub">名</div>
-    </div>
-    <div class="mc" style="border-left:3px solid #639922;">
-      <div class="mc-lbl">内定・入社</div><div class="mc-val">${hired}</div><div class="mc-sub">名</div>
-    </div>
-    <div class="mc" style="border-left:3px solid #EF9F27;">
-      <div class="mc-lbl">採用率</div><div class="mc-val">${rate}%</div><div class="mc-sub">累計</div>
-    </div>
-    <div class="mc" style="border-left:3px solid #85B7EB;">
-      <div class="mc-lbl">今月の応募</div><div class="mc-val">${thisMonth}</div><div class="mc-sub">件</div>
-    </div>`;
-
-  // TODOカード
-  const uncontacted = applicants.filter(a => a.status === '未対応').length;
-  const int1Soon = applicants.filter(a => a.status === '1次面接調整' || a.status === '1次面接済').length;
-  const int2Soon = applicants.filter(a => a.status === '2次面接調整' || a.status === '2次面接済').length;
-  const newThisWeek = applicants.filter(a => a.appDate && a.appDate >= toStr(weekAgo)).length;
-  const newThisMonth = applicants.filter(a => a.appDate && a.appDate >= toStr(monthAgo)).length;
-  const offer = applicants.filter(a => ['内定','内定承諾','採用'].includes(a.hireStatus)).length;
-
-  const todoItems = [
-    { label: '未コンタクト（未対応）', count: uncontacted, color: '#D85A30', bg: '#FFF3F0', action: "filterAndGo('未対応')" },
-    { label: '1次面接 関連', count: int1Soon, color: '#378ADD', bg: '#E6F1FB', action: "filterAndGo('1次面接調整')" },
-    { label: '2次面接 関連', count: int2Soon, color: '#185FA5', bg: '#dce8f7', action: "filterAndGo('2次面接調整')" },
-    { label: '内定者', count: offer, color: '#3B6D11', bg: '#EAF3DE', action: "filterAndGo('内定')" },
-    { label: '今週の新規応募', count: newThisWeek, color: '#854F0B', bg: '#FAEEDA', action: "showSec('list')" },
-    { label: '今月の新規応募', count: newThisMonth, color: '#5F5E5A', bg: '#F1EFE8', action: "showSec('list')" },
-  ];
-
-  document.getElementById('dashTodo').innerHTML = todoItems.map(t => `
-    <div onclick="${t.action}" style="background:${t.bg};border-radius:10px;padding:1rem 1.125rem;cursor:pointer;transition:opacity .15s;display:flex;align-items:center;justify-content:space-between;" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
-      <div>
-        <div style="font-size:11px;color:${t.color};font-weight:500;margin-bottom:4px;">${t.label}</div>
-        <div style="font-size:26px;font-weight:700;color:${t.color};">${t.count}<span style="font-size:13px;margin-left:3px;">名</span></div>
-      </div>
-      <div style="font-size:18px;color:${t.color};opacity:.4;">→</div>
-    </div>`).join('');
-
-  // 直近10件
-  const recent = [...applicants].sort((a,b) => b.appDate > a.appDate ? 1 : -1).slice(0, 10);
-  const tb = document.getElementById('dashRecentBody');
-  if (!recent.length) {
-    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:#aaa;font-size:12px;">応募者データがありません</td></tr>';
-    return;
-  }
-  const hireColorMap = {'内定':'bg','内定承諾':'bt','採用':'bg','不採用':'br','保留':'ba'};
-  tb.innerHTML = recent.map(a => {
-    const hireOk2 = ['内定','内定承諾','採用'].includes(a.hireStatus);
-    const hireNg2 = a.hireStatus === '不採用' || a.status === '不採用';
-    const rBg = hireOk2 ? 'background:linear-gradient(90deg,#fff0f5,#fff5f8);' : hireNg2 ? 'background:linear-gradient(90deg,#eef4ff,#f0f6ff);' : '';
-    return `<tr style="${rBg}">
-      <td>${a.appDate||''}</td>
-      <td style="font-weight:500;">${a.name}</td>
-      <td>${a.jobType||''}</td>
-      <td>${a.dept||''}</td>
-      <td>${a.media?`<span class="badge bb">${a.media}</span>`:''}</td>
-      <td>${a.status?`<span class="badge ${stColor(a.status)}">${a.status}</span>`:''}</td>
-      <td>${a.hireStatus?`<span class="badge ${hireColorMap[a.hireStatus]||'bgr'}">${a.hireStatus}</span>`:''}</td>
-      <td><button class="btn-sm" onclick="openDetailFromDash('${a.id}')">詳細</button></td>
-    </tr>`;
-  }).join('');
-
-  // タスクサマリー
-  renderDashTasks();
-  updateTaskBadge();
-}
-
-function renderDashTasks() {
-  const el = document.getElementById('dashTaskList');
-  const badge = document.getElementById('dashTaskBadge');
-  if (!el) return;
-  const today = new Date().toISOString().split('T')[0];
-  const pending = tasks.filter(t => !t.done).sort((a,b)=>(a.due||'9999')>(b.due||'9999')?1:-1).slice(0,8);
-  if (badge) {
-    const overdue = tasks.filter(t=>!t.done&&t.due&&t.due<today).length;
-    if (pending.length>0) { badge.style.display='inline'; badge.textContent=overdue>0?`！${pending.length}件(期限超過${overdue}件)`:`${pending.length}件`; badge.style.background=overdue>0?'#D85A30':'#378ADD'; }
-    else badge.style.display='none';
-  }
-  if (!pending.length) { el.innerHTML='<div style="font-size:11px;color:#aaa;padding:.5rem 0;">未完了タスクはありません 🎉</div>'; return; }
-  el.innerHTML = pending.map(t=>{
-    const isOv=t.due&&t.due<today;
-    const isSoon=t.due&&t.due>=today&&t.due<=new Date(Date.now()+3*86400000).toISOString().split('T')[0];
-    const bg=isOv?'#fff5f5':isSoon?'#fffbf0':'#fafafa';
-    const border=isOv?'border-left:3px solid #D85A30':isSoon?'border-left:3px solid #EF9F27':'border-left:3px solid #e8e8e6';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:${bg};${border};border-radius:6px;margin-bottom:5px;font-size:11px;">
-      <span class="badge ${t.owner==='LinkCore'?'bb':'ba'}" style="flex-shrink:0;">${t.owner}</span>
-      <span style="flex:1;">${t.content}</span>
-      ${t.due?`<span style="color:${isOv?'#D85A30':isSoon?'#854F0B':'#aaa'};font-size:10px;">${t.due}</span>`:''}
-      <span class="badge ${t.priority==='高'?'br':t.priority==='低'?'bg':'bgr'}" style="flex-shrink:0;">${t.priority||'中'}</span>
-    </div>`;
-  }).join('');
-}
-
-function filterAndGo(status) {
-  showSec('list');
-  document.getElementById('fSt').value = status;
-  renderList();
-}
-
-function openDetailFromDash(id) {
-  showSec('list');
-  setTimeout(() => openDetail(id), 100);
-}
-
-// ========================================
-// 一括取り込み
-// ========================================
-
-// CSVヘッダー定義（テンプレート用）
-const CSV_HEADERS = [
-  '応募日★','応募職種★','勤務地','名前★','ふりがな★','メールアドレス★',
-  '電話番号★','媒体名★','人材紹介会社','生年月日_年','生年月日_月','生年月日_日',
-  '年齢','性別★','ステータス★','コンタクト日','1次面接日時','1次面接結果',
-  '2次面接日時','2次面接結果','退職日','書類タイプ1','書類名1','書類URL1',
-  '書類タイプ2','書類名2','書類URL2','メモ'
-];
-
-let importRows = []; // パース済み取り込みデータ
-
-function downloadTemplate() {
-  // サンプル行を1行入れる
-  const sample = [
-    '2024-04-01','営業','東京','山田 太郎','やまだ たろう','yamada@example.com',
-    '090-0000-0000','Indeed','','1990','4','1',
-    '34歳','男性','書類選考中','2024-04-02','','',
-    '','','','履歴書','山田太郎_履歴書','https://drive.google.com/...',
-    '職務経歴書','山田太郎_職歴書','https://drive.google.com/...','面接調整中'
-  ];
-  const rows = [CSV_HEADERS.join(','), sample.map(v => `"${v}"`).join(',')];
-  const csv = '\uFEFF' + rows.join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = '採用コア_取り込みテンプレート.csv';
-  a.click();
-}
-
-function handleDrop(e) {
-  e.preventDefault();
-  document.getElementById('dropZone').style.borderColor = '#ddd';
-  const file = e.dataTransfer.files[0];
-  if (file && file.name.endsWith('.csv')) handleCSVFile(file);
-  else alert('.csvファイルを選択してください');
-}
-
-function handleCSVFile(file) {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => parseCSV(e.target.result);
-  reader.readAsText(file, 'UTF-8');
-}
-
-function parseCSV(text) {
-  // BOM除去
-  const clean = text.replace(/^\uFEFF/, '');
-  const lines = clean.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) { alert('データが1件もありません'); return; }
-
-  // CSVパーサー（ダブルクォート対応）
-  function parseLine(line) {
-    const result = [];
-    let cur = '', inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      const c = line[i];
-      if (c === '"') {
-        if (inQ && line[i+1] === '"') { cur += '"'; i++; }
-        else inQ = !inQ;
-      } else if (c === ',' && !inQ) { result.push(cur); cur = ''; }
-      else cur += c;
+  // 2. 媒体戦略
+  let mediaText = '';
+  if(topMedia.length>0){
+    mediaText += '最も応募が多い媒体は「'+topMedia[0][0]+'」（'+topMedia[0][1]+'名・'+topMediaPct+'%）です。';
+    if(topMedia.length>1) mediaText += '次いで「'+topMedia[1][0]+'」（'+topMedia[1][1]+'名）が続きます。';
+    if(topMediaPct>60) mediaText += ' 1媒体への依存度が高いため、リスク分散として他媒体の強化を推奨します。';
+    if(refCount>0){
+      mediaText += ' 紹介経由の採用率は'+refHireRate+'%、紹介以外は'+nonRefHireRate+'%です。';
+      if(refHireRate>nonRefHireRate) mediaText += '紹介の採用率が高いため、紹介ルートへの投資を優先することを推奨します。';
+      else mediaText += '紹介以外のルートも採用率が良好です。';
     }
-    result.push(cur);
-    return result;
+  } else { mediaText = '媒体データが不足しています。媒体名を登録して分析精度を上げてください。'; }
+  const mediaAdvice = topMedia.length>2?'【アドバイス】上位3媒体に予算を集中しつつ、採用率が低い媒体はコスト対効果を検証してください。':'【アドバイス】複数媒体を活用して応募者の母集団を拡大することを推奨します。';
+  sections.push({title:'📡 媒体戦略', content:mediaText+'<br><span style="color:#378ADD;font-size:11px;">'+mediaAdvice+'</span>', color:'#185FA5'});
+
+  // 3. 年代・性別分析
+  let attrText = '';
+  if(topAge.length>0){
+    attrText += '応募者の年代は「'+topAgeName+'」が最多（'+topAgePct+'%）です。';
+    const youngPct=(ac['20代以下']||0)+(ac['30代']||0);
+    const midPct=(ac['40代']||0)+(ac['50代']||0);
+    const total2=total||1;
+    if(youngPct/total2>0.5) attrText += '若年層が過半数を占めており、即戦力よりポテンシャル採用が中心の傾向があります。';
+    else if(midPct/total2>0.5) attrText += '40〜50代が多く、経験者採用が中心の傾向があります。';
   }
+  attrText += ' 性別は男性'+malePct+'%・女性'+femalePct+'%の構成です。';
+  if(femalePct<20) attrText += '女性比率が低め（'+femalePct+'%）のため、女性が応募しやすい求人内容・媒体選択を検討してください。';
+  const attrAdvice = '【アドバイス】ターゲット層に合わせた求人票の訴求ポイントを見直すことで、応募の質が向上します。';
+  sections.push({title:'👥 属性分析（年代・性別）', content:attrText+'<br><span style="color:#378ADD;font-size:11px;">'+attrAdvice+'</span>', color:'#0F6E56'});
 
-  const headers = parseLine(lines[0]).map(h => h.trim());
-  const dataLines = lines.slice(1);
-  const errors = [];
-  importRows = [];
+  // 4. ファネル分析
+  let funnelText = '応募'+total+'名 → 1次面接'+int1n+'名（'+intRate+'%）→ 2次面接'+int2n+'名（'+( total?Math.round(int2n/total*100):0)+'%）→ 採用'+hiredn+'名（'+hireRate+'%）。';
+  if(intRate<10) funnelText += '書類通過率が低めです。求人要件が厳しすぎる可能性があります。要件を緩和するか、より適した媒体へのシフトを検討してください。';
+  const int2Rate = int1n?Math.round(int2n/int1n*100):0;
+  if(int2Rate<50&&int2n>0) funnelText += '1次から2次への通過率は'+int2Rate+'%です。1次面接の評価基準を明確化することを推奨します。';
+  const step3Rate = int2n?Math.round(hiredn/int2n*100):0;
+  if(step3Rate<70&&int2n>0) funnelText += '2次面接から採用への転換率は'+step3Rate+'%です。最終判断の基準を関係者間で統一すると改善につながります。';
+  funnelText += ' 辞退・連絡不通は'+withdrew+'名（'+( total?Math.round(withdrew/total*100):0)+'%）です。';
+  if(withdrew/total>0.15) funnelText += '辞退率が高めのため、応募者フォローの迅速化・コミュニケーション改善を推奨します。';
+  sections.push({title:'🔻 採用ファネル・歩留り分析', content:funnelText, color:'#A32D2D'});
 
-  dataLines.forEach((line, idx) => {
-    const vals = parseLine(line);
-    const get = (col) => (vals[headers.indexOf(col)] || '').trim();
-    const rowNum = idx + 2; // 2行目から
-
-    // 必須チェック
-    const reqFields = ['応募日★','応募職種★','名前★','ふりがな★','メールアドレス★','電話番号★','媒体名★','性別★','ステータス★'];
-    const missing = reqFields.filter(f => !get(f));
-    if (missing.length) {
-      errors.push(`${rowNum}行目：必須項目が不足（${missing.map(f=>f.replace('★','')).join('、')}）`);
-      return;
-    }
-
-    // 書類リスト生成
-    const docs = [];
-    for (let i = 1; i <= 2; i++) {
-      const url = get(`書類URL${i}`);
-      if (url && url !== 'https://drive.google.com/...') {
-        docs.push({ id: Date.now()+Math.random()+'', type: get(`書類タイプ${i}`) || 'その他', name: get(`書類名${i}`) || `書類${i}`, url });
-      }
-    }
-    const by = get('生年月日_年'), bm = get('生年月日_月'), bd = get('生年月日_日');
-
-    importRows.push({
-      appDate: get('応募日★'), jobType: get('応募職種★'), location: get('勤務地'),
-      name: get('名前★'), kana: get('ふりがな★'), email: get('メールアドレス★'),
-      tel: get('電話番号★'), media: get('媒体名★'), agency: get('人材紹介会社'),
-      birthYear: by, birthMonth: bm, birthDay: bd,
-      birthdate: by&&bm&&bd ? `${by}年${bm}月${bd}日` : '',
-      age: get('年齢'), gender: get('性別★'), status: get('ステータス★'),
-      contactDate: get('コンタクト日'), int1Date: get('1次面接日時'), int1Res: get('1次面接結果'),
-      int2Date: get('2次面接日時'), int2Res: get('2次面接結果'),
-      resignDate: get('退職日'), memo: get('メモ'), docs
-    });
-  });
-
-  showPreview(errors);
-}
-
-function showPreview(errors) {
-  const preview = document.getElementById('importPreview');
-  const errEl = document.getElementById('importErrors');
-  const btn = document.getElementById('importBtn');
-
-  if (errors.length) {
-    errEl.style.display = 'block';
-    errEl.innerHTML = '<strong>⚠ 以下の行にエラーがあります（エラー行は除いて登録されます）</strong><br>' + errors.join('<br>');
-  } else {
-    errEl.style.display = 'none';
+  // 5. 職種分析
+  let jobText = '';
+  if(topJobs.length>0){
+    jobText = '応募数上位の職種：';
+    topJobs.slice(0,4).forEach(([k,v])=>{ jobText += '「'+k+'」'+v+'名（'+Math.round(v/total*100)+'%）、'; });
+    jobText = jobText.replace(/、$/, '。');
+    if(topJobs.length===1) jobText += '単一職種への集中は採用リスクがあります。複数職種の並行採用を検討してください。';
   }
+  sections.push({title:'💼 職種別傾向', content:jobText||'職種データが少ないため、応募者登録時に職種を入力してください。', color:'#854F0B'});
 
-  document.getElementById('previewCount').textContent = `${importRows.length}件が登録されます`;
-  btn.disabled = importRows.length === 0;
+  // 6. アクションアイテム
+  const actions = [];
+  if(intRate<15) actions.push('書類選考基準を見直し、面接実施率を'+intRate+'%→20%以上に改善する');
+  if(topMediaPct>60) actions.push('「'+topMediaName+'」への依存を下げ、他媒体（紹介・エージェント等）を強化する');
+  if(hireRate<5) actions.push('採用要件を再定義し、求人票の訴求ポイントを見直す');
+  if(withdrew/total>0.1) actions.push('応募者へのファーストコンタクトを24時間以内に行い、辞退・連絡不通を減らす');
+  if(refHireRate>nonRefHireRate&&refCount>0) actions.push('紹介経由の採用率が高いため、紹介ネットワーク（人材紹介会社・OB/OG）を強化する');
+  if(actions.length<3) actions.push('採用データを定期的に分析し、月次で媒体・選考基準を見直す');
+  const actionHtml = actions.slice(0,5).map((a,i)=>'<div style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;"><span style="background:#1a1a1a;color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">'+(i+1)+'</span><span style="font-size:12px;">'+a+'</span></div>').join('');
+  sections.push({title:'✅ アクションアイテム', content:actionHtml, color:'#639922'});
 
-  // テーブルヘッダー
-  const showCols = ['応募日','名前','ふりがな','媒体','職種','ステータス','性別','メール','書類'];
-  document.getElementById('previewHead').innerHTML = '<tr>' + showCols.map(h => `<th style="text-align:left;padding:6px 8px;font-size:10px;font-weight:600;color:#aaa;border-bottom:1px solid #f0f0ee;white-space:nowrap;">${h}</th>`).join('') + '</tr>';
-
-  document.getElementById('previewBody').innerHTML = importRows.map(r => `<tr>
-    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;">${r.appDate}</td>
-    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;font-weight:500;">${r.name}</td>
-    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;color:#888;">${r.kana}</td>
-    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;"><span class="badge bb">${r.media}</span></td>
-    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;">${r.jobType}</td>
-    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;"><span class="badge ${stColor(r.status)}">${r.status}</span></td>
-    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;">${r.gender}</td>
-    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;color:#888;font-size:11px;">${r.email}</td>
-    <td style="padding:6px 8px;border-bottom:1px solid #f8f8f7;">${r.docs.length ? `<span class="badge bgr">${r.docs.length}件</span>` : ''}</td>
-  </tr>`).join('');
-
-  preview.style.display = 'block';
-  preview.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  // HTML生成
+  el.innerHTML = '<div style="display:flex;flex-direction:column;gap:.875rem;margin-top:.5rem;">' +
+    sections.map(s=>`<div style="border-left:3px solid ${s.color};background:#fafafa;border-radius:0 8px 8px 0;padding:.875rem 1rem;">
+      <div style="font-size:12px;font-weight:700;color:${s.color};margin-bottom:6px;">${s.title}</div>
+      <div style="font-size:12px;color:#2a2a2a;line-height:1.8;">${s.content}</div>
+    </div>`).join('') +
+  '</div>';
 }
 
-async function doImport() {
-  const btn = document.getElementById('importBtn');
-  btn.disabled = true;
-  btn.textContent = '登録中...';
-  const cid = isAdmin ? 'admin' : currentClientId;
-
-  const rows = importRows.map(r => ({
-    client_id: cid,
-    app_date: r.appDate || null,
-    job_type: r.jobType, location: r.location,
-    name: r.name, kana: r.kana, email: r.email, tel: r.tel,
-    gender: r.gender, age: r.age, media: r.media, agency: r.agency,
-    status: r.status,
-    contact_date: r.contactDate || null,
-    int1_date: r.int1Date || null, int1_result: r.int1Res,
-    int2_date: r.int2Date || null, int2_result: r.int2Res,
-    resign_date: r.resignDate || null, memo: r.memo,
-    birth_year: r.birthYear || null, birth_month: r.birthMonth || null,
-    birth_day: r.birthDay || null, birthdate: r.birthdate || null,
-    docs: r.docs
-  }));
-
-  // 50件ずつ分割してInsert
-  const chunkSize = 50;
-  let successCount = 0;
-  for (let i = 0; i < rows.length; i += chunkSize) {
-    const chunk = rows.slice(i, i + chunkSize);
-    const { error } = await sb.from('applicants').insert(chunk);
-    if (error) { alert(`登録中にエラーが発生しました（${i+1}〜${i+chunk.length}件目）:\n${error.message}`); break; }
-    successCount += chunk.length;
-    btn.textContent = `登録中... ${successCount}/${rows.length}件`;
-  }
-
-  await loadApplicants();
-  popSelects();
-  cancelImport();
-  setStatus(`${successCount}件の応募者を一括登録しました`, 'ok');
-  showSec('list');
-}
-
-function cancelImport() {
-  importRows = [];
-  document.getElementById('importPreview').style.display = 'none';
-  document.getElementById('importErrors').style.display = 'none';
-  document.getElementById('csvFileInput').value = '';
-  document.getElementById('importBtn').textContent = 'この内容で一括登録する';
-  document.getElementById('importBtn').disabled = false;
-}
 
 // ========================================
 // 議事録・タスク
