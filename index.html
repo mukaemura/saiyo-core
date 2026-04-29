@@ -3485,4 +3485,310 @@ function renderStyledCalendar(containerId, ym, markedDates, onDayClick, opts) {
   el.innerHTML=html;
 }
 
->
+
+// ========================================
+// 予算管理
+// ========================================
+let budgetData = [];
+let budgetChart = null;
+let budgetInputRowCount = 0;
+const BUDGET_KEY = () => 'saiyo_budget_' + currentClientId + '_v1';
+
+async function loadBudgetData() {
+  try {
+    const { data, error } = await sb.from('budgets').select('*')
+      .eq('client_id', currentClientId).order('month', { ascending: false });
+    if (error) {
+      const raw = localStorage.getItem(BUDGET_KEY());
+      budgetData = raw ? JSON.parse(raw) : [];
+    } else {
+      budgetData = (data || []).map(r => ({
+        id: r.id, month: r.month, media: r.media,
+        type: r.type || 'media', dept: r.dept || '',
+        job: r.job || '', amount: r.amount, clientId: r.client_id
+      }));
+    }
+  } catch(e) { budgetData = []; }
+}
+
+async function saveBudgetData() {
+  try { localStorage.setItem(BUDGET_KEY(), JSON.stringify(budgetData)); } catch(e) {}
+}
+
+async function deleteBudget(id) {
+  if (!confirm('削除しますか？')) return;
+  try {
+    await sb.from('budgets').delete().eq('id', id).eq('client_id', currentClientId);
+  } catch(e) {}
+  budgetData = budgetData.filter(d => d.id !== id);
+  renderBudget();
+}
+
+function showBudgetForm() {
+  const form = document.getElementById('budgetForm');
+  if (!form) return;
+  form.style.display = 'block';
+  document.getElementById('budgetInputRows').innerHTML = '';
+  addBudgetRow();
+}
+
+function hideBudgetForm() {
+  const f = document.getElementById('budgetForm');
+  if (f) f.style.display = 'none';
+}
+
+function addBudgetRow() {
+  const rid = 'brow_' + Date.now();
+  const mOpts = [...(masters.media||[]),...(masters.agency||[])].map(v=>'<option>'+v+'</option>').join('');
+  const dOpts = (masters.dept||[]).map(v=>'<option>'+v+'</option>').join('');
+  const jOpts = [...new Set(applicants.map(a=>a.jobType).filter(Boolean))].map(v=>'<option>'+v+'</option>').join('');
+  const dm = new Date().toISOString().slice(0,7);
+  document.getElementById('budgetInputRows').insertAdjacentHTML('beforeend',
+    '<tr id="'+rid+'" style="border-bottom:1px solid #f0f0ee;">' +
+    '<td style="padding:5px;"><input type="month" class="bMonth" value="'+dm+'" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;"></td>' +
+    '<td style="padding:5px;"><select class="bMedia" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;min-width:110px;"><option value="">選択</option>'+mOpts+'</select></td>' +
+    '<td style="padding:5px;"><select class="bType" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;"><option value="media">求人媒体</option><option value="agency">人材紹介</option></select></td>' +
+    '<td style="padding:5px;"><select class="bDept" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;min-width:70px;"><option value="">全て</option>'+dOpts+'</select></td>' +
+    '<td style="padding:5px;"><select class="bJob" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;min-width:70px;"><option value="">全て</option>'+jOpts+'</select></td>' +
+    '<td style="padding:5px;"><input type="number" class="bAmount" placeholder="0" min="0" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;text-align:right;width:100px;"></td>' +
+    '<td style="padding:5px;"><button class="btn-del" onclick="this.closest(\'tr\').remove()">✕</button></td></tr>');
+}
+
+async function saveAllBudgets() {
+  const rows = document.getElementById('budgetInputRows').querySelectorAll('tr');
+  const toSave = []; let hasError = false;
+  rows.forEach(row => {
+    const month = row.querySelector('.bMonth')?.value || '';
+    const media = row.querySelector('.bMedia')?.value || '';
+    const type  = row.querySelector('.bType')?.value  || 'media';
+    const dept  = row.querySelector('.bDept')?.value  || '';
+    const job   = row.querySelector('.bJob')?.value   || '';
+    const amount= parseInt(row.querySelector('.bAmount')?.value || '0') || 0;
+    if (!month || !media) { hasError = true; return; }
+    if (!amount) return;
+    toSave.push({ id: Date.now()+Math.random()+'', month, media, type, dept, job, amount });
+  });
+  if (hasError) { alert('月と媒体は必須です'); return; }
+  if (!toSave.length) { alert('登録するデータがありません'); return; }
+  const bRows = toSave.map(e => ({
+    id: e.id, client_id: currentClientId,
+    month: e.month, media: e.media, type: e.type,
+    dept: e.dept || null, job: e.job || null, amount: e.amount
+  }));
+  const { error } = await sb.from('budgets').upsert(bRows, { onConflict: 'id' });
+  if (!error) {
+    toSave.forEach(e => {
+      const i = budgetData.findIndex(d => d.month===e.month && d.media===e.media && d.dept===e.dept && d.job===e.job);
+      if (i >= 0) budgetData[i] = {...budgetData[i], ...e};
+      else budgetData.push(e);
+    });
+  }
+  hideBudgetForm();
+  renderBudget();
+  setStatus(toSave.length + '件登録しました', 'ok');
+}
+
+function setBudgetMode(mode) {
+  const s=document.getElementById('budgetSingleMode'), r=document.getElementById('budgetRangeMode');
+  const bS=document.getElementById('budgetModeSingle'), bR=document.getElementById('budgetModeRange');
+  if (!s||!r) return;
+  if (mode==='single') {
+    s.style.display='flex'; r.style.display='none';
+    if(bS){bS.style.background='#1a1a1a';bS.style.color='#fff';}
+    if(bR){bR.style.background='#fafafa';bR.style.color='#666';}
+    syncBudgetPeriod();
+  } else {
+    s.style.display='none'; r.style.display='flex';
+    if(bR){bR.style.background='#1a1a1a';bR.style.color='#fff';}
+    if(bS){bS.style.background='#fafafa';bS.style.color='#666';}
+    renderBudget();
+  }
+}
+
+function syncBudgetPeriod() {
+  const v = document.getElementById('budgetSingle')?.value;
+  if (!v) return;
+  const f=document.getElementById('budgetFrom'), t=document.getElementById('budgetTo');
+  if(f) f.value=v; if(t) t.value=v;
+  renderBudget();
+}
+
+function renderBudget() {
+  const now=new Date(), curYM=now.toISOString().slice(0,7);
+  const fromEl=document.getElementById('budgetFrom'), toEl=document.getElementById('budgetTo');
+  const sEl=document.getElementById('budgetSingle');
+  if(sEl&&!sEl.value) sEl.value=curYM;
+  const singleMode = document.getElementById('budgetSingleMode')?.style.display !== 'none';
+  if(sEl&&sEl.value&&singleMode) { if(fromEl) fromEl.value=sEl.value; if(toEl) toEl.value=sEl.value; }
+  else {
+    if(fromEl&&!fromEl.value){const d=new Date(now);d.setMonth(d.getMonth()-5);fromEl.value=d.toISOString().slice(0,7);}
+    if(toEl&&!toEl.value) toEl.value=curYM;
+  }
+  const selFrom=fromEl?.value||'', selTo=toEl?.value||'';
+  const selDept=document.getElementById('budgetDeptFilter')?.value||'';
+  const selJob =document.getElementById('budgetJobFilter')?.value||'';
+
+  // フィルター選択肢を更新
+  ['budgetDeptFilter','simDept'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const c=el.value; el.innerHTML='<option value="">'+(id==='simDept'?'全部署':'部署（全て）')+'</option>';
+    (masters.dept||[]).forEach(v=>el.innerHTML+='<option '+(c===v?'selected':'')+'>'+v+'</option>');
+  });
+  ['budgetJobFilter','simJob'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const c=el.value; el.innerHTML='<option value="">'+(id==='simJob'?'全職種':'職種（全て）')+'</option>';
+    [...new Set(applicants.map(a=>a.jobType).filter(Boolean))].forEach(v=>el.innerHTML+='<option '+(c===v?'selected':'')+'>'+v+'</option>');
+  });
+
+  const af = applicants.filter(a=>{
+    const m=a.appDate?a.appDate.substring(0,7):'';
+    if(selFrom&&m<selFrom) return false; if(selTo&&m>selTo) return false;
+    if(selDept&&a.dept!==selDept) return false; if(selJob&&a.jobType!==selJob) return false;
+    return true;
+  });
+  const bf = budgetData.filter(d=>{
+    if(selFrom&&d.month<selFrom) return false; if(selTo&&d.month>selTo) return false;
+    if(selDept&&d.dept&&d.dept!==selDept) return false; if(selJob&&d.job&&d.job!==selJob) return false;
+    return true;
+  });
+
+  const tA=af.length, tH=af.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
+  const tB=bf.reduce((s,d)=>s+d.amount,0);
+  const tCPA=tB&&tA?Math.round(tB/tA):0, tCPO=tB&&tH?Math.round(tB/tH):0;
+  const hr=tA?Math.round(tH/tA*100):0;
+
+  const kpi=document.getElementById('budgetKpi');
+  if(kpi) kpi.innerHTML=[
+    '<div class="mc" style="border-left:3px solid #378ADD;"><div class="mc-lbl">総広告費</div><div class="mc-val">'+tB.toLocaleString()+'円</div></div>',
+    '<div class="mc" style="border-left:3px solid #85B7EB;"><div class="mc-lbl">応募数</div><div class="mc-val">'+tA+'</div></div>',
+    '<div class="mc" style="border-left:3px solid #639922;"><div class="mc-lbl">採用数</div><div class="mc-val">'+tH+'</div></div>',
+    '<div class="mc" style="border-left:3px solid #EF9F27;"><div class="mc-lbl">CPA（応募単価）</div><div class="mc-val">'+(tCPA?tCPA.toLocaleString()+'円':'-')+'</div></div>',
+    '<div class="mc" style="border-left:3px solid #D85A30;"><div class="mc-lbl">CPO（採用単価）</div><div class="mc-val">'+(tCPO?tCPO.toLocaleString()+'円':'-')+'</div></div>',
+    '<div class="mc" style="border-left:3px solid #1D9E75;"><div class="mc-lbl">採用率</div><div class="mc-val">'+hr+'%</div></div>'
+  ].join('');
+
+  // 月別テーブル
+  const months={};
+  af.forEach(a=>{if(!a.appDate)return;const m=a.appDate.substring(0,7);if(!months[m])months[m]={apps:0,hires:0,budget:0};months[m].apps++;if(['内定','内定承諾','採用'].includes(a.hireStatus))months[m].hires++;});
+  bf.forEach(d=>{if(!months[d.month])months[d.month]={apps:0,hires:0,budget:0};months[d.month].budget+=d.amount;});
+  const sm=Object.keys(months).sort();
+  const thL='padding:8px 10px;background:#f0f0ee;font-size:11px;font-weight:700;border-bottom:2px solid #e0e0de;text-align:left;';
+  const thR=thL.replace('text-align:left','text-align:right');
+  const tdL='padding:7px 10px;font-size:12px;border-bottom:1px solid #f5f5f5;';
+  const tdR=tdL+'text-align:right;';
+  const tfL='padding:8px 10px;font-size:12px;font-weight:700;background:#f8f8f7;border-top:2px solid #e0e0de;';
+  const tfR=tfL+'text-align:right;';
+
+  const mTbl=document.getElementById('budgetMonthTable');
+  if(mTbl) {
+    let rows='';
+    sm.forEach(m=>{
+      const d=months[m],cpa=d.budget&&d.apps?Math.round(d.budget/d.apps):0,cpo=d.budget&&d.hires?Math.round(d.budget/d.hires):0,r2=d.apps?Math.round(d.hires/d.apps*100):0;
+      rows+='<tr><td style="'+tdL+'">'+m+'</td><td style="'+tdR+'">'+(d.budget?d.budget.toLocaleString()+'円':'未入力')+'</td><td style="'+tdR+'">'+d.apps+'</td><td style="'+tdR+'">'+d.hires+'</td><td style="'+tdR+';color:'+(r2>10?'#3B6D11':'#aaa')+';">'+r2+'%</td><td style="'+tdR+';color:'+(cpa?'#EF9F27':'#aaa')+';font-weight:600;">'+(cpa?cpa.toLocaleString()+'円':'-')+'</td><td style="'+tdR+';color:'+(cpo?'#D85A30':'#aaa')+';font-weight:600;">'+(cpo?cpo.toLocaleString()+'円':'-')+'</td></tr>';
+    });
+    mTbl.innerHTML='<thead><tr><th style="'+thL+'">月</th><th style="'+thR+'">広告費</th><th style="'+thR+'">応募</th><th style="'+thR+'">採用</th><th style="'+thR+'">採用率</th><th style="'+thR+'">CPA</th><th style="'+thR+'">CPO</th></tr></thead><tbody>'+rows+'</tbody>'+
+      '<tfoot><tr><td style="'+tfL+'">合計</td><td style="'+tfR+'">'+(tB?tB.toLocaleString()+'円':'未入力')+'</td><td style="'+tfR+'">'+tA+'</td><td style="'+tfR+'">'+tH+'</td><td style="'+tfR+';color:'+(hr>10?'#3B6D11':'#aaa')+';">'+hr+'%</td><td style="'+tfR+';color:'+(tCPA?'#EF9F27':'#aaa')+'">'+(tCPA?tCPA.toLocaleString()+'円':'-')+'</td><td style="'+tfR+';color:'+(tCPO?'#D85A30':'#aaa')+'">'+(tCPO?tCPO.toLocaleString()+'円':'-')+'</td></tr></tfoot>';
+  }
+
+  // 媒体別テーブル
+  const ms={};
+  af.forEach(a=>{const m=a.media||'(未設定)';if(!ms[m])ms[m]={apps:0,hires:0,budget:0};ms[m].apps++;if(['内定','内定承諾','採用'].includes(a.hireStatus))ms[m].hires++;});
+  bf.forEach(d=>{if(!ms[d.media])ms[d.media]={apps:0,hires:0,budget:0};ms[d.media].budget+=d.amount;});
+  const tbl=document.getElementById('budgetTable');
+  if(tbl) {
+    let rows2='';
+    Object.entries(ms).sort((a,b)=>b[1].apps-a[1].apps).forEach(([m,s])=>{
+      const cpa=s.budget&&s.apps?Math.round(s.budget/s.apps):0,cpo=s.budget&&s.hires?Math.round(s.budget/s.hires):0,r2=s.apps?Math.round(s.hires/s.apps*100):0;
+      rows2+='<tr><td style="'+tdL+'">'+m+'</td><td style="'+tdR+'">'+(s.budget?s.budget.toLocaleString()+'円':'未入力')+'</td><td style="'+tdR+'">'+s.apps+'</td><td style="'+tdR+'">'+s.hires+'</td><td style="'+tdR+';color:'+(r2>10?'#3B6D11':'#aaa')+';">'+r2+'%</td><td style="'+tdR+';color:'+(cpa?'#EF9F27':'#aaa')+';font-weight:600;">'+(cpa?cpa.toLocaleString()+'円':'-')+'</td><td style="'+tdR+';color:'+(cpo?'#D85A30':'#aaa')+';font-weight:600;">'+(cpo?cpo.toLocaleString()+'円':'-')+'</td></tr>';
+    });
+    tbl.innerHTML='<thead><tr><th style="'+thL+'">媒体</th><th style="'+thR+'">広告費</th><th style="'+thR+'">応募数</th><th style="'+thR+'">採用数</th><th style="'+thR+'">採用率</th><th style="'+thR+'">CPA</th><th style="'+thR+'">CPO</th></tr></thead><tbody>'+rows2+'</tbody>';
+  }
+
+  renderBudgetTrend(months);
+
+  const dlEl=document.getElementById('budgetDataList');
+  if(dlEl) {
+    const sd=[...budgetData].filter(d=>{if(selFrom&&d.month<selFrom)return false;if(selTo&&d.month>selTo)return false;return true;}).sort((a,b)=>b.month>a.month?1:-1);
+    if (sd.length) {
+      let dlRows = '';
+      sd.forEach(function(d) {
+        dlRows += '<tr><td style="'+tdL+'">'+d.month+'</td><td style="'+tdL+'">'+d.media+'</td>';
+        dlRows += '<td style="'+tdL+'">'+(d.dept||'-')+'</td><td style="'+tdL+'">'+(d.job||'-')+'</td>';
+        dlRows += '<td style="'+tdR+'">'+d.amount.toLocaleString()+'円</td>';
+        dlRows += '<td style="'+tdL+'">'+(d.type==='agency'?'人材紹介':'求人媒体')+'</td>';
+        dlRows += '<td style="'+tdR+'"><button class="btn-del" onclick="deleteBudget('+JSON.stringify(d.id)+')">削除</button></td></tr>';
+      });
+      dlEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>' +
+        '<th style="'+thL+'">月</th><th style="'+thL+'">媒体</th><th style="'+thL+'">部署</th>' +
+        '<th style="'+thL+'">職種</th><th style="'+thR+'">金額</th><th style="'+thL+'">種別</th><th></th>' +
+        '</tr></thead><tbody>' + dlRows + '</tbody></table>';
+    } else {
+      dlEl.innerHTML = '<div class="empty">予算データがありません</div>';
+    }
+  }
+}
+
+function renderBudgetTrend(months) {
+  if(budgetChart){try{budgetChart.destroy();}catch(e){}budgetChart=null;}
+  const el=document.getElementById('budgetTrendChart');
+  if(!el) return;
+  const lbs=Object.keys(months||{}).sort();
+  if(!lbs.length){el.parentElement.innerHTML='<div class="empty" style="padding:2rem;text-align:center;">データがありません</div>';return;}
+  budgetChart=new Chart(el,{type:'bar',data:{labels:lbs,datasets:[
+    {label:'広告費（万円）',data:lbs.map(m=>+((months[m].budget||0)/10000).toFixed(1)),backgroundColor:'rgba(239,159,39,0.2)',borderColor:'#EF9F27',borderWidth:1.5,yAxisID:'y2'},
+    {label:'応募数',data:lbs.map(m=>months[m].apps||0),type:'line',borderColor:'#378ADD',backgroundColor:'transparent',tension:0.3,pointRadius:3,yAxisID:'y'},
+    {label:'採用数',data:lbs.map(m=>months[m].hires||0),type:'line',borderColor:'#639922',backgroundColor:'transparent',tension:0.3,pointRadius:3,yAxisID:'y'},
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:true,position:'top',labels:{font:{size:10},boxWidth:12}}},
+    scales:{y:{beginAtZero:true,position:'left',ticks:{font:{size:10},stepSize:1}},
+            y2:{beginAtZero:true,position:'right',grid:{display:false},ticks:{font:{size:10}}},
+            x:{grid:{display:false},ticks:{font:{size:10},maxRotation:45}}}}});
+}
+
+function runSimulation() {
+  const target=parseInt(document.getElementById('simHireTarget')?.value||'0')||0;
+  const dept=document.getElementById('simDept')?.value||'';
+  const job=document.getElementById('simJob')?.value||'';
+  if(!target){alert('採用目標人数を入力してください');return;}
+  let apps=applicants;
+  if(dept) apps=apps.filter(a=>a.dept===dept);
+  if(job)  apps=apps.filter(a=>a.jobType===job);
+  let budgets=budgetData;
+  if(dept) budgets=budgets.filter(d=>!d.dept||d.dept===dept);
+  if(job)  budgets=budgets.filter(d=>!d.job||d.job===job);
+  const tA=apps.length, tH=apps.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
+  const tB=budgets.reduce((s,d)=>s+d.amount,0);
+  let fHR=tA?tH/tA:0, fCPA=tB&&tA?Math.round(tB/tA):0, fCPO=tB&&tH?Math.round(tB/tH):0;
+  const fallback=tA<5;
+  if(fallback){
+    const aA=applicants.length,aH=applicants.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length,aB=budgetData.reduce((s,d)=>s+d.amount,0);
+    fHR=aA?aH/aA:0; fCPA=aB&&aA?Math.round(aB/aA):0; fCPO=aB&&aH?Math.round(aB/aH):0;
+  }
+  const rEl=document.getElementById('simResult');
+  if(!fHR){if(rEl)rEl.innerHTML='<div style="background:#f8f8f7;border-radius:8px;padding:1rem;color:#aaa;font-size:12px;">データが不足しています。</div>';return;}
+  const need=Math.ceil(target/fHR), nCPA=fCPA?Math.round(fCPA*need):null, nCPO=fCPO?Math.round(fCPO*target):null;
+  if(rEl) rEl.innerHTML='<div style="background:#f0f6ff;border-radius:10px;padding:1.125rem;border-left:3px solid #378ADD;">'
+    +(fallback?'<div style="font-size:11px;color:#EF9F27;margin-bottom:.5rem;">⚠ データが少ないため全体平均から算出</div>':'')
+    +'<div style="font-size:12px;font-weight:700;color:#378ADD;margin-bottom:1rem;">シミュレーション結果（過去実績から算出）</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:1rem;">'
+    +'<div style="background:#fff;border-radius:8px;padding:.875rem;text-align:center;"><div style="font-size:10px;color:#aaa;margin-bottom:4px;">採用率</div><div style="font-size:22px;font-weight:700;">'+Math.round(fHR*100)+'%</div></div>'
+    +'<div style="background:#fff;border-radius:8px;padding:.875rem;text-align:center;"><div style="font-size:10px;color:#aaa;margin-bottom:4px;">必要応募数</div><div style="font-size:22px;font-weight:700;color:#378ADD;">'+need+'名</div></div>'
+    +'<div style="background:#fff;border-radius:8px;padding:.875rem;text-align:center;"><div style="font-size:10px;color:#aaa;margin-bottom:4px;">採用目標</div><div style="font-size:22px;font-weight:700;color:#639922;">'+target+'名</div></div>'
+    +(nCPA?'<div style="background:#fff;border-radius:8px;padding:.875rem;text-align:center;"><div style="font-size:10px;color:#aaa;margin-bottom:4px;">推定予算(CPA)</div><div style="font-size:20px;font-weight:700;color:#EF9F27;">'+nCPA.toLocaleString()+'円</div></div>':'')
+    +(nCPO?'<div style="background:#fff;border-radius:8px;padding:.875rem;text-align:center;"><div style="font-size:10px;color:#aaa;margin-bottom:4px;">推定予算(CPO)</div><div style="font-size:20px;font-weight:700;color:#D85A30;">'+nCPO.toLocaleString()+'円</div></div>':'')
+    +'</div><div style="font-size:11px;color:#888;padding-top:.75rem;border-top:1px solid #d8e8f8;">⚠ あくまで参考値です。実績データが増えるほど精度は上がります。</div></div>';
+}
+
+function exportBudgetCSV() {
+  const rows=[['月','媒体','部署','職種','広告費','種別']];
+  budgetData.forEach(d=>rows.push([d.month,d.media,d.dept||'',d.job||'',d.amount,d.type==='agency'?'人材紹介':'求人媒体']));
+  const csv=rows.map(r=>r.join(',')).join('\r\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download='budget_'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click();
+}
+
+</script>
+</body>
+</html>
