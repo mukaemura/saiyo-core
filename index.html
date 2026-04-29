@@ -989,7 +989,47 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
           <span id="pwOk" style="font-size:11px;color:#3B6D11;display:none;">✓ 変更しました</span>
         </div>
       </div>
-    </div>
+    
+      <!-- ステータスマスター管理 -->
+      <div id="statusMasterSection" style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-top:.75rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem;">
+          <div>
+            <div style="font-size:13px;font-weight:600;">ステータスマスター管理</div>
+            <div style="font-size:11px;color:#aaa;margin-top:2px;">詳細ステータスと分析用コアステータスの紐づけを管理します</div>
+          </div>
+          <button class="btn btn-p" style="font-size:12px;padding:6px 12px;" onclick="addDetailStatus()">＋ 追加</button>
+        </div>
+
+        <!-- コアステータス凡例 -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem;padding:.75rem;background:#f8f8f7;border-radius:8px;">
+          <span style="font-size:10px;color:#666;font-weight:600;width:100%;margin-bottom:4px;">コアステータス（固定・分析に使用）：</span>
+          <span id="coreStatusLegend"></span>
+        </div>
+
+        <!-- 詳細ステータス一覧（コアステータスでグループ化） -->
+        <div id="detailStatusList"></div>
+
+        <!-- 追加フォーム -->
+        <div id="addDetailStatusForm" style="display:none;background:#f0faf6;border-radius:8px;padding:.875rem;margin-top:.75rem;border:1px solid #c8e6c9;">
+          <div style="font-size:12px;font-weight:600;margin-bottom:.75rem;">詳細ステータスを追加</div>
+          <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
+            <div class="fg" style="flex:1;min-width:150px;">
+              <label style="font-size:10px;font-weight:600;">ステータス名<span class="req">*</span></label>
+              <input type="text" id="newDetailStatusName" placeholder="例: 書類審査中" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;">
+            </div>
+            <div class="fg" style="min-width:150px;">
+              <label style="font-size:10px;font-weight:600;">コアステータス<span class="req">*</span></label>
+              <select id="newDetailStatusCore" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;">
+                <option value="">選択してください</option>
+              </select>
+            </div>
+            <button class="btn btn-p" style="padding:7px 14px;font-size:12px;" onclick="saveDetailStatus()">保存</button>
+            <button class="btn-sm" onclick="document.getElementById('addDetailStatusForm').style.display='none'">キャンセル</button>
+          </div>
+        </div>
+      </div>
+
+</div>
 
     <!-- クライアント管理（管理者のみ） -->
     <div id="sec-admin" class="sec">
@@ -1016,6 +1056,105 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // ========================================
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+
+// ========================================
+// コアステータスマスター（固定定義）
+// ========================================
+const CORE_STATUS = [
+  { id: 'applied',     name: '応募',   ord: 1, color: '#378ADD' },
+  { id: 'in_progress', name: '対応中', ord: 2, color: '#EF9F27' },
+  { id: 'interview',   name: '面接',   ord: 3, color: '#9B59B6' },
+  { id: 'hired',       name: '採用',   ord: 4, color: '#27AE60' },
+  { id: 'joined',      name: '入社',   ord: 5, color: '#1D9E75' },
+  { id: 'resigned',    name: '退職',   ord: 6, color: '#95A5A6' },
+  { id: 'other',       name: 'その他', ord: 7, color: '#BDC3C7' },
+];
+
+// 既存ステータス文字列→core_status_idのマッピング
+const STATUS_TO_CORE = {
+  '未対応':      'applied',
+  '書類選考中':  'in_progress', '書類依頼中':  'in_progress',
+  '書類到着':    'in_progress', '面接調整中':  'in_progress',
+  '1次面接調整': 'in_progress', '面接確定':    'in_progress',
+  '1次面接済':   'interview',   '1次面接':     'interview',
+  '2次面接調整': 'interview',   '2次面接済':   'interview',
+  '2次面接':     'interview',   '最終選考':    'interview',
+  '選考通過':    'interview',   '不来場':      'interview',
+  '内定':        'hired',       '内定承諾':    'hired',
+  '採用':        'hired',
+  '入社':        'joined',
+  '退職':        'resigned',
+  '不採用':      'other',       '辞退':        'other',
+  '内定辞退':    'other',       '連絡不通':    'other',
+  'キャンセル':  'other',
+};
+
+// デフォルト詳細ステータス（新規クライアント用）
+const DEFAULT_DETAIL_STATUS = [
+  { name: '未対応',      core_status_id: 'applied',     ord: 1 },
+  { name: '書類依頼中',  core_status_id: 'in_progress', ord: 2 },
+  { name: '書類到着',    core_status_id: 'in_progress', ord: 3 },
+  { name: '面接調整中',  core_status_id: 'in_progress', ord: 4 },
+  { name: '面接確定',    core_status_id: 'in_progress', ord: 5 },
+  { name: '1次面接',     core_status_id: 'interview',   ord: 6 },
+  { name: '2次面接',     core_status_id: 'interview',   ord: 7 },
+  { name: '選考通過',    core_status_id: 'interview',   ord: 8 },
+  { name: '不来場',      core_status_id: 'interview',   ord: 9 },
+  { name: '内定',        core_status_id: 'hired',       ord: 10 },
+  { name: '内定辞退',    core_status_id: 'other',       ord: 11 },
+  { name: '内定承諾',    core_status_id: 'hired',       ord: 12 },
+  { name: '採用',        core_status_id: 'hired',       ord: 13 },
+  { name: '不採用',      core_status_id: 'other',       ord: 14 },
+  { name: '連絡不通',    core_status_id: 'other',       ord: 15 },
+  { name: 'キャンセル',  core_status_id: 'other',       ord: 16 },
+  { name: '入社',        core_status_id: 'joined',      ord: 17 },
+  { name: '退職',        core_status_id: 'resigned',    ord: 18 },
+];
+
+let detailStatuses = []; // 現クライアントの詳細ステータス一覧
+
+// 詳細ステータス→コアステータスを取得
+function getCoreStatusId(detailStatusName) {
+  const ds = detailStatuses.find(d => d.name === detailStatusName);
+  if (ds) return ds.core_status_id;
+  return STATUS_TO_CORE[detailStatusName] || 'applied';
+}
+
+function getCoreStatusName(coreId) {
+  const cs = CORE_STATUS.find(c => c.id === coreId);
+  return cs ? cs.name : coreId;
+}
+
+function getCoreStatusColor(coreId) {
+  const cs = CORE_STATUS.find(c => c.id === coreId);
+  return cs ? cs.color : '#999';
+}
+
+// 詳細ステータスを読み込む（Supabaseまたはlocalcache）
+async function loadDetailStatuses() {
+  try {
+    const { data, error } = await sb.from('detail_status_master')
+      .select('*').eq('client_id', currentClientId).order('ord');
+    if (!error && data && data.length > 0) {
+      detailStatuses = data;
+    } else {
+      // テーブル未作成またはデータなし → デフォルトを使用
+      detailStatuses = DEFAULT_DETAIL_STATUS.map((d, i) => ({
+        ...d, id: 'default_' + i, client_id: currentClientId
+      }));
+    }
+  } catch(e) {
+    detailStatuses = DEFAULT_DETAIL_STATUS.map((d, i) => ({
+      ...d, id: 'default_' + i, client_id: currentClientId
+    }));
+  }
+}
+
+// 詳細ステータス選択時にコアステータスを自動設定
+function onDetailStatusChange(detailStatusName) {
+  return getCoreStatusId(detailStatusName);
+}
 
 // ========================================
 // アプリ状態
@@ -1085,6 +1224,7 @@ async function startApp() {
   document.getElementById('adminNavBtn').style.display = isAdmin ? 'block' : 'none';
   initFormOptions();
   await loadMasters();
+  await loadDetailStatuses(); // 詳細ステータス読み込み
   await loadApplicants();
   await loadMinutesAndTasks();
   await loadBudgetData();
@@ -1126,7 +1266,9 @@ async function loadApplicants() {
     docs: r.docs || [],
     dept: r.dept || '',
     hireStatus: r.hire_status || '',
-    clientId: r.client_id
+    clientId: r.client_id,
+    coreStatusId: r.core_status_id || STATUS_TO_CORE[r.status] || 'applied',
+    detailStatusId: r.detail_status_id || null
   }));
   setStatus('');
 }
@@ -1473,7 +1615,8 @@ async function updateDept(id, val) {
 }
 
 async function updateStatus(id, val) {
-  const { error } = await sb.from('applicants').update({ status: val }).eq('id', id).eq('client_id', currentClientId);
+  const newCoreId = onDetailStatusChange(val);
+  const { error } = await sb.from('applicants').update({ status: val, core_status_id: newCoreId }).eq('id', id).eq('client_id', currentClientId);
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
   const a = applicants.find(x => x.id === id);
   if (a) a.status = val;
@@ -1798,7 +1941,7 @@ function renderDashboard() {
   document.getElementById('dashDate').textContent = now.toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
   const total = applicants.length;
   const inProgress = applicants.filter(a => a.status && !['内定','入社','不採用','辞退','内定承諾','採用'].includes(a.status)).length;
-  const hired = applicants.filter(a => ['内定','内定承諾','採用'].includes(a.hireStatus)).length;
+  const hired = applicants.filter(a => ['hired','joined'].includes(getCoreId(a))).length;
   const rate = total ? Math.round(hired / total * 100) : 0;
   const thisMonth = applicants.filter(a => a.appDate && a.appDate >= toStr(monthAgo)).length;
   document.getElementById('dashKpi').innerHTML = `
@@ -1979,97 +2122,107 @@ function renderAn() {
     anJob.innerHTML='<option value="">職種（全て）</option>';
     [...new Set(applicants.map(a=>a.jobType).filter(Boolean))].forEach(v=>anJob.innerHTML+=`<option ${cur===v?'selected':''}>${v}</option>`);
   }
-  const data=getAnData(),total=data.length;
-  const hired=data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
-  const rate=total?Math.round(hired/total*100):0;
-  const int1=data.filter(a=>a.int1Date).length;
-  const int2=data.filter(a=>a.int2Date).length;
-  const active=data.filter(a=>a.status&&!['内定','入社','不採用','辞退','内定承諾','採用'].includes(a.status)).length;
-  const rejected=data.filter(a=>a.status==='不採用'||a.hireStatus==='不採用').length;
-  const withdrew=data.filter(a=>a.status&&(a.status.includes('辞退')||a.status.includes('連絡不通'))).length;
-  document.getElementById('anMetrics').innerHTML=`
-    <div class="mc" style="border-left:3px solid #378ADD;"><div class="mc-lbl">総応募数</div><div class="mc-val">${total}</div></div>
-    <div class="mc" style="border-left:3px solid #85B7EB;"><div class="mc-lbl">1次面接</div><div class="mc-val">${int1}</div><div class="mc-sub">${total?Math.round(int1/total*100):0}%</div></div>
-    <div class="mc" style="border-left:3px solid #5DCAA5;"><div class="mc-lbl">2次面接</div><div class="mc-val">${int2}</div><div class="mc-sub">${total?Math.round(int2/total*100):0}%</div></div>
-    <div class="mc" style="border-left:3px solid #639922;"><div class="mc-lbl">内定・採用</div><div class="mc-val">${hired}</div><div class="mc-sub">採用率 ${rate}%</div></div>
-    <div class="mc" style="border-left:3px solid #A32D2D;"><div class="mc-lbl">不採用</div><div class="mc-val">${rejected}</div></div>
-    <div class="mc" style="border-left:3px solid #EF9F27;"><div class="mc-lbl">選考中</div><div class="mc-val">${active}</div></div>`;
-  const fEl=document.getElementById('anFunnelBar');
-  if(fEl&&total>0){
-    const steps=[{label:'応募',n:total,color:'#378ADD'},{label:'1次面接',n:int1,color:'#5DCAA5'},{label:'2次面接',n:int2,color:'#1D9E75'},{label:'内定・採用',n:hired,color:'#639922'}];
-    // 逆ピラミッド形式のファネル
-    fEl.innerHTML=`<div style="font-size:11px;font-weight:600;color:#666;margin-bottom:10px;">採用ファネル（歩留り率）</div>
-    <div style="display:flex;flex-direction:column;align-items:center;gap:0;">
-      ${steps.map((s,i)=>{
-        const p=total?Math.round(s.n/total*100):0;
-        const prev=i>0?steps[i-1].n:total;
-        const step=prev?Math.round(s.n/prev*100):0;
-        const w=100-(i*18);
-        return`<div style="width:${w}%;display:flex;flex-direction:column;align-items:center;">
-          ${i>0?`<div style="font-size:10px;color:#aaa;padding:3px 0;">↓ 通過率 ${step}%</div>`:''}
-          <div style="background:${s.color};color:#fff;width:100%;padding:10px;text-align:center;border-radius:6px;display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:12px;font-weight:600;">${s.label}</span>
-            <span style="font-size:18px;font-weight:700;">${s.n}名</span>
-            <span style="font-size:11px;opacity:.85;">全体比 ${p}%</span>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`;
-  } else if(fEl){fEl.innerHTML='';}
-  renderAnContent();
-}
 
-const thStyle='padding:7px 9px;text-align:right;background:#f0f0ee;font-size:10px;font-weight:600;border-bottom:2px solid #e0e0de;white-space:nowrap;';
-const thStyleL='padding:7px 9px;text-align:left;background:#f0f0ee;font-size:10px;font-weight:600;border-bottom:2px solid #e0e0de;white-space:nowrap;';
-const tdStyle='padding:6px 9px;text-align:right;border-bottom:1px solid #f5f5f5;font-size:11px;';
-const tdStyleL='padding:6px 9px;text-align:left;border-bottom:1px solid #f5f5f5;font-size:11px;font-weight:500;';
-const tfStyle='padding:7px 9px;text-align:right;background:#f8f8f7;font-size:11px;font-weight:700;border-top:2px solid #e0e0de;';
-const tfStyleL='padding:7px 9px;text-align:left;background:#f8f8f7;font-size:11px;font-weight:700;border-top:2px solid #e0e0de;';
-function pct(n,d){return d?Math.round(n/d*100)+'%':'-';}
-function pctColor(n,d,good){good=good||10;const v=d?n/d*100:0;return v>=good?'#3B6D11':v>=good/2?'#854F0B':'#666';}
+  const data = getAnData();
+  const total = data.length;
 
-function buildMonthStats(data){
-  const months={};
-  data.forEach(a=>{
-    if(!a.appDate)return;
-    const m=a.appDate.substring(0,7);
-    if(!months[m])months[m]={total:0,int1:0,int2:0,hired:0,rejected:0,active:0,withdrew:0};
-    months[m].total++;
-    if(a.int1Date)months[m].int1++;
-    if(a.int2Date)months[m].int2++;
-    if(['内定','内定承諾','採用'].includes(a.hireStatus))months[m].hired++;
-    else if(a.status==='不採用'||a.hireStatus==='不採用')months[m].rejected++;
-    else if(a.status&&(a.status.includes('辞退')||a.status.includes('連絡不通')))months[m].withdrew++;
-    else months[m].active++;
+  // ============================================================
+  // コアステータスベースのファネル集計
+  // ============================================================
+  const getCoreId = (a) => {
+    // core_status_idが直接あればそれを使用
+    if (a.coreStatusId) return a.coreStatusId;
+    // なければdetail_statusからマッピング
+    const ds = detailStatuses.find(d => d.name === a.status);
+    if (ds) return ds.core_status_id;
+    return STATUS_TO_CORE[a.status] || 'applied';
+  };
+
+  // コアステータス別カウント
+  const coreCounts = {};
+  CORE_STATUS.forEach(cs => coreCounts[cs.id] = 0);
+  data.forEach(a => {
+    const cid = getCoreId(a);
+    if (coreCounts[cid] !== undefined) coreCounts[cid]++;
+    else coreCounts['other'] = (coreCounts['other']||0) + 1;
   });
-  return months;
+
+  // ファネル順（応募→対応中→面接→採用→入社）
+  const funnelSteps = ['applied','in_progress','interview','hired','joined'];
+  const hired   = coreCounts['hired'] + coreCounts['joined'];
+  const hireRate = total ? Math.round(hired/total*100) : 0;
+
+  // KPIメトリクス
+  const metricsEl = document.getElementById('anMetrics');
+  if (metricsEl) {
+    const kpis = [
+      { label:'総応募数', val: total+'名', sub:'期間内' },
+      { label:'対応中',   val: coreCounts['in_progress']+'名', sub:`通過率${total?Math.round(coreCounts['in_progress']/total*100):0}%` },
+      { label:'面接',     val: coreCounts['interview']+'名',   sub:`通過率${total?Math.round(coreCounts['interview']/total*100):0}%` },
+      { label:'採用',     val: hired+'名',  sub:`採用率${hireRate}%` },
+      { label:'入社',     val: coreCounts['joined']+'名',   sub:'' },
+      { label:'その他',   val: (coreCounts['other']+coreCounts['resigned'])+'名', sub:'不採用・辞退含む' },
+    ];
+    metricsEl.innerHTML = kpis.map(k=>`
+      <div style="background:#fff;border:1px solid #e8e8e6;border-radius:10px;padding:.875rem 1rem;flex:1;min-width:100px;">
+        <div style="font-size:10px;color:#888;margin-bottom:4px;">${k.label}</div>
+        <div style="font-size:22px;font-weight:700;color:#1a1a1a;line-height:1.2;">${k.val}</div>
+        ${k.sub?`<div style="font-size:10px;color:#6ab49a;margin-top:4px;">${k.sub}</div>`:''}
+      </div>`).join('');
+  }
+
+  // ============================================================
+  // 逆ピラミッドファネル（コアステータスベース）
+  // ============================================================
+  const funnelEl = document.getElementById('anFunnelBar');
+  if (funnelEl && total > 0) {
+    const steps = funnelSteps.map(id => {
+      const cs = CORE_STATUS.find(c => c.id === id);
+      const cnt = coreCounts[id] || 0;
+      const pct = Math.round(cnt/total*100);
+      return { id, name: cs?.name || id, cnt, pct, color: cs?.color || '#999' };
+    });
+
+    // 前ステップ比の通過率
+    funnelEl.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:4px;padding:.5rem 0;">
+        ${steps.map((s, i) => {
+          const prevCnt = i > 0 ? steps[i-1].cnt : total;
+          const throughRate = prevCnt > 0 ? Math.round(s.cnt/prevCnt*100) : 0;
+          const width = Math.max(s.pct, 5);
+          return `
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="width:80px;font-size:11px;font-weight:600;color:#1a1a1a;text-align:right;flex-shrink:0;">${s.name}</div>
+              <div style="flex:1;position:relative;">
+                <div style="height:32px;background:${s.color};opacity:.15;border-radius:4px;width:${width}%;min-width:4px;"></div>
+                <div style="position:absolute;top:0;left:0;height:32px;display:flex;align-items:center;padding:0 8px;font-size:12px;font-weight:700;color:${s.color};">
+                  ${s.cnt}名
+                  <span style="font-size:10px;font-weight:400;color:#aaa;margin-left:4px;">(${s.pct}%)</span>
+                </div>
+              </div>
+              ${i > 0 ? `<div style="font-size:10px;color:#aaa;flex-shrink:0;width:60px;">前比 ${throughRate}%</div>` : '<div style="width:60px;"></div>'}
+            </div>
+            ${i < steps.length-1 ? '<div style="text-align:left;padding-left:90px;color:#ddd;font-size:14px;">↓</div>' : ''}
+          `;
+        }).join('')}
+        ${coreCounts['other'] > 0 ? `
+          <div style="display:flex;align-items:center;gap:10px;margin-top:8px;padding-top:8px;border-top:1px dashed #eee;">
+            <div style="width:80px;font-size:11px;font-weight:600;color:#BDC3C7;text-align:right;flex-shrink:0;">その他</div>
+            <div style="flex:1;">
+              <div style="height:28px;background:#BDC3C7;opacity:.3;border-radius:4px;width:${Math.max(Math.round(coreCounts['other']/total*100),3)}%;"></div>
+              <div style="font-size:11px;color:#BDC3C7;margin-top:2px;">${coreCounts['other']}名（不採用・辞退・連絡不通など）</div>
+            </div>
+          </div>` : ''}
+      </div>`;
+  }
+
+  // 月別集計（全体）
+  const monthlyEl = document.getElementById('anMonthlyFixed');
+  if (monthlyEl) monthlyEl.innerHTML = renderMonthTable(buildMonthStats(data), '');
+
+  renderAnContent(data);
 }
 
-function renderMonthTable(months,title){
-  const sorted=Object.keys(months).sort();
-  if(!sorted.length)return'<div class="empty">データがありません</div>';
-  const rows=sorted.map(m=>{const d=months[m];return`<tr><td style="${tdStyleL}">${m}</td><td style="${tdStyle}">${d.total}</td><td style="${tdStyle}">${d.int1}</td><td style="${tdStyle}">${d.int2}</td><td style="${tdStyle};color:#639922;font-weight:600;">${d.hired}</td><td style="${tdStyle};color:#A32D2D;">${d.rejected}</td><td style="${tdStyle};color:#EF9F27;">${d.active}</td><td style="${tdStyle};color:#888;">${d.withdrew}</td><td style="${tdStyle};color:${pctColor(d.int1,d.total,10)};font-weight:600;">${pct(d.int1,d.total)}</td><td style="${tdStyle};color:${pctColor(d.hired,d.total,5)};font-weight:600;">${pct(d.hired,d.total)}</td></tr>`;}).join('');
-  const tot=sorted.reduce((a,m)=>{const d=months[m];a.total+=d.total;a.int1+=d.int1;a.int2+=d.int2;a.hired+=d.hired;a.rejected+=d.rejected;a.active+=d.active;a.withdrew+=d.withdrew;return a;},{total:0,int1:0,int2:0,hired:0,rejected:0,active:0,withdrew:0});
-  return`<div style="overflow-x:auto;margin-bottom:1rem;"><table style="width:100%;border-collapse:collapse;min-width:700px;"><caption style="text-align:left;font-size:11px;font-weight:600;color:#666;padding:0 0 8px;caption-side:top;">${title}</caption><thead><tr><th style="${thStyleL}">月</th><th style="${thStyle}">応募数</th><th style="${thStyle}">1次面接</th><th style="${thStyle}">2次面接</th><th style="${thStyle};color:#639922;">内定・採用</th><th style="${thStyle};color:#A32D2D;">不採用</th><th style="${thStyle};color:#EF9F27;">選考中</th><th style="${thStyle};color:#888;">辞退・連絡不通</th><th style="${thStyle};color:#378ADD;">面接率</th><th style="${thStyle};color:#3B6D11;">採用率</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td style="${tfStyleL}">合計/平均</td><td style="${tfStyle}">${tot.total}</td><td style="${tfStyle}">${tot.int1}</td><td style="${tfStyle}">${tot.int2}</td><td style="${tfStyle};color:#639922;">${tot.hired}</td><td style="${tfStyle};color:#A32D2D;">${tot.rejected}</td><td style="${tfStyle};color:#EF9F27;">${tot.active}</td><td style="${tfStyle};color:#888;">${tot.withdrew}</td><td style="${tfStyle};color:#378ADD;">${pct(tot.int1,tot.total)}</td><td style="${tfStyle};color:#3B6D11;">${pct(tot.hired,tot.total)}</td></tr></tfoot></table></div>`;
-}
-
-function getCompareData(){
-  const f=document.getElementById('anFrom2').value,t=document.getElementById('anTo2').value;
-  if(!f&&!t)return null;
-  return applicants.filter(a=>{if(f&&a.appDate<f)return false;if(t&&a.appDate>t)return false;return true;});
-}
-
-function renderCompareBar(dataA,dataB,labelA,labelB){
-  if(!dataB)return'';
-  const metrics=[
-    {label:'応募数',a:dataA.length,b:dataB.length},
-    {label:'1次面接',a:dataA.filter(x=>x.int1Date).length,b:dataB.filter(x=>x.int1Date).length},
-    {label:'採用',a:dataA.filter(x=>['内定','内定承諾','採用'].includes(x.hireStatus)).length,b:dataB.filter(x=>['内定','内定承諾','採用'].includes(x.hireStatus)).length},
-    {label:'面接率',a:dataA.length?Math.round(dataA.filter(x=>x.int1Date).length/dataA.length*100):0,b:dataB.length?Math.round(dataB.filter(x=>x.int1Date).length/dataB.length*100):0,pct:true},
-    {label:'採用率',a:dataA.length?Math.round(dataA.filter(x=>['内定','内定承諾','採用'].includes(x.hireStatus)).length/dataA.length*100):0,b:dataB.length?Math.round(dataB.filter(x=>['内定','内定承諾','採用'].includes(x.hireStatus)).length/dataB.length*100):0,pct:true},
-  ];
-  return`<div style="background:#f0f6ff;border-radius:8px;padding:.875rem;margin-bottom:1rem;border-left:3px solid #378ADD;"><div style="font-size:11px;font-weight:600;color:#378ADD;margin-bottom:8px;">📊 期間比較: ${labelA} vs ${labelB}</div><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">${metrics.map(m=>{const diff=m.a-m.b;const up=diff>=0;return`<div style="text-align:center;background:#fff;border-radius:6px;padding:7px;"><div style="font-size:10px;color:#aaa;margin-bottom:3px;">${m.label}</div><div style="font-size:15px;font-weight:700;color:#1a1a1a;">${m.a}${m.pct?'%':''}</div><div style="font-size:10px;color:${up?'#3B6D11':'#D85A30'};margin-top:2px;">${up?'▲':'▼'}${Math.abs(diff)}${m.pct?'%':''}</div><div style="font-size:10px;color:#aaa;">B: ${m.b}${m.pct?'%':''}</div></div>`;}).join('')}</div></div>`;
-}
 
 function renderAnContent(){
   // 旧タブ方式の後方互換（今は使わない）
@@ -3777,6 +3930,114 @@ function runSimulation() {
     +(nCPA?'<div style="background:#fff;border-radius:8px;padding:.875rem;text-align:center;"><div style="font-size:10px;color:#aaa;margin-bottom:4px;">推定予算(CPA)</div><div style="font-size:20px;font-weight:700;color:#EF9F27;">'+nCPA.toLocaleString()+'円</div></div>':'')
     +(nCPO?'<div style="background:#fff;border-radius:8px;padding:.875rem;text-align:center;"><div style="font-size:10px;color:#aaa;margin-bottom:4px;">推定予算(CPO)</div><div style="font-size:20px;font-weight:700;color:#D85A30;">'+nCPO.toLocaleString()+'円</div></div>':'')
     +'</div><div style="font-size:11px;color:#888;padding-top:.75rem;border-top:1px solid #d8e8f8;">⚠ あくまで参考値です。実績データが増えるほど精度は上がります。</div></div>';
+}
+
+
+// ========================================
+// ステータスマスター管理UI
+// ========================================
+function renderStatusMaster() {
+  // コアステータス凡例
+  const legendEl = document.getElementById('coreStatusLegend');
+  if (legendEl) {
+    legendEl.innerHTML = CORE_STATUS.map(cs =>
+      `<span style="display:inline-flex;align-items:center;gap:4px;background:${cs.color}18;border:1px solid ${cs.color}44;border-radius:12px;padding:3px 8px;font-size:10px;font-weight:600;color:${cs.color};">
+        <span style="width:7px;height:7px;border-radius:50%;background:${cs.color};"></span>${cs.name}
+      </span>`
+    ).join(' ');
+  }
+
+  // 詳細ステータス一覧（コアステータスでグループ化）
+  const listEl = document.getElementById('detailStatusList');
+  if (!listEl) return;
+
+  const grouped = {};
+  CORE_STATUS.forEach(cs => grouped[cs.id] = []);
+  detailStatuses.forEach(ds => {
+    if (grouped[ds.core_status_id]) grouped[ds.core_status_id].push(ds);
+    else grouped['other'] = grouped['other'] || [];
+  });
+
+  listEl.innerHTML = CORE_STATUS.map(cs => {
+    const items = grouped[cs.id] || [];
+    if (!items.length) return '';
+    return `<div style="margin-bottom:.75rem;">
+      <div style="font-size:11px;font-weight:700;color:${cs.color};margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+        <span style="width:8px;height:8px;border-radius:50%;background:${cs.color};display:inline-block;"></span>
+        ${cs.name}
+        <span style="font-size:10px;color:#aaa;font-weight:400;">${items.length}件</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;padding-left:14px;">
+        ${items.map(ds => `
+          <div style="display:flex;align-items:center;gap:4px;background:#f8f8f7;border:1px solid #e8e8e6;border-radius:8px;padding:4px 10px;font-size:11px;">
+            <span>${ds.name}</span>
+            ${!ds.is_default ? `<button onclick="deleteDetailStatus('${ds.id}')" style="background:none;border:none;cursor:pointer;color:#D85A30;font-size:11px;padding:0 2px;line-height:1;" title="削除">✕</button>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+  }).join('');
+
+  // コア選択肢を更新
+  const coreSelect = document.getElementById('newDetailStatusCore');
+  if (coreSelect) {
+    coreSelect.innerHTML = '<option value="">選択してください</option>' +
+      CORE_STATUS.map(cs => `<option value="${cs.id}">${cs.name}</option>`).join('');
+  }
+}
+
+function addDetailStatus() {
+  document.getElementById('addDetailStatusForm').style.display = 'block';
+  renderStatusMaster();
+}
+
+async function saveDetailStatus() {
+  const name = document.getElementById('newDetailStatusName').value.trim();
+  const coreId = document.getElementById('newDetailStatusCore').value;
+  if (!name || !coreId) { alert('ステータス名とコアステータスを入力してください'); return; }
+  if (detailStatuses.find(d => d.name === name)) { alert('同じ名前のステータスが既に存在します'); return; }
+
+  const newDs = {
+    id: 'ds_' + Date.now(),
+    client_id: currentClientId,
+    name,
+    core_status_id: coreId,
+    ord: detailStatuses.length + 1,
+    is_default: false
+  };
+
+  try {
+    const { error } = await sb.from('detail_status_master').insert(newDs);
+    if (error) {
+      // テーブル未作成の場合はメモリのみ
+      console.warn('detail_status_master insert failed:', error.message);
+    }
+  } catch(e) { console.warn(e); }
+
+  detailStatuses.push(newDs);
+  // mastersのstatusにも追加
+  if (!masters.status.includes(name)) {
+    masters.status.push(name);
+    popSelects();
+  }
+
+  document.getElementById('newDetailStatusName').value = '';
+  document.getElementById('newDetailStatusCore').value = '';
+  document.getElementById('addDetailStatusForm').style.display = 'none';
+  renderStatusMaster();
+  setStatus(name + ' を追加しました', 'ok');
+}
+
+async function deleteDetailStatus(id) {
+  if (!confirm('このステータスを削除しますか？')) return;
+  const ds = detailStatuses.find(d => d.id === id);
+  if (!ds) return;
+  try {
+    await sb.from('detail_status_master').delete().eq('id', id).eq('client_id', currentClientId);
+  } catch(e) {}
+  detailStatuses = detailStatuses.filter(d => d.id !== id);
+  renderStatusMaster();
+  setStatus(ds.name + ' を削除しました', 'ok');
 }
 
 function exportBudgetCSV() {
