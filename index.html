@@ -257,7 +257,25 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
     <!-- 一覧 -->
     <div id="sec-list" class="sec">
-      <div class="list-top">
+      <!-- 一括操作バー -->
+    <div id="bulkBar" style="display:none;background:linear-gradient(135deg,#1a1a1a,#333);color:#fff;border-radius:10px;padding:.875rem 1rem;margin-bottom:.875rem;display:none;align-items:center;gap:12px;flex-wrap:wrap;">
+      <span id="bulkCount" style="font-size:12px;font-weight:600;">0件選択中</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto;">
+        <span style="font-size:11px;color:#aaa;">ステータス一括変更：</span>
+        <select id="bulkStatus" style="padding:5px 9px;border:1px solid #555;border-radius:6px;background:#2a2a2a;color:#fff;font-size:11px;font-family:inherit;">
+          <option value="">選択</option>
+        </select>
+        <button onclick="bulkUpdateStatus()" style="padding:6px 12px;background:#378ADD;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">適用</button>
+        <span style="font-size:11px;color:#aaa;margin-left:4px;">採用可否一括変更：</span>
+        <select id="bulkHire" style="padding:5px 9px;border:1px solid #555;border-radius:6px;background:#2a2a2a;color:#fff;font-size:11px;font-family:inherit;">
+          <option value="">選択</option>
+        </select>
+        <button onclick="bulkUpdateHire()" style="padding:6px 12px;background:#1D9E75;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">適用</button>
+        <button onclick="bulkDelete()" style="padding:6px 12px;background:#D85A30;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">一括削除</button>
+        <button onclick="clearChecks()" style="padding:6px 12px;background:transparent;color:#aaa;border:1px solid #555;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;">選択解除</button>
+      </div>
+    </div>
+    <div class="list-top">
         <div class="sr-row">
           <input type="text" id="srch" placeholder="名前・メール検索" style="width:120px;" oninput="renderList()">
           <select id="fSt" onchange="renderList()"><option value="">ステータス（全て）</option></select>
@@ -281,6 +299,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
       <div class="tbl-wrap">
         <table>
           <thead><tr>
+  <th style="width:36px;"><input type="checkbox" id="checkAll" onclick="toggleCheckAll(this)" style="cursor:pointer;width:14px;height:14px;"></th>
   <th onclick="toggleSort('appDate')" style="cursor:pointer;">応募日 <span id="sort_appDate">↓</span></th>
   <th>名前</th>
   <th onclick="toggleSort('jobType')" style="cursor:pointer;">職種 <span id="sort_jobType"></span></th>
@@ -535,10 +554,42 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
         <button class="btn-sm" onclick="setPeriod('all')">累計</button>
         <div style="margin-left:auto;"><button class="btn-exp" onclick="exportPDF()">レポートPDF出力</button></div>
       </div>
+
+      <!-- KPIサマリー -->
       <div class="metric-grid" id="anMetrics"></div>
+
+      <!-- 月別集計テーブル -->
+      <div style="margin-bottom:1.5rem;">
+        <div style="font-size:12px;font-weight:600;color:#666;margin-bottom:8px;">📊 月別集計（応募数・書類回収率・面接率・採用率）</div>
+        <div style="overflow-x:auto;">
+          <table id="anMonthlyTable" style="width:100%;border-collapse:collapse;font-size:11px;min-width:700px;">
+            <thead>
+              <tr style="background:#f8f8f7;">
+                <th style="padding:8px 10px;text-align:left;border-bottom:1px solid #e8e8e6;white-space:nowrap;">月</th>
+                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;">応募数</th>
+                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;">1次面接</th>
+                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;">2次面接</th>
+                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;">内定・採用</th>
+                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;">不採用</th>
+                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;">選考中</th>
+                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;">辞退</th>
+                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;color:#378ADD;">面接率</th>
+                <th style="padding:8px 10px;text-align:right;border-bottom:1px solid #e8e8e6;color:#3B6D11;">採用率</th>
+              </tr>
+            </thead>
+            <tbody id="anMonthlyBody"></tbody>
+            <tfoot id="anMonthlyFoot"></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- グラフタブ -->
       <div class="tab-row">
         <button class="tab active" onclick="setTab('media',this)">媒体別</button>
         <button class="tab" onclick="setTab('job',this)">職種別</button>
+        <button class="tab" onclick="setTab('status',this)">ステータス別</button>
+        <button class="tab" onclick="setTab('hire',this)">採用可否別</button>
+        <button class="tab" onclick="setTab('gender',this)">性別</button>
         <button class="tab" onclick="setTab('trend',this)">月次トレンド</button>
         <button class="tab" onclick="setTab('funnel',this)">ファネル</button>
       </div>
@@ -873,6 +924,9 @@ function renderList() {
       ? 'background:linear-gradient(90deg,#eef4ff,#f0f6ff);'
       : '';
     return `<tr id="row_${a.id}" style="${rowBg}">
+      <td style="width:36px;" onclick="event.stopPropagation()">
+        <input type="checkbox" class="rowCheck" value="${a.id}" onchange="onCheckChange()" style="cursor:pointer;width:14px;height:14px;">
+      </td>
       <td>${a.appDate||''}</td>
       <td style="font-weight:500;">${a.name}</td>
       <td>${a.jobType||''}</td>
@@ -898,7 +952,7 @@ function renderList() {
       <td>${dc?`<span class="badge bgr">${dc}件</span>`:''}</td>
       <td><button class="btn-sm" onclick="openDetail('${a.id}')">詳細</button></td>
     </tr>
-    <tr id="detail_${a.id}" style="display:none;"><td colspan="9" style="padding:0;"></td></tr>`;
+    <tr id="detail_${a.id}" style="display:none;"><td colspan="10" style="padding:0;"></td></tr>`;
   }).join('');
 }
 
@@ -1113,7 +1167,7 @@ function exportPDF() {
   const mR=Object.entries(mc).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td align="right">${v}件</td><td align="right">${total?Math.round(v/total*100):0}%</td></tr>`).join('');
   const jR=Object.entries(jc).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td align="right">${v}件</td></tr>`).join('');
   const sR=Object.entries(sc).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td align="right">${v}件</td></tr>`).join('');
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>採用コア レポート</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#1a1a1a;margin:0;padding:32px;}h1{font-size:20px;font-weight:700;margin-bottom:4px;color:#185FA5;}.sub{font-size:11px;color:#888;margin-bottom:24px;}h2{font-size:13px;font-weight:600;margin:20px 0 8px;padding-bottom:5px;border-bottom:1.5px solid #e0e0e0;}.mg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}.mc{background:#f5f5f5;border-radius:6px;padding:12px;}.ml{font-size:10px;color:#888;margin-bottom:3px;}.mv{font-size:20px;font-weight:700;color:#185FA5;}table{width:100%;border-collapse:collapse;font-size:11px;}th{background:#f5f5f5;text-align:left;padding:7px 9px;font-weight:600;}td{padding:6px 9px;border-bottom:1px solid #f0f0f0;}.footer{margin-top:28px;font-size:10px;color:#aaa;text-align:right;}@media print{body{padding:20px;}}</style></head><body><h1>採用コア｜採用レポート</h1><div class="sub">クライアント：${currentClientName}　期間：${from}〜${to}　出力：${new Date().toLocaleDateString('ja-JP')}</div><h2>サマリー</h2><div class="mg"><div class="mc"><div class="ml">総応募数</div><div class="mv">${total}</div></div><div class="mc"><div class="ml">内定・入社</div><div class="mv">${hired}</div></div><div class="mc"><div class="ml">採用率</div><div class="mv">${rate}%</div></div><div class="mc"><div class="ml">媒体数</div><div class="mv">${Object.keys(mc).length}</div></div></div><h2>媒体別応募状況</h2><table><thead><tr><th>媒体名</th><th align="right">応募数</th><th align="right">構成比</th></tr></thead><tbody>${mR||'<tr><td colspan="3" style="color:#aaa">データなし</td></tr>'}</tbody></table><h2>職種別応募状況</h2><table><thead><tr><th>職種</th><th align="right">応募数</th></tr></thead><tbody>${jR||'<tr><td colspan="2" style="color:#aaa">データなし</td></tr>'}</tbody></table><h2>ステータス別進捗</h2><table><thead><tr><th>ステータス</th><th align="right">人数</th></tr></thead><tbody>${sR||'<tr><td colspan="2" style="color:#aaa">データなし</td></tr>'}</tbody></table><div class="footer">採用コア · ${new Date().toLocaleString('ja-JP')}</div><script>window.onload=function(){window.print();}<\/script></body></html>`;
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>採用コア レポート</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#1a1a1a;margin:0;padding:32px;}h1{font-size:20px;font-weight:700;margin-bottom:4px;color:#185FA5;}.sub{font-size:11px;color:#888;margin-bottom:24px;}h2{font-size:13px;font-weight:600;margin:20px 0 8px;padding-bottom:5px;border-bottom:1.5px solid #e0e0e0;}.mg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}.mc{background:#f5f5f5;border-radius:6px;padding:12px;}.ml{font-size:10px;color:#888;margin-bottom:3px;}.mv{font-size:20px;font-weight:700;color:#185FA5;}table{width:100%;border-collapse:collapse;font-size:11px;}th{background:#f5f5f5;text-align:left;padding:7px 9px;font-weight:600;}td{padding:6px 9px;border-bottom:1px solid #f0f0f0;}.footer{margin-top:28px;font-size:10px;color:#aaa;text-align:right;}@media print{body{padding:20px;}}</style></head><body><h1>採用コア｜採用レポート</h1><div class="sub">クライアント：${currentClientName}　期間：${from}〜${to}　出力：${new Date().toLocaleDateString('ja-JP')}</div><h2>サマリー</h2><div class="mg"><div class="mc"><div class="ml">総応募数</div><div class="mv">${total}</div></div><div class="mc"><div class="ml">内定・入社</div><div class="mv">${hired}</div></div><div class="mc"><div class="ml">採用率</div><div class="mv">${rate}%</div></div><div class="mc"><div class="ml">媒体数</div><div class="mv">${Object.keys(mc).length}</div></div></div><h2>月別集計</h2><table><thead><tr><th>月</th><th align="right">応募数</th><th align="right">1次面接</th><th align="right">2次面接</th><th align="right">採用</th><th align="right">不採用</th><th align="right">面接率</th><th align="right">採用率</th></tr></thead><tbody>${monthR||'<tr><td colspan="8" style="color:#aaa">データなし</td></tr>'}</tbody></table><h2>媒体別応募状況</h2><table><thead><tr><th>媒体名</th><th align="right">応募数</th><th align="right">構成比</th></tr></thead><tbody>${mR||'<tr><td colspan="3" style="color:#aaa">データなし</td></tr>'}</tbody></table><h2>職種別応募状況</h2><table><thead><tr><th>職種</th><th align="right">応募数</th></tr></thead><tbody>${jR||'<tr><td colspan="2" style="color:#aaa">データなし</td></tr>'}</tbody></table><h2>ステータス別進捗</h2><table><thead><tr><th>ステータス</th><th align="right">人数</th></tr></thead><tbody>${sR||'<tr><td colspan="2" style="color:#aaa">データなし</td></tr>'}</tbody></table><div class="footer">採用コア · ${new Date().toLocaleString('ja-JP')}</div><script>window.onload=function(){window.print();}<\/script></body></html>`;
   window.open(URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'})),'_blank');
 }
 
@@ -1133,22 +1187,111 @@ function setPeriod(p) {
 }
 function setTab(t,btn){ anTab=t; document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderAn(); }
 function renderAn() {
-  const data=getAnData(),total=data.length;
-  const hired=data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
-  const rate=total?Math.round(hired/total*100):0;
-  const active=data.filter(a=>a.status&&!['内定','入社','不採用','辞退'].includes(a.status)).length;
+  const data = getAnData(), total = data.length;
+  const hired = data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
+  const rate = total ? Math.round(hired/total*100) : 0;
+  const active = data.filter(a=>a.status&&!['内定','入社','不採用','辞退','内定承諾','採用'].includes(a.status)).length;
+  const int1 = data.filter(a=>a.int1Date).length;
+  const int2 = data.filter(a=>a.int2Date).length;
+  const rejected = data.filter(a=>a.status==='不採用'||a.hireStatus==='不採用').length;
+  const withdrew = data.filter(a=>a.status&&(a.status.includes('辞退')||a.status.includes('連絡不通'))).length;
+
   document.getElementById('anMetrics').innerHTML=`
-    <div class="mc"><div class="mc-lbl">総応募数</div><div class="mc-val">${total}</div></div>
-    <div class="mc"><div class="mc-lbl">内定・入社</div><div class="mc-val">${hired}</div></div>
-    <div class="mc"><div class="mc-lbl">採用率</div><div class="mc-val">${rate}%</div></div>
-    <div class="mc"><div class="mc-lbl">選考中</div><div class="mc-val">${active}</div></div>`;
+    <div class="mc" style="border-left:3px solid #378ADD;"><div class="mc-lbl">総応募数</div><div class="mc-val">${total}</div></div>
+    <div class="mc" style="border-left:3px solid #85B7EB;"><div class="mc-lbl">1次面接</div><div class="mc-val">${int1}</div><div class="mc-sub">${total?Math.round(int1/total*100):0}%</div></div>
+    <div class="mc" style="border-left:3px solid #5DCAA5;"><div class="mc-lbl">2次面接</div><div class="mc-val">${int2}</div><div class="mc-sub">${total?Math.round(int2/total*100):0}%</div></div>
+    <div class="mc" style="border-left:3px solid #639922;"><div class="mc-lbl">内定・採用</div><div class="mc-val">${hired}</div><div class="mc-sub">採用率 ${rate}%</div></div>
+    <div class="mc" style="border-left:3px solid #A32D2D;"><div class="mc-lbl">不採用</div><div class="mc-val">${rejected}</div></div>
+    <div class="mc" style="border-left:3px solid #EF9F27;"><div class="mc-lbl">選考中</div><div class="mc-val">${active}</div></div>`;
+
+  // 月別集計テーブル
+  renderMonthlyTable(data);
+
   if(anChart){anChart.destroy();anChart=null;}
   const wrap=document.getElementById('anWrap'); wrap.innerHTML='';
   if(!total){wrap.innerHTML='<div class="empty">この期間のデータがありません</div>';return;}
   if(anTab==='media') doBarChart(data,wrap,'media','#378ADD');
   else if(anTab==='job') doBarChart(data,wrap,'jobType','#1D9E75');
+  else if(anTab==='status') doBarChart(data,wrap,'status','#85B7EB');
+  else if(anTab==='hire') doBarChart(data,wrap,'hireStatus','#EF9F27');
+  else if(anTab==='gender') doBarChart(data,wrap,'gender','#5DCAA5');
   else if(anTab==='trend') doTrend(data,wrap);
   else doFunnel(data,wrap);
+}
+
+function renderMonthlyTable(data) {
+  // 月ごとに集計
+  const months = {};
+  data.forEach(a => {
+    if (!a.appDate) return;
+    const m = a.appDate.substring(0,7); // YYYY-MM
+    if (!months[m]) months[m] = { total:0, int1:0, int2:0, hired:0, rejected:0, active:0, withdrew:0 };
+    months[m].total++;
+    if (a.int1Date) months[m].int1++;
+    if (a.int2Date) months[m].int2++;
+    if (['内定','内定承諾','採用'].includes(a.hireStatus)) months[m].hired++;
+    else if (a.status==='不採用'||a.hireStatus==='不採用') months[m].rejected++;
+    else if (a.status&&(a.status.includes('辞退')||a.status.includes('連絡不通'))) months[m].withdrew++;
+    else months[m].active++;
+  });
+
+  const sortedMonths = Object.keys(months).sort();
+  const pct = (n,d) => d ? (n/d*100).toFixed(1)+'%' : '-';
+  const colorPct = (n,d,good=10) => {
+    const v = d ? n/d*100 : 0;
+    return v >= good ? '#3B6D11' : v >= good/2 ? '#854F0B' : '#A32D2D';
+  };
+
+  const tbody = document.getElementById('anMonthlyBody');
+  const tfoot = document.getElementById('anMonthlyFoot');
+
+  if (!sortedMonths.length) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:1rem;color:#aaa;">データがありません</td></tr>';
+    tfoot.innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = sortedMonths.map(m => {
+    const d = months[m];
+    const intRate = pct(d.int1, d.total);
+    const hireRate = pct(d.hired, d.total);
+    const intColor = colorPct(d.int1, d.total, 15);
+    const hireColor = colorPct(d.hired, d.total, 5);
+    return `<tr style="border-bottom:1px solid #f8f8f7;">
+      <td style="padding:7px 10px;font-weight:500;">${m}</td>
+      <td style="padding:7px 10px;text-align:right;">${d.total}</td>
+      <td style="padding:7px 10px;text-align:right;">${d.int1}</td>
+      <td style="padding:7px 10px;text-align:right;">${d.int2}</td>
+      <td style="padding:7px 10px;text-align:right;color:#3B6D11;font-weight:500;">${d.hired}</td>
+      <td style="padding:7px 10px;text-align:right;color:#A32D2D;">${d.rejected}</td>
+      <td style="padding:7px 10px;text-align:right;color:#854F0B;">${d.active}</td>
+      <td style="padding:7px 10px;text-align:right;color:#666;">${d.withdrew}</td>
+      <td style="padding:7px 10px;text-align:right;font-weight:500;color:${intColor};">${intRate}</td>
+      <td style="padding:7px 10px;text-align:right;font-weight:500;color:${hireColor};">${hireRate}</td>
+    </tr>`;
+  }).join('');
+
+  // 合計行
+  const totals = sortedMonths.reduce((acc, m) => {
+    const d = months[m];
+    acc.total+=d.total; acc.int1+=d.int1; acc.int2+=d.int2;
+    acc.hired+=d.hired; acc.rejected+=d.rejected;
+    acc.active+=d.active; acc.withdrew+=d.withdrew;
+    return acc;
+  }, {total:0,int1:0,int2:0,hired:0,rejected:0,active:0,withdrew:0});
+
+  tfoot.innerHTML = `<tr style="background:#f8f8f7;font-weight:600;border-top:2px solid #e8e8e6;">
+    <td style="padding:8px 10px;">合計/平均</td>
+    <td style="padding:8px 10px;text-align:right;">${totals.total}</td>
+    <td style="padding:8px 10px;text-align:right;">${totals.int1}</td>
+    <td style="padding:8px 10px;text-align:right;">${totals.int2}</td>
+    <td style="padding:8px 10px;text-align:right;color:#3B6D11;">${totals.hired}</td>
+    <td style="padding:8px 10px;text-align:right;color:#A32D2D;">${totals.rejected}</td>
+    <td style="padding:8px 10px;text-align:right;color:#854F0B;">${totals.active}</td>
+    <td style="padding:8px 10px;text-align:right;color:#666;">${totals.withdrew}</td>
+    <td style="padding:8px 10px;text-align:right;color:#378ADD;">${pct(totals.int1,totals.total)}</td>
+    <td style="padding:8px 10px;text-align:right;color:#3B6D11;">${pct(totals.hired,totals.total)}</td>
+  </tr>`;
 }
 function doBarChart(data,wrap,key,color){
   const c={};data.forEach(a=>{if(a[key])c[a[key]]=(c[a[key]]||0)+1;});
@@ -1720,7 +1863,11 @@ function showManualTaskForm() {
   document.getElementById('manualTaskForm').style.display = 'block';
   document.getElementById('mtStart').value = new Date().toISOString().split('T')[0];
 }
-function hideManualTaskForm() { document.getElementById('manualTaskForm').style.display = 'none'; }
+function hideManualTaskForm() {
+  document.getElementById('manualTaskForm').style.display = 'none';
+  const saveBtn = document.querySelector('#manualTaskForm .btn-p');
+  if (saveBtn) { saveBtn.textContent = '追加'; saveBtn.onclick = saveManualTask; }
+}
 
 async function saveManualTask() {
   const content = document.getElementById('mtContent').value.trim();
@@ -1765,7 +1912,7 @@ function renderTaskRow(task, compact=false) {
             <button class="btn-sm" style="background:#f0faf6;color:#3B6D11;border-color:#c8e6c9;" onclick="confirmComplete('${task.id}', document.getElementById('cdate_${task.id}').value)">確定</button>
           </div>
         </div>`}
-    ${!compact ? `<button class="btn-del" style="flex-shrink:0;" onclick="deleteTask('${task.id}')">削除</button>` : ''}
+    ${!compact ? `<button class="btn-sm" style="flex-shrink:0;" onclick="editTask('${task.id}')">編集</button><button class="btn-del" style="flex-shrink:0;" onclick="deleteTask('${task.id}')">削除</button>` : ''}
   </div>`;
 }
 
@@ -1835,6 +1982,126 @@ async function deleteTask(id) {
   tasks = tasks.filter(t => t.id !== id);
   await saveTasksData();
   renderTasks();
+}
+
+// ========================================
+// 一括操作
+// ========================================
+function getCheckedIds() {
+  return Array.from(document.querySelectorAll('.rowCheck:checked')).map(c => c.value);
+}
+
+function onCheckChange() {
+  const ids = getCheckedIds();
+  const bar = document.getElementById('bulkBar');
+  const count = document.getElementById('bulkCount');
+  if (ids.length > 0) {
+    bar.style.display = 'flex';
+    count.textContent = ids.length + '件選択中';
+    // プルダウン更新
+    const bSt = document.getElementById('bulkStatus');
+    const bHire = document.getElementById('bulkHire');
+    bSt.innerHTML = '<option value="">選択</option>';
+    (masters.status||[]).forEach(v => bSt.innerHTML += `<option>${v}</option>`);
+    bHire.innerHTML = '<option value="">選択</option>';
+    (masters.hire||['内定','内定承諾','採用','不採用','保留']).forEach(v => bHire.innerHTML += `<option>${v}</option>`);
+  } else {
+    bar.style.display = 'none';
+  }
+  // 全選択チェックボックスの状態更新
+  const total = document.querySelectorAll('.rowCheck').length;
+  const ca = document.getElementById('checkAll');
+  if (ca) ca.checked = ids.length === total && total > 0;
+}
+
+function toggleCheckAll(cb) {
+  document.querySelectorAll('.rowCheck').forEach(c => c.checked = cb.checked);
+  onCheckChange();
+}
+
+function clearChecks() {
+  document.querySelectorAll('.rowCheck').forEach(c => c.checked = false);
+  const ca = document.getElementById('checkAll');
+  if (ca) ca.checked = false;
+  document.getElementById('bulkBar').style.display = 'none';
+}
+
+async function bulkUpdateStatus() {
+  const val = document.getElementById('bulkStatus').value;
+  if (!val) { alert('ステータスを選択してください'); return; }
+  const ids = getCheckedIds();
+  if (!ids.length) return;
+  if (!confirm(`${ids.length}件のステータスを「${val}」に変更しますか？`)) return;
+  const { error } = await sb.from('applicants').update({ status: val }).in('id', ids);
+  if (error) { alert('更新に失敗しました: ' + error.message); return; }
+  ids.forEach(id => { const a = applicants.find(x => x.id === id); if (a) a.status = val; });
+  clearChecks();
+  renderList();
+  setStatus(`${ids.length}件のステータスを更新しました`, 'ok');
+}
+
+async function bulkUpdateHire() {
+  const val = document.getElementById('bulkHire').value;
+  if (!val) { alert('採用可否を選択してください'); return; }
+  const ids = getCheckedIds();
+  if (!ids.length) return;
+  if (!confirm(`${ids.length}件の採用可否を「${val}」に変更しますか？`)) return;
+  const { error } = await sb.from('applicants').update({ hire_status: val }).in('id', ids);
+  if (error) { alert('更新に失敗しました: ' + error.message); return; }
+  ids.forEach(id => { const a = applicants.find(x => x.id === id); if (a) a.hireStatus = val; });
+  clearChecks();
+  renderList();
+  setStatus(`${ids.length}件の採用可否を更新しました`, 'ok');
+}
+
+async function bulkDelete() {
+  const ids = getCheckedIds();
+  if (!ids.length) return;
+  if (!confirm(`選択した${ids.length}件を削除しますか？\nこの操作は取り消せません。`)) return;
+  const { error } = await sb.from('applicants').delete().in('id', ids);
+  if (error) { alert('削除に失敗しました: ' + error.message); return; }
+  applicants = applicants.filter(a => !ids.includes(a.id));
+  clearChecks();
+  popSelects();
+  renderList();
+  setStatus(`${ids.length}件を削除しました`, 'ok');
+}
+
+function editTask(id) {
+  const t = tasks.find(x => x.id === id); if (!t) return;
+  showManualTaskForm();
+  document.getElementById('mtOwner').value = t.owner || 'LinkCore';
+  document.getElementById('mtContent').value = t.content || '';
+  document.getElementById('mtStart').value = t.startDate || '';
+  document.getElementById('mtDue').value = t.due || '';
+  document.getElementById('mtPriority').value = t.priority || '中';
+  // 保存ボタンを「更新」モードに
+  const saveBtn = document.querySelector('#manualTaskForm .btn-p');
+  if (saveBtn) {
+    saveBtn.textContent = '更新する';
+    saveBtn.onclick = () => updateTask(id);
+  }
+  document.getElementById('manualTaskForm').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+async function updateTask(id) {
+  const content = document.getElementById('mtContent').value.trim();
+  const due = document.getElementById('mtDue').value;
+  if (!content) { alert('タスク内容を入力してください'); return; }
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  t.owner = document.getElementById('mtOwner').value;
+  t.content = content;
+  t.startDate = document.getElementById('mtStart').value;
+  t.due = due;
+  t.priority = document.getElementById('mtPriority').value;
+  await saveTasksData();
+  hideManualTaskForm();
+  // ボタンを「追加」モードに戻す
+  const saveBtn = document.querySelector('#manualTaskForm .btn-p');
+  if (saveBtn) { saveBtn.textContent = '追加'; saveBtn.onclick = saveManualTask; }
+  renderTasks();
+  setStatus('タスクを更新しました', 'ok');
 }
 
 // タスク残数カウント（クライアント管理用）
