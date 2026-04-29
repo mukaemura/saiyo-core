@@ -1448,7 +1448,7 @@ function stColor(s) {
 }
 
 async function updateHireStatus(id, val) {
-  const { error } = await sb.from('applicants').update({ hire_status: val }).eq('id', id);
+  const { error } = await sb.from('applicants').update({ hire_status: val }).eq('id', id).eq('client_id', currentClientId);
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
   const a = applicants.find(x => x.id === id);
   if (a) a.hireStatus = val;
@@ -1464,7 +1464,7 @@ async function updateHireStatus(id, val) {
 }
 
 async function updateDept(id, val) {
-  const { error } = await sb.from('applicants').update({ dept: val }).eq('id', id);
+  const { error } = await sb.from('applicants').update({ dept: val }).eq('id', id).eq('client_id', currentClientId);
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
   const a = applicants.find(x => x.id === id);
   if (a) a.dept = val;
@@ -1472,7 +1472,7 @@ async function updateDept(id, val) {
 }
 
 async function updateStatus(id, val) {
-  const { error } = await sb.from('applicants').update({ status: val }).eq('id', id);
+  const { error } = await sb.from('applicants').update({ status: val }).eq('id', id).eq('client_id', currentClientId);
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
   const a = applicants.find(x => x.id === id);
   if (a) a.status = val;
@@ -1555,7 +1555,7 @@ function editApp() {
 
 async function delApp() {
   if (!confirm('この応募者を削除しますか？')) return;
-  const { error } = await sb.from('applicants').delete().eq('id', curId);
+  const { error } = await sb.from('applicants').delete().eq('id', curId).eq('client_id', currentClientId);
   if (error) { alert('削除に失敗しました: ' + error.message); return; }
   applicants = applicants.filter(x => x.id !== curId);
   closeDetail(); popSelects(); renderList();
@@ -1610,7 +1610,7 @@ async function saveApp() {
   };
   let error;
   if (editId) {
-    ({ error } = await sb.from('applicants').update(row).eq('id', editId));
+    ({ error } = await sb.from('applicants').update(row).eq('id', editId).eq('client_id', currentClientId));
   } else {
     ({ error } = await sb.from('applicants').insert(row));
   }
@@ -2998,9 +2998,9 @@ async function saveMinutes() {
   const cid = currentClientId;
   const row = { id: mid, client_id: cid, date, url: url||null, title: title||null, tasks: tempMinuteTasks };
   if (editingMinuteId) {
-    await sb.from('minutes').update(row).eq('id', mid);
+    await sb.from('minutes').update(row).eq('id', mid).eq('client_id', currentClientId);
     // 関連タスクを削除して再挿入
-    await sb.from('tasks').delete().eq('minute_id', mid);
+    await sb.from('tasks').delete().eq('minute_id', mid).eq('client_id', currentClientId);
     tasks = tasks.filter(t => t.minuteId !== mid);
   } else {
     await sb.from('minutes').insert(row);
@@ -3072,8 +3072,8 @@ function editMinute(id) {
 
 async function deleteMinute(id) {
   if (!confirm('この議事録を削除しますか？（関連タスクも削除されます）')) return;
-  await sb.from('tasks').delete().eq('minute_id', id);
-  await sb.from('minutes').delete().eq('id', id);
+  await sb.from('tasks').delete().eq('minute_id', id).eq('client_id', currentClientId);
+  await sb.from('minutes').delete().eq('id', id).eq('client_id', currentClientId);
   minutes = minutes.filter(m => m.id !== id);
   tasks = tasks.filter(t => t.minuteId !== id);
   renderMinutes();
@@ -3211,7 +3211,7 @@ function showCompleteInput(id) {
 
 async function confirmComplete(id, dateVal) {
   const doneDate = dateVal || new Date().toISOString().split('T')[0];
-  await sb.from('tasks').update({ done: true, done_date: doneDate }).eq('id', id);
+  await sb.from('tasks').update({ done: true, done_date: doneDate }).eq('id', id).eq('client_id', currentClientId);
   const t = tasks.find(x => x.id === id);
   if (t) { t.done = true; t.doneDate = doneDate; }
   await saveTasksData();
@@ -3222,7 +3222,7 @@ async function confirmComplete(id, dateVal) {
 
 async function deleteTask(id) {
   if (!confirm('このタスクを削除しますか？')) return;
-  await sb.from('tasks').delete().eq('id', id);
+  await sb.from('tasks').delete().eq('id', id).eq('client_id', currentClientId);
   tasks = tasks.filter(t => t.id !== id);
   await saveTasksData();
   renderTasks();
@@ -3276,7 +3276,7 @@ async function bulkUpdateStatus() {
   const ids = getCheckedIds();
   if (!ids.length) return;
   if (!confirm(`${ids.length}件のステータスを「${val}」に変更しますか？`)) return;
-  const { error } = await sb.from('applicants').update({ status: val }).in('id', ids);
+  const { error } = await sb.from('applicants').update({ status: val }).in('id', ids).eq('client_id', currentClientId);
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
   ids.forEach(id => { const a = applicants.find(x => x.id === id); if (a) a.status = val; });
   clearChecks();
@@ -3290,7 +3290,7 @@ async function bulkUpdateHire() {
   const ids = getCheckedIds();
   if (!ids.length) return;
   if (!confirm(`${ids.length}件の採用可否を「${val}」に変更しますか？`)) return;
-  const { error } = await sb.from('applicants').update({ hire_status: val }).in('id', ids);
+  const { error } = await sb.from('applicants').update({ hire_status: val }).in('id', ids).eq('client_id', currentClientId);
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
   ids.forEach(id => { const a = applicants.find(x => x.id === id); if (a) a.hireStatus = val; });
   clearChecks();
@@ -3302,7 +3302,7 @@ async function bulkDelete() {
   const ids = getCheckedIds();
   if (!ids.length) return;
   if (!confirm(`選択した${ids.length}件を削除しますか？\nこの操作は取り消せません。`)) return;
-  const { error } = await sb.from('applicants').delete().in('id', ids);
+  const { error } = await sb.from('applicants').delete().in('id', ids).eq('client_id', currentClientId);
   if (error) { alert('削除に失敗しました: ' + error.message); return; }
   applicants = applicants.filter(a => !ids.includes(a.id));
   clearChecks();
@@ -3340,7 +3340,7 @@ async function updateTask(id) {
   t.due = due;
   t.priority = document.getElementById('mtPriority').value;
   try {
-    await sb.from('tasks').update({ owner: t.owner, content: taskContent, start_date: t.startDate||null, due_date: due||null, priority: t.priority }).eq('id', id);
+    await sb.from('tasks').update({ owner: t.owner, content: taskContent, start_date: t.startDate||null, due_date: due||null, priority: t.priority }).eq('id', id).eq('client_id', currentClientId);
   } catch(e) {
     // fallback: update localStorage
     const stored = JSON.parse(localStorage.getItem('saiyo_tasks_fallback_' + currentClientId) || '[]');
