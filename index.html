@@ -3434,71 +3434,52 @@ function shiftMonth(inputId, renderFn, delta) {
 
 function renderStyledCalendar(containerId, ym, markedDates, onDayClick, opts) {
   var el = document.getElementById(containerId);
-  if (!el) return;
-  if (!ym) { el.innerHTML = ''; return; }
-  var parts = ym.split('-'); var y = parseInt(parts[0]); var m = parseInt(parts[1]);
-  var firstDay = new Date(y, m-1, 1).getDay();
-  var daysInMonth = new Date(y, m, 0).getDate();
+  if (!el || !ym) { if(el) el.innerHTML=''; return; }
+  var p = ym.split('-'); var y = parseInt(p[0]); var m = parseInt(p[1]);
+  var fd = new Date(y, m-1, 1).getDay();
+  var dim = new Date(y, m, 0).getDate();
   var today = new Date().toISOString().split('T')[0];
-  var ens = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  var bgs = [
-    'linear-gradient(160deg,#e8f4f8,#d6e8f0)','linear-gradient(160deg,#fde8f0,#f5d0e0)',
-    'linear-gradient(160deg,#fde8f5,#f9d0e8)','linear-gradient(160deg,#f5f0ea,#ede8e0)',
-    'linear-gradient(160deg,#e8f5e9,#c8e6c9)','linear-gradient(160deg,#e3f2fd,#bbdefb)',
-    'linear-gradient(160deg,#fff9e6,#fff3cd)','linear-gradient(160deg,#ffeaa7,#fdcb6e)',
-    'linear-gradient(160deg,#fdf2e9,#f5d7b5)','linear-gradient(160deg,#fde8d8,#f5cba7)',
-    'linear-gradient(160deg,#eaf0f6,#d5e8f8)','linear-gradient(160deg,#eaf4fb,#d6eaf8)'
-  ];
-  var accents = ['#2471a3','#c0392b','#d35db0','#6b4f3a','#2e7d32','#1565c0','#e67e22','#d35400','#ca6f1e','#a04000','#1a5276','#1a5276'];
-  var nums =    ['#1a5276','#922b21','#a83278','#4a3020','#1b5e20','#0d47a1','#ca6f1e','#a04000','#935116','#784212','#154360','#154360'];
-  var bg = bgs[m-1]; var accent = accents[m-1]; var num = nums[m-1];
-  var logoSrc = (document.querySelector('.header img') || {src:''}).src;
-  var charSrc = (document.getElementById('dashChar') || {src:''}).src;
-  var type = (opts && opts.type) || 'tasks';
-  var dayL = ['日','月','火','水','木','金','土'];
-  var html = '<div style="display:flex;gap:0;background:'+bg+';border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08);border:1px solid rgba(0,0,0,.06);">';
-  html += '<div style="width:130px;flex-shrink:0;padding:1.25rem 1rem;display:flex;flex-direction:column;align-items:center;justify-content:space-between;border-right:1px solid rgba(0,0,0,.06);">';
-  html += '<div style="text-align:center;">';
-  html += '<div style="font-family:Georgia,serif;font-size:12px;color:'+accent+';letter-spacing:.1em;margin-bottom:6px;font-style:italic;">'+ens[m-1]+'</div>';
-  html += '<div style="font-size:56px;font-weight:900;color:'+num+';line-height:1;margin-bottom:6px;">'+m+'</div>';
-  html += '<div style="font-size:11px;color:rgba(0,0,0,.3);letter-spacing:.06em;">'+y+'</div></div>';
-  if (logoSrc||charSrc) {
-    html += '<div style="text-align:center;margin-top:1rem;opacity:.85;">';
-    if (logoSrc) html += '<img src="'+logoSrc+'" style="width:36px;height:36px;object-fit:contain;display:block;margin:0 auto 8px;">';
-    if (charSrc) html += '<img src="'+charSrc+'" style="width:60px;height:60px;object-fit:contain;display:block;margin:0 auto;">';
-    html += '</div>';
-  }
-  html += '</div><div style="flex:1;padding:.875rem .75rem;overflow-x:auto;">';
-  html += '<table style="width:100%;border-collapse:collapse;min-width:320px;"><thead><tr>';
-  for (var di=0;di<7;di++){var dc=di===0?'#c0392b':di===6?'#2471a3':'#4a4040';html+='<th style="padding:6px 2px;font-size:11px;font-weight:700;color:'+dc+';text-align:center;border-bottom:2px solid rgba(0,0,0,.08);">'+dayL[di]+'</th>';}
-  html += '</tr></thead><tbody>';
-  var day=1; var wc=Math.ceil((firstDay+daysInMonth)/7);
-  for(var row=0;row<wc;row++){
-    html+='<tr>';
-    for(var col=0;col<7;col++){
-      var cn=row*7+col;
-      if(cn<firstDay||day>daysInMonth){html+='<td style="padding:3px;height:52px;border:1px solid rgba(0,0,0,.05);background:rgba(255,255,255,.3);"></td>';}
+  var ens=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var bgs=['linear-gradient(160deg,#e8f4f8,#d6e8f0)','linear-gradient(160deg,#fde8f0,#f5d0e0)','linear-gradient(160deg,#fde8f5,#f9d0e8)','linear-gradient(160deg,#f5f0ea,#ede8e0)','linear-gradient(160deg,#e8f5e9,#c8e6c9)','linear-gradient(160deg,#e3f2fd,#bbdefb)','linear-gradient(160deg,#fff9e6,#fff3cd)','linear-gradient(160deg,#ffeaa7,#fdcb6e)','linear-gradient(160deg,#fdf2e9,#f5d7b5)','linear-gradient(160deg,#fde8d8,#f5cba7)','linear-gradient(160deg,#eaf0f6,#d5e8f8)','linear-gradient(160deg,#eaf4fb,#d6eaf8)'];
+  var acs=['#2471a3','#c0392b','#d35db0','#6b4f3a','#2e7d32','#1565c0','#e67e22','#d35400','#ca6f1e','#a04000','#1a5276','#1a5276'];
+  var nums=['#1a5276','#922b21','#a83278','#4a3020','#1b5e20','#0d47a1','#ca6f1e','#a04000','#935116','#784212','#154360','#154360'];
+  var bg=bgs[m-1], ac=acs[m-1], num=nums[m-1];
+  var type=(opts&&opts.type)||'tasks';
+  var logoSrc=(document.querySelector('.header img')||{src:''}).src;
+  var charSrc=(document.getElementById('dashChar')||{src:''}).src;
+  var html='<div style="display:flex;background:'+bg+';border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08);border:1px solid rgba(0,0,0,.06);">';
+  html+='<div style="width:130px;flex-shrink:0;padding:1.25rem 1rem;display:flex;flex-direction:column;align-items:center;justify-content:space-between;border-right:1px solid rgba(0,0,0,.06);">';
+  html+='<div style="text-align:center;"><div style="font-family:Georgia,serif;font-size:12px;color:'+ac+';letter-spacing:.1em;margin-bottom:6px;font-style:italic;">'+ens[m-1]+'</div>';
+  html+='<div style="font-size:56px;font-weight:900;color:'+num+';line-height:1;margin-bottom:6px;">'+m+'</div>';
+  html+='<div style="font-size:11px;color:rgba(0,0,0,.3);letter-spacing:.06em;">'+y+'</div></div>';
+  if(logoSrc||charSrc){html+='<div style="text-align:center;margin-top:1rem;opacity:.85;">';
+    if(logoSrc)html+='<img src="'+logoSrc+'" style="width:36px;height:36px;object-fit:contain;display:block;margin:0 auto 8px;">';
+    if(charSrc)html+='<img src="'+charSrc+'" style="width:60px;height:60px;object-fit:contain;display:block;margin:0 auto;">';
+    html+='</div>';}
+  html+='</div><div style="flex:1;padding:.875rem .75rem;overflow-x:auto;">';
+  html+='<table style="width:100%;border-collapse:collapse;min-width:320px;"><thead><tr>';
+  var dl=['日','月','火','水','木','金','土'];
+  for(var di=0;di<7;di++){var dc=di===0?'#c0392b':di===6?'#2471a3':'#4a4040';html+='<th style="padding:6px 2px;font-size:11px;font-weight:700;color:'+dc+';text-align:center;border-bottom:2px solid rgba(0,0,0,.08);">'+dl[di]+'</th>';}
+  html+='</tr></thead><tbody>';
+  var day=1, wc=Math.ceil((fd+dim)/7);
+  for(var row=0;row<wc;row++){html+='<tr>';
+    for(var col=0;col<7;col++){var cn=row*7+col;
+      if(cn<fd||day>dim){html+='<td style="padding:3px;height:52px;border:1px solid rgba(0,0,0,.05);background:rgba(255,255,255,.3);"></td>';}
       else{
-        var ds=y+'-'+String(m).padStart(2,'0')+'-'+String(day).padStart(2,'0');
-        var isT=ds===today; var isSun=col===0; var isSat=col===6;
+        var ds=y+'-'+(m<10?'0':'')+m+'-'+(day<10?'0':'')+day;
+        var isT=(ds===today),isSun=(col===0),isSat=(col===6);
         var marks=markedDates[ds]||[];
-        var nbg=isT?num:'transparent'; var nfg=isT?'#fff':(isSun?'#c0392b':isSat?'#2471a3':'#4a4040');
+        var nbg=isT?num:'transparent', nfg=isT?'#fff':(isSun?'#c0392b':isSat?'#2471a3':'#4a4040');
         var cbg=isT?'rgba(255,255,255,.9)':'rgba(255,255,255,.5)';
         var dots='';
-        if(marks.length){
-          var colors=marks.slice(0,4).map(function(mk){return type==='minutes'?(mk.type==='minute'?'#6ab49a':'#D85A30'):(mk.done?'#aaa':mk.overdue?'#D85A30':'#6ab49a');});
-          dots='<div style="display:flex;gap:2px;justify-content:center;flex-wrap:wrap;margin-top:2px;">'+colors.map(function(c){return'<div style="width:5px;height:5px;border-radius:50%;background:'+c+';"></div>';}).join('')+'</div>';
-        }
-        var ca=onDayClick?'onclick="'+onDayClick+'(''+ds+'')" style="cursor:pointer;"':'';
-        html+='<td '+ca+' style="padding:3px;height:52px;border:1px solid rgba(0,0,0,.05);background:'+cbg+';vertical-align:top;" onmouseover="this.style.background='rgba(255,255,255,.9)'" onmouseout="this.style.background=''+cbg+''">';
-        html+='<div style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:'+nbg+';font-size:11px;font-weight:'+(isT?700:500)+';color:'+nfg+';">'+day+'</div>'+dots+'</td>';
+        if(marks.length){var colors=marks.slice(0,4).map(function(mk){return type==='minutes'?(mk.type==='minute'?'#6ab49a':'#D85A30'):(mk.done?'#aaa':mk.overdue?'#D85A30':'#6ab49a');});dots='<div style="display:flex;gap:2px;justify-content:center;flex-wrap:wrap;margin-top:2px;">'+colors.map(function(c){return'<div style="width:5px;height:5px;border-radius:50%;background:'+c+'"></div>';}).join('')+'</div>';}
+        html+='<td style="padding:3px;height:52px;border:1px solid rgba(0,0,0,.05);background:'+cbg+';vertical-align:top;cursor:'+(onDayClick?'pointer':'default')+';" onclick="'+(onDayClick?onDayClick+"('"+ds+"')":'')+'"><div style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:'+nbg+';font-size:11px;font-weight:'+(isT?700:500)+';color:'+nfg+';">'+day+'</div>'+dots+'</td>';
         day++;
       }
-    }
-    html+='</tr>';
+    }html+='</tr>';
   }
   html+='</tbody></table></div></div>';
-  el.innerHTML = html;
+  el.innerHTML=html;
 }
 
-
+>
