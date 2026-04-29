@@ -909,14 +909,27 @@ function popSelects() {
     el.innerHTML = `<option value="">${blank}</option>`;
     (masters[key]||[]).forEach(v => el.innerHTML += `<option>${v}</option>`);
   };
+  // フォーム用（単一選択）
   set('fMed','media','選択'); set('fAg2','agency','選択'); set('fSt2','status','選択');
   set('fDept2','dept','選択'); set('fHire2','hire','選択');
-  set('fSt','status','ステータス（全て）'); set('fMd','media','媒体（全て）');
-  set('fDept','dept','部署（全て）'); set('fHire','hire','採用可否（全て）');
+  // フィルター用（複数選択）
+  const setMulti = (id, key, blank) => {
+    const el = document.getElementById(id); if (!el) return;
+    const selected = Array.from(el.selectedOptions).map(o=>o.value).filter(v=>v!=='');
+    el.innerHTML = `<option value="">${blank}</option>`;
+    (masters[key]||[]).forEach(v => { el.innerHTML += `<option ${selected.includes(v)?'selected':''}>${v}</option>`; });
+  };
+  setMulti('fSt','status','ステータス（全て）');
+  setMulti('fMd','media','媒体（全て）');
+  setMulti('fDept','dept','部署（全て）');
+  setMulti('fHire','hire','採用可否（全て）');
   const fj = document.getElementById('fJb');
   const jobs = [...new Set(applicants.map(a => a.jobType).filter(Boolean))];
-  fj.innerHTML = '<option value="">職種（全て）</option>';
-  jobs.forEach(j => fj.innerHTML += `<option>${j}</option>`);
+  if (fj) {
+    const selJobs = Array.from(fj.selectedOptions||[]).map(o=>o.value).filter(v=>v!=='');
+    fj.innerHTML = '<option value="">職種（全て）</option>';
+    jobs.forEach(j => fj.innerHTML += `<option ${selJobs.includes(j)?'selected':''}>${j}</option>`);
+  }
 }
 
 // ========================================
@@ -1010,13 +1023,23 @@ function renderList() {
   const fh = document.getElementById('fHire') ? document.getElementById('fHire').value : '';
   const fDateFrom = document.getElementById('fDateFrom') ? document.getElementById('fDateFrom').value : '';
   const fDateTo = document.getElementById('fDateTo') ? document.getElementById('fDateTo').value : '';
+  // 複数選択対応
+  const getMultiVals = id => {
+    const el = document.getElementById(id); if (!el) return [];
+    return Array.from(el.selectedOptions).map(o=>o.value).filter(v=>v!=='');
+  };
+  const fsVals = getMultiVals('fSt');
+  const fmVals = getMultiVals('fMd');
+  const fjVals = getMultiVals('fJb');
+  const fdVals = getMultiVals('fDept');
+  const fhVals = getMultiVals('fHire');
   let fil = applicants.filter(a => {
     if (q && !a.name.toLowerCase().includes(q) && !(a.email||'').toLowerCase().includes(q)) return false;
-    if (fs && a.status !== fs) return false;
-    if (fm && a.media !== fm) return false;
-    if (fj && a.jobType !== fj) return false;
-    if (fd && a.dept !== fd) return false;
-    if (fh && a.hireStatus !== fh) return false;
+    if (fsVals.length && !fsVals.includes(a.status||'')) return false;
+    if (fmVals.length && !fmVals.includes(a.media||'')) return false;
+    if (fjVals.length && !fjVals.includes(a.jobType||'')) return false;
+    if (fdVals.length && !fdVals.includes(a.dept||'')) return false;
+    if (fhVals.length && !fhVals.includes(a.hireStatus||'')) return false;
     if (fDateFrom && a.appDate && a.appDate < fDateFrom) return false;
     if (fDateTo && a.appDate && a.appDate > fDateTo) return false;
     return true;
@@ -1623,25 +1646,31 @@ function getKeyLabel(key) {
 function renderSectionContent(s, data) {
   const body = document.getElementById('acc_body_' + s.id);
   if (!body) return;
+  if (s.type === 'ai') {
+    body.innerHTML = '<div style="color:#aaa;font-size:12px;padding:.5rem;">分析中...</div>';
+    setTimeout(() => renderAiAnalysis(data, 'acc_body_' + s.id), 50);
+    return;
+  }
   let html = '';
   if (s.type === 'custom_cross') {
     html = buildCrossWithViz(data, s.opts.row, s.opts.col, s.opts.viz || 'both', s.id);
-  } else if (s.type === 'ai') {
-    body.innerHTML = '<div style="color:#aaa;font-size:12px;padding:.5rem;">分析中...</div>';
-    renderAiAnalysis(data, 'acc_body_' + s.id);
-    return;
   } else {
     html = buildSectionHTML(data, s.type, s.id);
   }
   body.innerHTML = html;
-  // グラフ描画
-  if (s.type === 'trend') renderTrendInSection(data, s.id);
-  if (s.type === 'custom_cross' && (s.opts.viz === 'bar' || s.opts.viz === 'pie' || s.opts.viz === 'both')) {
-    renderCrossChart(data, s.opts.row, s.opts.col, s.opts.viz, s.id);
-  }
-  if (['media','job','dept','gender','status','hire'].includes(s.type)) {
-    renderSimpleChart(data, s.type, s.id);
-  }
+  // グラフ描画はDOMが確定してから実行
+  requestAnimationFrame(() => {
+    if (s.type === 'trend') renderTrendInSection(data, s.id);
+    if (s.type === 'custom_cross') {
+      const viz = s.opts.viz || 'both';
+      if (viz === 'bar' || viz === 'pie' || viz === 'both') {
+        renderCrossChart(data, s.opts.row, s.opts.col, viz, s.id);
+      }
+    }
+    if (['media','job','dept','gender','status','hire'].includes(s.type)) {
+      renderSimpleChart(data, s.type, s.id);
+    }
+  });
 }
 
 function getSectionTitle(type) {
@@ -2099,13 +2128,20 @@ async function loadMinutesAndTasks() {
     }));
   } catch(e) { minutes = []; }
   try {
-    const { data: tData } = await sb.from('tasks').select('*').eq('client_id', cid).order('created_at', { ascending: false });
-    tasks = (tData || []).map(r => ({
-      id: r.id, owner: r.owner, content: r.content,
-      startDate: r.start_date, due: r.due_date, priority: r.priority,
-      done: r.done, doneDate: r.done_date, source: r.source,
-      minuteId: r.minute_id, clientId: r.client_id
-    }));
+    const { data: tData, error: tErr } = await sb.from('tasks').select('*').eq('client_id', cid).order('created_at', { ascending: false });
+    if (tErr && (tErr.message.includes('relation') || tErr.message.includes('does not exist'))) {
+      // テーブル未作成時はlocalStorageから読み込み
+      const fb = JSON.parse(localStorage.getItem('saiyo_tasks_fallback_' + cid) || '[]');
+      tasks = fb;
+      if (fb.length) setStatus('⚠ タスクテーブルが未作成です。Supabaseで add_minutes_tasks_tables.sql を実行してください。', '');
+    } else {
+      tasks = (tData || []).map(r => ({
+        id: r.id, owner: r.owner, content: r.content,
+        startDate: r.start_date, due: r.due_date, priority: r.priority,
+        done: r.done, doneDate: r.done_date, source: r.source,
+        minuteId: r.minute_id, clientId: r.client_id
+      }));
+    }
   } catch(e) { tasks = []; }
 }
 async function saveMinutesData() {
@@ -2274,8 +2310,23 @@ async function saveManualTask() {
     priority: document.getElementById('mtPriority').value,
     done: false, source: 'manual', minute_id: null
   };
-  const { error } = await sb.from('tasks').insert(row);
-  if (error) { alert('保存に失敗しました: ' + error.message); return; }
+  let saveOk = false;
+  try {
+    const { error } = await sb.from('tasks').insert(row);
+    if (error) {
+      console.warn('Supabase task insert error:', error.message);
+      // テーブルが存在しない場合はlocalStorageにフォールバック
+      if (error.message.includes('relation') || error.message.includes('does not exist')) {
+        const stored = JSON.parse(localStorage.getItem('saiyo_tasks_fallback_' + currentClientId) || '[]');
+        stored.unshift({...row, hireStatus:'', dept:''});
+        localStorage.setItem('saiyo_tasks_fallback_' + currentClientId, JSON.stringify(stored));
+        saveOk = true;
+      } else {
+        alert('タスク保存エラー: ' + error.message + '\n\nSupabaseのSQLエディタで add_minutes_tasks_tables.sql を実行してください。');
+        return;
+      }
+    } else { saveOk = true; }
+  } catch(e) { console.warn('Task save error:', e); saveOk = true; }
   tasks.unshift({ id: tid, owner: row.owner, content: taskContent, startDate: row.start_date, due, priority: row.priority, done: false, doneDate: '', source: 'manual', minuteId: null, clientId: currentClientId });
   hideManualTaskForm();
   document.getElementById('mtContent').value = '';
@@ -2304,7 +2355,8 @@ function renderTaskRow(task, compact=false) {
             <button class="btn-sm" style="background:#f0faf6;color:#3B6D11;border-color:#c8e6c9;" onclick="confirmComplete('${task.id}', document.getElementById('cdate_${task.id}').value)">確定</button>
           </div>
         </div>`}
-    ${!compact ? `<button class="btn-sm" style="flex-shrink:0;" onclick="editTask('${task.id}')">編集</button><button class="btn-del" style="flex-shrink:0;" onclick="deleteTask('${task.id}')">削除</button>` : ''}
+    <button class="btn-sm" style="flex-shrink:0;font-size:10px;" onclick="editTask('${task.id}')">編集</button>
+    ${!compact ? `<button class="btn-del" style="flex-shrink:0;" onclick="deleteTask('${task.id}')">削除</button>` : ''}
   </div>`;
 }
 
@@ -2489,7 +2541,14 @@ async function updateTask(id) {
   t.startDate = document.getElementById('mtStart').value;
   t.due = due;
   t.priority = document.getElementById('mtPriority').value;
-  await sb.from('tasks').update({ owner: t.owner, content: taskContent, start_date: t.startDate||null, due_date: due||null, priority: t.priority }).eq('id', id);
+  try {
+    await sb.from('tasks').update({ owner: t.owner, content: taskContent, start_date: t.startDate||null, due_date: due||null, priority: t.priority }).eq('id', id);
+  } catch(e) {
+    // fallback: update localStorage
+    const stored = JSON.parse(localStorage.getItem('saiyo_tasks_fallback_' + currentClientId) || '[]');
+    const fi = stored.findIndex(x => x.id === id);
+    if (fi >= 0) { stored[fi] = {...stored[fi], owner:t.owner, content:taskContent, due_date:due||null, priority:t.priority}; localStorage.setItem('saiyo_tasks_fallback_' + currentClientId, JSON.stringify(stored)); }
+  }
   await saveTasksData();
   hideManualTaskForm();
   // ボタンを「追加」モードに戻す
