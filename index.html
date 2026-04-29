@@ -759,10 +759,21 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:.75rem;">
           <h2 style="font-size:14px;font-weight:700;margin:0;">💰 予算管理・費用対効果分析</h2>
           <div style="display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap;">
-            <label style="font-size:11px;color:#666;">期間：</label>
-            <input type="month" id="budgetFrom" onchange="renderBudget()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;">
-            <span style="font-size:11px;color:#aaa;">〜</span>
-            <input type="month" id="budgetTo" onchange="renderBudget()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;">
+            <!-- 単月/期間 切り替え -->
+            <div style="display:flex;border:1px solid #ddd;border-radius:8px;overflow:hidden;font-size:11px;">
+              <button id="budgetModeSingle" onclick="setBudgetMode('single')" style="padding:5px 10px;border:none;background:#1a1a1a;color:#fff;cursor:pointer;font-family:inherit;font-size:11px;">単月</button>
+              <button id="budgetModeRange" onclick="setBudgetMode('range')" style="padding:5px 10px;border:none;background:#fafafa;color:#666;cursor:pointer;font-family:inherit;font-size:11px;">期間</button>
+            </div>
+            <!-- 単月モード -->
+            <div id="budgetSingleMode" style="display:flex;align-items:center;gap:4px;">
+              <input type="month" id="budgetSingle" onchange="syncBudgetPeriod()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;">
+            </div>
+            <!-- 期間モード -->
+            <div id="budgetRangeMode" style="display:none;align-items:center;gap:4px;">
+              <input type="month" id="budgetFrom" onchange="renderBudget()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;">
+              <span style="font-size:11px;color:#aaa;">〜</span>
+              <input type="month" id="budgetTo" onchange="renderBudget()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;">
+            </div>
             <select id="budgetDeptFilter" onchange="renderBudget()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;"><option value="">部署（全て）</option></select>
             <select id="budgetJobFilter" onchange="renderBudget()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;"><option value="">職種（全て）</option></select>
             <button class="btn-sm" onclick="exportBudgetCSV()">CSV出力</button>
@@ -1088,7 +1099,12 @@ function showSec(s) {
   if (s === 'admin') renderAdmin();
   if (s === 'add' && !editId) resetForm();
   if (s === 'import') cancelImport();
-  if (s === 'budget') { renderBudget(); }
+  if (s === 'budget') {
+    // 初回表示は単月モードをデフォルトに
+    const sEl = document.getElementById('budgetSingle');
+    if (sEl && !sEl.value) sEl.value = new Date().toISOString().slice(0,7);
+    renderBudget();
+  }
   if (s === 'minutes') {
     // カレンダーの月を今月に初期化
     const calInput = document.getElementById('calMonth');
@@ -3212,10 +3228,22 @@ let budgetInputRowCount = 0;
 const BUDGET_KEY = () => `saiyo_budget_${currentClientId}_v1`;
 
 async function loadBudgetData() {
-  try { const r=await window.storage.get(BUDGET_KEY());if(r&&r.value)budgetData=JSON.parse(r.value); } catch(e){budgetData=[];}
+  try {
+    const { data, error } = await sb.from('budgets').select('*').eq('client_id', currentClientId).order('month', { ascending: false });
+    if (error) {
+      // テーブル未作成時はlocalStorageフォールバック
+      const raw = localStorage.getItem(BUDGET_KEY());
+      budgetData = raw ? JSON.parse(raw) : [];
+    } else {
+      budgetData = (data || []).map(r => ({
+        id: r.id, month: r.month, media: r.media, type: r.type || 'media',
+        dept: r.dept || '', job: r.job || '', amount: r.amount, clientId: r.client_id
+      }));
+    }
+  } catch(e) { budgetData = []; }
 }
 async function saveBudgetData() {
-  try { await window.storage.set(BUDGET_KEY(),JSON.stringify(budgetData)); } catch(e){}
+  // Supabaseへの保存は個別のinsert/updateで実施
 }
 
 function showBudgetForm() {
@@ -3264,13 +3292,29 @@ async function saveAllBudgets() {
   });
   if (hasError) { alert('月と媒体は必須です'); return; }
   if (!toSave.length) { alert('登録するデータがありません'); return; }
-  // 既存と重複するものは上書き
-  toSave.forEach(entry => {
-    const existing = budgetData.findIndex(d=>d.month===entry.month&&d.media===entry.media&&d.dept===entry.dept&&d.job===entry.job);
-    if (existing>=0) budgetData[existing]={...budgetData[existing],...entry};
-    else budgetData.push(entry);
-  });
-  await saveBudgetData();
+  // Supabaseにupsert（月+媒体+部署+職種が同じものは上書き）
+  const budgetRows = toSave.map(e => ({
+    id: e.id, client_id: currentClientId,
+    month: e.month, media: e.media, type: e.type,
+    dept: e.dept || null, job: e.job || null, amount: e.amount
+  }));
+  const { error } = await sb.from('budgets').upsert(budgetRows, { onConflict: 'id' });
+  if (error) {
+    // フォールバック: localStorage
+    toSave.forEach(entry => {
+      const existing = budgetData.findIndex(d=>d.month===entry.month&&d.media===entry.media&&d.dept===entry.dept&&d.job===entry.job);
+      if (existing>=0) budgetData[existing]={...budgetData[existing],...entry};
+      else budgetData.push(entry);
+    });
+    const raw = JSON.stringify(budgetData);
+    localStorage.setItem(BUDGET_KEY(), raw);
+  } else {
+    toSave.forEach(entry => {
+      const existing = budgetData.findIndex(d=>d.month===entry.month&&d.media===entry.media&&d.dept===entry.dept&&d.job===entry.job);
+      if (existing>=0) budgetData[existing]={...budgetData[existing],...entry};
+      else budgetData.push(entry);
+    });
+  }
   hideBudgetForm();
   renderBudget();
   setStatus(`${toSave.length}件の予算データを登録しました`,'ok');
@@ -3278,8 +3322,40 @@ async function saveAllBudgets() {
 
 async function deleteBudget(id) {
   if(!confirm('この予算データを削除しますか？'))return;
+  await sb.from('budgets').delete().eq('id', id);
   budgetData=budgetData.filter(d=>d.id!==id);
-  await saveBudgetData();
+  renderBudget();
+}
+
+
+function setBudgetMode(mode) {
+  const single = document.getElementById('budgetSingleMode');
+  const range = document.getElementById('budgetRangeMode');
+  const btnS = document.getElementById('budgetModeSingle');
+  const btnR = document.getElementById('budgetModeRange');
+  if (mode === 'single') {
+    single.style.display = 'flex';
+    range.style.display = 'none';
+    btnS.style.background = '#1a1a1a'; btnS.style.color = '#fff';
+    btnR.style.background = '#fafafa'; btnR.style.color = '#666';
+    // 単月モードではfrom=toを同じ月に設定
+    syncBudgetPeriod();
+  } else {
+    single.style.display = 'none';
+    range.style.display = 'flex';
+    btnR.style.background = '#1a1a1a'; btnR.style.color = '#fff';
+    btnS.style.background = '#fafafa'; btnS.style.color = '#666';
+    renderBudget();
+  }
+}
+
+function syncBudgetPeriod() {
+  const val = document.getElementById('budgetSingle')?.value;
+  if (!val) return;
+  const fromEl = document.getElementById('budgetFrom');
+  const toEl = document.getElementById('budgetTo');
+  if (fromEl) fromEl.value = val;
+  if (toEl) toEl.value = val;
   renderBudget();
 }
 
@@ -3288,8 +3364,16 @@ function renderBudget() {
   const curYM=now.toISOString().slice(0,7);
   const fromEl=document.getElementById('budgetFrom');
   const toEl=document.getElementById('budgetTo');
-  if(fromEl&&!fromEl.value){const d=new Date(now);d.setMonth(d.getMonth()-5);fromEl.value=d.toISOString().slice(0,7);}
-  if(toEl&&!toEl.value)toEl.value=curYM;
+  const singleEl=document.getElementById('budgetSingle');
+  // 単月モードの場合はsingleの値をfrom/toに同期
+  if(singleEl&&singleEl.value&&document.getElementById('budgetSingleMode')?.style.display!=='none'){
+    if(fromEl)fromEl.value=singleEl.value;if(toEl)toEl.value=singleEl.value;
+  } else {
+    if(fromEl&&!fromEl.value){const d=new Date(now);d.setMonth(d.getMonth()-5);fromEl.value=d.toISOString().slice(0,7);}
+    if(toEl&&!toEl.value)toEl.value=curYM;
+  }
+  // 単月デフォルト値
+  if(singleEl&&!singleEl.value)singleEl.value=curYM;
   const selFrom=fromEl?fromEl.value:'';
   const selTo=toEl?toEl.value:'';
   const selDept=document.getElementById('budgetDeptFilter')?.value||'';
@@ -3551,8 +3635,8 @@ async function renderAdmin() {
     const hired = (appData || []).filter(r => ['内定','内定承諾','採用'].includes(r.hire_status)).length;
     let taskCount = 0;
     try {
-      const tr = await window.storage.get(`saiyo_tasks_${c.client_id}_v1`);
-      if (tr && tr.value) taskCount = JSON.parse(tr.value).filter(t => !t.done).length;
+      const raw = localStorage.getItem(`saiyo_tasks_${c.client_id}_v1`);
+      if (raw) taskCount = JSON.parse(raw).filter(t => !t.done).length;
     } catch(e) {}
     const el = document.getElementById('cnt_' + c.client_id);
     if (el) el.innerHTML = `<span class="badge bgr">${total}名</span> <span class="badge bg" style="margin-left:4px;">採用${hired}名</span> <span class="badge ba" style="margin-left:4px;">タスク${taskCount}件</span>`;
