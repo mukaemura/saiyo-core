@@ -9,6 +9,17 @@
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <link rel="stylesheet" href="css/style.css">
+<script>
+  // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
+  if (location.protocol === 'file:') {
+    window.addEventListener('DOMContentLoaded', function() {
+      var w = document.createElement('div');
+      w.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#ff9800;color:#fff;padding:12px 16px;font-size:13px;font-family:sans-serif;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.2);';
+      w.innerHTML = '⚠ このHTMLは file:// プロトコルで開かれています。CSS・JS・画像が読み込めず、ログインも動作しません。<br>HTTPサーバー経由で開いてください（例: フォルダ内で <code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:3px;">python3 -m http.server</code> を実行し、http://localhost:8000 にアクセス）';
+      document.body.insertBefore(w, document.body.firstChild);
+    });
+  }
+</script>
 </head>
 <body>
 
@@ -33,12 +44,12 @@
 
       <!-- ロゴ（浮遊・影付き） -->
       <div style="animation:floatLogo 3.5s ease-in-out infinite;filter:drop-shadow(0 10px 20px rgba(0,0,0,.15));">
-        <img src="assets/logo.png" style="width:90px;height:90px;object-fit:contain;">
+        <img id="loginLogoImg" src="assets/logo.png" alt="ロゴ" style="width:90px;height:90px;object-fit:contain;" onerror="window.__imgLoadError=true;console.error('画像読込失敗: assets/logo.png');this.style.display='none';">
       </div>
 
       <!-- キャラクター（ロゴと逆位相で浮遊） -->
       <div style="animation:floatChar 3.2s ease-in-out infinite;filter:drop-shadow(0 8px 16px rgba(0,0,0,.1));">
-        <img src="assets/character.png" style="width:110px;height:110px;object-fit:contain;">
+        <img id="loginCharImg" src="assets/character.png" alt="キャラクター" style="width:110px;height:110px;object-fit:contain;" onerror="window.__imgLoadError=true;console.error('画像読込失敗: assets/character.png');this.style.display='none';">
       </div>
     </div>
 
@@ -76,7 +87,7 @@
           IDまたはパスワードが正しくありません
         </div>
 
-        <button onclick="doLogin()"
+        <button id="loginBtn" onclick="doLogin()"
           style="width:100%;padding:14px;background:linear-gradient(135deg,#72bda6,#5aaa8e);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.05em;transition:all .25s;box-shadow:0 4px 14px rgba(106,180,154,.3);margin-top:4px;"
           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 7px 22px rgba(106,180,154,.42)'"
           onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 14px rgba(106,180,154,.3)'">
