@@ -989,3 +989,22 @@ input.row-check {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 12px;
 }
+
+/* ========================================
+   担当者バッジ用パレット
+   ======================================== */
+/* LinkCore = 青(.bb)、クライアント = オレンジ(.ba) は既存利用 */
+/* 5色パレット（名前ハッシュで自動割り当て） */
+.bo1 { background:#EFE6F8; color:#5C3B89; } /* 紫 */
+.bo2 { background:#E0F2EA; color:#1F6B3E; } /* 緑 */
+.bo3 { background:#FCECDC; color:#8C4A14; } /* 黄土 */
+.bo4 { background:#E1EFF7; color:#1E5C7A; } /* 青緑 */
+.bo5 { background:#F8E1E8; color:#8C2854; } /* ピンク */
+
+/* 担当者にクライアント名を付記する場合の小さなサブテキスト */
+.owner-suffix {
+  font-size: 9px;
+  color: #999;
+  font-weight: 500;
+  margin-left: 3px;
+}

@@ -173,6 +173,45 @@ function onDetailStatusChange(detailStatusName) {
 // ========================================
 const FUNNEL_ORDER = ['applied','in_progress','interview','hired','joined','resigned'];
 
+// ========================================
+// 担当者バッジ：色分けロジック
+// ========================================
+// 名前ハッシュで5色パレットの中から1つを選ぶ（決定論的）
+function getOwnerBadgeClass(name) {
+  if (!name) return 'bgr'; // 未設定はグレー
+  const trimmed = String(name).trim();
+  // 既存値の特別扱い
+  if (trimmed === 'LinkCore') return 'bb'; // 青
+  if (trimmed === 'クライアント') return 'ba'; // オレンジ
+  // それ以外は5色パレットから自動選択（名前のハッシュ値）
+  let hash = 0;
+  for (let i = 0; i < trimmed.length; i++) {
+    hash = ((hash << 5) - hash) + trimmed.charCodeAt(i);
+    hash |= 0;
+  }
+  const palette = ['bo1', 'bo2', 'bo3', 'bo4', 'bo5'];
+  return palette[Math.abs(hash) % palette.length];
+}
+
+// owner名 + 必要ならクライアント名併記でバッジHTMLを返す
+function renderOwnerBadge(owner, taskClientId) {
+  const safeOwner = String(owner || '未設定');
+  const cls = getOwnerBadgeClass(safeOwner);
+  let suffix = '';
+  // adminログイン時のみクライアント名を併記
+  if (isAdmin && taskClientId && taskClientId !== 'admin') {
+    const c = (clients || []).find(x => x.client_id === taskClientId);
+    const cname = c ? c.name : taskClientId;
+    suffix = `<span class="owner-suffix">（${escapeOwnerHtml(cname)}）</span>`;
+  }
+  return `<span class="badge ${cls}">${escapeOwnerHtml(safeOwner)}</span>${suffix}`;
+}
+
+// owner用の軽いescape（escapeHtmlが定義前の場所でも使えるように独立定義）
+function escapeOwnerHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // 応募者のコアステータスランクを取得
 function getCoreRank(a) {
   const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
@@ -630,7 +669,7 @@ let currentClientId = null;
 let currentClientName = '';
 let isAdmin = false;
 let applicants = [];
-let masters = { media: [], status: [], agency: [] };
+let masters = { media: [], status: [], agency: [], hire: [], dept: [], assignee: [] };
 // マルチセレクトフィルターの選択状態（{status:[], media:[], jobType:[], dept:[]}）
 let multiFilterState = { status: [], media: [], jobType: [], dept: [] };
 let clients = []; // 管理者用
@@ -850,8 +889,14 @@ async function loadMasters() {
   const cid = isAdmin ? 'admin' : currentClientId;
   const { data } = await sb.from('masters').select('*').eq('client_id', cid);
   if (data && data.length) {
-    masters = { media: [], status: [], agency: [], hire: [], dept: [] };
+    masters = { media: [], status: [], agency: [], hire: [], dept: [], assignee: [] };
     data.forEach(r => { if (masters[r.type] !== undefined) masters[r.type].push(r.value); });
+    // assigneeが空なら初期値を投入（既存マスターはあるが担当者だけ未登録のケース）
+    if (!masters.assignee.length) {
+      masters.assignee = ['LinkCore', 'クライアント'];
+      const aRows = masters.assignee.map(v => ({ client_id: cid, type: 'assignee', value: v }));
+      try { await sb.from('masters').insert(aRows); } catch(e) {}
+    }
   } else {
     // デフォルトマスター（新体系ステータス）
     masters = {
@@ -859,7 +904,8 @@ async function loadMasters() {
       status: ['書類依頼中','書類到着','面接調整中','面接確定','1次面接','2次面接','選考通過','採用','不採用','不来場','内定','内定辞退','内定承諾','連絡不通','キャンセル','入社','退職'],
       agency: [],
       hire: ['内定','内定承諾','採用','不採用','保留'],
-      dept: []
+      dept: [],
+      assignee: ['LinkCore','クライアント']
     };
     // DBに保存
     const rows = [];
@@ -965,11 +1011,54 @@ function popSelects() {
   set('fMed','media','選択'); set('fAg2','agency','選択'); set('fSt2','status','選択');
   set('fDept2','dept','選択'); set('fHire2','hire','選択');
 
+  // 担当者プルダウン（議事録内タスク・タスク手動追加・タスクフィルター）
+  populateOwnerSelects();
+
   // 一覧フィルター用（マルチセレクトUI）
   buildMultiFilter('fSt_wrap', 'status');
   buildMultiFilter('fMd_wrap', 'media');
   buildMultiFilter('fJb_wrap', 'jobType');
   buildMultiFilter('fDept_wrap', 'dept');
+}
+
+// 担当者プルダウン3箇所を動的生成
+function populateOwnerSelects() {
+  const assignees = masters.assignee || [];
+  // 議事録内タスク追加（tOwner）
+  const tOwner = document.getElementById('tOwner');
+  if (tOwner) {
+    const cur = tOwner.value;
+    tOwner.innerHTML = assignees.length
+      ? assignees.map(v => `<option value="${escapeOwnerHtml(v)}">${escapeOwnerHtml(v)}</option>`).join('')
+      : '<option value="">（マスター未登録）</option>';
+    if (cur && assignees.includes(cur)) tOwner.value = cur;
+  }
+  // タスク手動追加（mtOwner）
+  const mtOwner = document.getElementById('mtOwner');
+  if (mtOwner) {
+    const cur = mtOwner.value;
+    mtOwner.innerHTML = assignees.length
+      ? assignees.map(v => `<option value="${escapeOwnerHtml(v)}">${escapeOwnerHtml(v)}</option>`).join('')
+      : '<option value="">（マスター未登録）</option>';
+    if (cur && assignees.includes(cur)) mtOwner.value = cur;
+  }
+  // タスクフィルター（taskFilter）：固定の3つ + 担当者ごと
+  const taskFilter = document.getElementById('taskFilter');
+  if (taskFilter) {
+    const cur = taskFilter.value;
+    let html = '<option value="all">全て</option>'
+      + '<option value="pending">未完了のみ</option>'
+      + '<option value="done">完了のみ</option>';
+    if (assignees.length) {
+      html += '<optgroup label="担当者で絞り込み">';
+      assignees.forEach(v => {
+        html += `<option value="owner:${escapeOwnerHtml(v)}">${escapeOwnerHtml(v)}担当</option>`;
+      });
+      html += '</optgroup>';
+    }
+    taskFilter.innerHTML = html;
+    if (cur) taskFilter.value = cur;
+  }
 }
 
 // マルチセレクトフィルターUIを構築
@@ -1897,11 +1986,10 @@ function renderDashTasks() {
   el.innerHTML = top.map(t => {
     const isOverdue = t.due && t.due < today;
     const dueText = t.due ? t.due.slice(5).replace('-', '/') : '期限なし';
-    const ownerColor = t.owner === 'LinkCore' ? '#185FA5' : '#854F0B';
     const safeContent = String(t.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#fafaf8;border-radius:6px;margin-bottom:4px;font-size:11px;">
       <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
-        <span style="background:${ownerColor};color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;flex-shrink:0;">${t.owner || ''}</span>
+        ${renderOwnerBadge(t.owner, t.clientId)}
         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${safeContent}</span>
       </div>
       <span style="color:${isOverdue ? '#D85A30' : '#888'};font-weight:${isOverdue ? '600' : '400'};flex-shrink:0;margin-left:8px;">${isOverdue ? '⚠ ' : ''}${dueText}</span>
@@ -3460,7 +3548,7 @@ function renderTempTaskList() {
   if (!tempMinuteTasks.length) { el.innerHTML = ''; return; }
   el.innerHTML = tempMinuteTasks.map(t => `
     <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff;border-radius:6px;border:1px solid #e8e8e6;font-size:11px;">
-      <span class="badge ${t.owner==='LinkCore'?'bb':'ba'}">${t.owner}</span>
+      <span class="badge ${getOwnerBadgeClass(t.owner)}">${escapeOwnerHtml(t.owner||'未設定')}</span>
       <span style="flex:1;">${t.content}</span>
       <span style="color:#aaa;">${t.due||'期限なし'}</span>
       <span class="badge ${t.priority==='高'?'br':t.priority==='低'?'bg':'bgr'}">${t.priority}</span>
@@ -3625,7 +3713,7 @@ function renderTaskRow(task, compact=false) {
   const isDueSoon = task.due && task.due >= today && task.due <= new Date(Date.now()+3*86400000).toISOString().split('T')[0] && !task.done;
   const rowBg = task.done ? 'background:#f8fdf8;' : isOverdue ? 'background:#fff5f5;border-left:3px solid #D85A30;' : isDueSoon ? 'background:#fffbf0;border-left:3px solid #EF9F27;' : 'background:#fff;';
   return `<div style="${rowBg}padding:8px 10px;border-radius:6px;margin-bottom:5px;border:1px solid #f0f0ee;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-    <span class="badge ${task.owner==='LinkCore'?'bb':'ba'}" style="flex-shrink:0;">${task.owner}</span>
+    <span style="flex-shrink:0;">${renderOwnerBadge(task.owner, task.clientId)}</span>
     <span style="flex:1;font-size:12px;${task.done?'text-decoration:line-through;color:#aaa;':''}">${task.content}</span>
     ${task.due ? `<span style="font-size:11px;color:${isOverdue?'#D85A30':isDueSoon?'#854F0B':'#aaa'};">期限: ${task.due}</span>` : ''}
     <span class="badge ${task.priority==='高'?'br':task.priority==='低'?'bg':'bgr'}" style="flex-shrink:0;">${task.priority||'中'}</span>
@@ -3646,11 +3734,14 @@ function renderTaskRow(task, compact=false) {
 function renderTasks() {
   const filter = document.getElementById('taskFilter')?.value || 'all';
   const today = new Date().toISOString().split('T')[0];
-  let filtered = tasks.filter(t => t.clientId === currentClientId || !t.clientId);
+  // admin時は全件、client時は自社のみ
+  let filtered = isAdmin ? [...tasks] : tasks.filter(t => t.clientId === currentClientId || !t.clientId);
   if (filter === 'pending') filtered = filtered.filter(t => !t.done);
   else if (filter === 'done') filtered = filtered.filter(t => t.done);
-  else if (filter === 'linkcore') filtered = filtered.filter(t => t.owner === 'LinkCore');
-  else if (filter === 'client') filtered = filtered.filter(t => t.owner === 'クライアント');
+  else if (filter && filter.startsWith('owner:')) {
+    const ownerName = filter.substring(6);
+    filtered = filtered.filter(t => t.owner === ownerName);
+  }
 
   // ソート：未完了→期限近い順、完了→完了日降順
   filtered.sort((a,b) => {
@@ -4535,6 +4626,7 @@ function renderManage() {
   renderMasterList('media', 'mlMed');
   renderMasterList('dept', 'mlDept');
   renderMasterList('agency', 'mlAg');
+  renderMasterList('assignee', 'mlAssignee');
   // ステータスマスターも更新
   renderStatusMaster();
 }
@@ -4563,7 +4655,7 @@ function escapeHtml(s) {
 }
 
 async function addM(type) {
-  const inputId = { media: 'miMed', dept: 'miDept', agency: 'miAg' }[type];
+  const inputId = { media: 'miMed', dept: 'miDept', agency: 'miAg', assignee: 'miAssignee' }[type];
   const input = document.getElementById(inputId);
   if (!input) return;
   const value = (input.value || '').trim();
