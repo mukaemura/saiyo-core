@@ -144,8 +144,9 @@ function getCoreStatusColor(coreId) {
 // 詳細ステータスを読み込む（Supabaseまたはlocalcache）
 async function loadDetailStatuses() {
   try {
-    const { data, error } = await sb.from('detail_status_master')
-      .select('*').eq('client_id', currentClientId).order('ord');
+    let query = sb.from('detail_status_master').select('*').order('ord');
+    if (!isAdmin) query = query.eq('client_id', currentClientId);
+    const { data, error } = await query;
     if (!error && data && data.length > 0) {
       detailStatuses = data;
     } else {
@@ -1342,7 +1343,9 @@ function stColor(s) {
 }
 
 async function updateHireStatus(id, val) {
-  const { error } = await sb.from('applicants').update({ hire_status: val }).eq('id', id).eq('client_id', currentClientId);
+  let query = sb.from('applicants').update({ hire_status: val }).eq('id', id);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  const { error } = await query;
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
   const a = applicants.find(x => x.id === id);
   if (a) a.hireStatus = val;
@@ -1358,7 +1361,9 @@ async function updateHireStatus(id, val) {
 }
 
 async function updateDept(id, val) {
-  const { error } = await sb.from('applicants').update({ dept: val }).eq('id', id).eq('client_id', currentClientId);
+  let query = sb.from('applicants').update({ dept: val }).eq('id', id);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  const { error } = await query;
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
   const a = applicants.find(x => x.id === id);
   if (a) a.dept = val;
@@ -1367,7 +1372,9 @@ async function updateDept(id, val) {
 
 async function updateStatus(id, val) {
   const newCoreId = onDetailStatusChange(val);
-  const { error } = await sb.from('applicants').update({ status: val, core_status_id: newCoreId }).eq('id', id).eq('client_id', currentClientId);
+  let query = sb.from('applicants').update({ status: val, core_status_id: newCoreId }).eq('id', id);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  const { error } = await query;
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
   const a = applicants.find(x => x.id === id);
   if (a) a.status = val;
@@ -1450,7 +1457,9 @@ function editApp() {
 
 async function delApp() {
   if (!confirm('この応募者を削除しますか？')) return;
-  const { error } = await sb.from('applicants').delete().eq('id', curId).eq('client_id', currentClientId);
+  let query = sb.from('applicants').delete().eq('id', curId);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  const { error } = await query;
   if (error) { alert('削除に失敗しました: ' + error.message); return; }
   applicants = applicants.filter(x => x.id !== curId);
   closeDetail(); popSelects(); renderList();
@@ -1510,7 +1519,9 @@ async function saveApp() {
   };
   let error;
   if (editId) {
-    ({ error } = await sb.from('applicants').update(row).eq('id', editId).eq('client_id', currentClientId));
+    let query = sb.from('applicants').update(row).eq('id', editId);
+    if (!isAdmin) query = query.eq('client_id', currentClientId);
+    ({ error } = await query);
   } else {
     ({ error } = await sb.from('applicants').insert(row));
   }
@@ -3376,14 +3387,18 @@ const TASKS_KEY = () => `saiyo_tasks_${currentClientId}_v1`;
 async function loadMinutesAndTasks() {
   const cid = currentClientId;
   try {
-    const { data: mData } = await sb.from('minutes').select('*').eq('client_id', cid).order('date', { ascending: false });
+    let mQuery = sb.from('minutes').select('*').order('date', { ascending: false });
+    if (!isAdmin) mQuery = mQuery.eq('client_id', cid);
+    const { data: mData } = await mQuery;
     minutes = (mData || []).map(r => ({
       id: r.id, date: r.date, title: r.title, url: r.url,
       tasks: r.tasks || [], clientId: r.client_id, createdAt: r.created_at
     }));
   } catch(e) { minutes = []; }
   try {
-    const { data: tData, error: tErr } = await sb.from('tasks').select('*').eq('client_id', cid).order('created_at', { ascending: false });
+    let tQuery = sb.from('tasks').select('*').order('created_at', { ascending: false });
+    if (!isAdmin) tQuery = tQuery.eq('client_id', cid);
+    const { data: tData, error: tErr } = await tQuery;
     if (tErr && (tErr.message.includes('relation') || tErr.message.includes('does not exist'))) {
       // テーブル未作成時はlocalStorageから読み込み
       const fb = JSON.parse(localStorage.getItem('saiyo_tasks_fallback_' + cid) || '[]');
@@ -3462,9 +3477,13 @@ async function saveMinutes() {
   const cid = currentClientId;
   const row = { id: mid, client_id: cid, date, url: url||null, title: title||null, tasks: tempMinuteTasks };
   if (editingMinuteId) {
-    await sb.from('minutes').update(row).eq('id', mid).eq('client_id', currentClientId);
+    let mUpdQuery = sb.from('minutes').update(row).eq('id', mid);
+    if (!isAdmin) mUpdQuery = mUpdQuery.eq('client_id', currentClientId);
+    await mUpdQuery;
     // 関連タスクを削除して再挿入
-    await sb.from('tasks').delete().eq('minute_id', mid).eq('client_id', currentClientId);
+    let tDelQuery = sb.from('tasks').delete().eq('minute_id', mid);
+    if (!isAdmin) tDelQuery = tDelQuery.eq('client_id', currentClientId);
+    await tDelQuery;
     tasks = tasks.filter(t => t.minuteId !== mid);
   } else {
     row.client_id = currentClientId; // マルチテナント強制付与
@@ -3537,8 +3556,12 @@ function editMinute(id) {
 
 async function deleteMinute(id) {
   if (!confirm('この議事録を削除しますか？（関連タスクも削除されます）')) return;
-  await sb.from('tasks').delete().eq('minute_id', id).eq('client_id', currentClientId);
-  await sb.from('minutes').delete().eq('id', id).eq('client_id', currentClientId);
+  let tDelQuery = sb.from('tasks').delete().eq('minute_id', id);
+  if (!isAdmin) tDelQuery = tDelQuery.eq('client_id', currentClientId);
+  await tDelQuery;
+  let mDelQuery = sb.from('minutes').delete().eq('id', id);
+  if (!isAdmin) mDelQuery = mDelQuery.eq('client_id', currentClientId);
+  await mDelQuery;
   minutes = minutes.filter(m => m.id !== id);
   tasks = tasks.filter(t => t.minuteId !== id);
   renderMinutes();
@@ -3676,7 +3699,9 @@ function showCompleteInput(id) {
 
 async function confirmComplete(id, dateVal) {
   const doneDate = dateVal || new Date().toISOString().split('T')[0];
-  await sb.from('tasks').update({ done: true, done_date: doneDate }).eq('id', id).eq('client_id', currentClientId);
+  let query = sb.from('tasks').update({ done: true, done_date: doneDate }).eq('id', id);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  await query;
   const t = tasks.find(x => x.id === id);
   if (t) { t.done = true; t.doneDate = doneDate; }
   await saveTasksData();
@@ -3687,7 +3712,9 @@ async function confirmComplete(id, dateVal) {
 
 async function deleteTask(id) {
   if (!confirm('このタスクを削除しますか？')) return;
-  await sb.from('tasks').delete().eq('id', id).eq('client_id', currentClientId);
+  let query = sb.from('tasks').delete().eq('id', id);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  await query;
   tasks = tasks.filter(t => t.id !== id);
   await saveTasksData();
   renderTasks();
@@ -3741,7 +3768,9 @@ async function bulkUpdateStatus() {
   const ids = getCheckedIds();
   if (!ids.length) return;
   if (!confirm(`${ids.length}件のステータスを「${val}」に変更しますか？`)) return;
-  const { error } = await sb.from('applicants').update({ status: val }).in('id', ids).eq('client_id', currentClientId);
+  let query = sb.from('applicants').update({ status: val }).in('id', ids);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  const { error } = await query;
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
   ids.forEach(id => { const a = applicants.find(x => x.id === id); if (a) a.status = val; });
   clearChecks();
@@ -3755,7 +3784,9 @@ async function bulkUpdateHire() {
   const ids = getCheckedIds();
   if (!ids.length) return;
   if (!confirm(`${ids.length}件の採用可否を「${val}」に変更しますか？`)) return;
-  const { error } = await sb.from('applicants').update({ hire_status: val }).in('id', ids).eq('client_id', currentClientId);
+  let query = sb.from('applicants').update({ hire_status: val }).in('id', ids);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  const { error } = await query;
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
   ids.forEach(id => { const a = applicants.find(x => x.id === id); if (a) a.hireStatus = val; });
   clearChecks();
@@ -3767,7 +3798,9 @@ async function bulkDelete() {
   const ids = getCheckedIds();
   if (!ids.length) return;
   if (!confirm(`選択した${ids.length}件を削除しますか？\nこの操作は取り消せません。`)) return;
-  const { error } = await sb.from('applicants').delete().in('id', ids).eq('client_id', currentClientId);
+  let query = sb.from('applicants').delete().in('id', ids);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  const { error } = await query;
   if (error) { alert('削除に失敗しました: ' + error.message); return; }
   applicants = applicants.filter(a => !ids.includes(a.id));
   clearChecks();
@@ -3805,7 +3838,9 @@ async function updateTask(id) {
   t.due = due;
   t.priority = document.getElementById('mtPriority').value;
   try {
-    await sb.from('tasks').update({ owner: t.owner, content: taskContent, start_date: t.startDate||null, due_date: due||null, priority: t.priority }).eq('id', id).eq('client_id', currentClientId);
+    let query = sb.from('tasks').update({ owner: t.owner, content: taskContent, start_date: t.startDate||null, due_date: due||null, priority: t.priority }).eq('id', id);
+    if (!isAdmin) query = query.eq('client_id', currentClientId);
+    await query;
   } catch(e) {
     // fallback: update localStorage
     const stored = JSON.parse(localStorage.getItem('saiyo_tasks_fallback_' + currentClientId) || '[]');
@@ -3991,8 +4026,9 @@ const BUDGET_KEY = () => 'saiyo_budget_' + currentClientId + '_v1';
 
 async function loadBudgetData() {
   try {
-    const { data, error } = await sb.from('budgets').select('*')
-      .eq('client_id', currentClientId).order('month', { ascending: false });
+    let query = sb.from('budgets').select('*').order('month', { ascending: false });
+    if (!isAdmin) query = query.eq('client_id', currentClientId);
+    const { data, error } = await query;
     if (error) {
       const raw = localStorage.getItem(BUDGET_KEY());
       budgetData = raw ? JSON.parse(raw) : [];
