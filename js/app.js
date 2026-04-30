@@ -1106,9 +1106,21 @@ async function saveApp() {
 // 一括取り込み（CSV）
 // ========================================
 function downloadTemplate() {
-  // 採用可否は削除。最新のフォーム/一覧/分析に合わせた項目構成
-  const headers = ['応募日','応募職種','名前','ふりがな','メール','電話','性別','媒体名','ステータス','部署','生年','月','日','面接日時','書類URL'];
-  const example = ['2026-04-28','カスタマーサクセス','山田太郎','やまだたろう','test@example.com','09012345678','男性','LinkedIn','採用','大阪支店','1990','4','1','2026-04-30T14:00','https://drive.google.com/xxxx'];
+  // 新規登録フォーム・一覧画面・exportCSVと整合した26カラム
+  const headers = [
+    '応募日','求人番号','求人名称','応募職種','勤務地','部署',
+    '名前','ふりがな','メール','電話','性別','生年','月','日',
+    '媒体名','人材紹介会社','ステータス','採用可否','コンタクト日',
+    '1次面接日時','1次面接結果','2次面接日時','2次面接結果','退職日',
+    '書類URL','メモ'
+  ];
+  const example = [
+    '2026-04-28','JOB-1234','Webエンジニア募集','エンジニア','東京','開発部',
+    '山田太郎','やまだたろう','test@example.com','09012345678','男性','1990','4','1',
+    'リクナビNEXT','','面接','','2026-04-29',
+    '2026-04-30T14:00','合格','','','',
+    'https://drive.google.com/xxxx','備考メモ'
+  ];
   const csv = '\uFEFF' + headers.join(',') + '\r\n' + example.join(',') + '\r\n';
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
   const a = document.createElement('a');
@@ -1222,7 +1234,7 @@ function parseImportCSV(text) {
     errEl.style.display = 'none';
   }
   // プレビュー
-  const previewCols = ['応募日','名前','応募職種','媒体名','ステータス'].filter(c => headers.includes(c));
+  const previewCols = ['応募日','求人番号','名前','応募職種','媒体名','ステータス'].filter(c => headers.includes(c));
   document.getElementById('previewCount').textContent = `${importData.length}件のデータを検出` + (errors.length ? `（${errors.length}件はスキップ）` : '');
   document.getElementById('previewHead').innerHTML = '<tr>'+previewCols.map(c=>`<th style="padding:6px 8px;background:#f8f8f7;font-size:11px;font-weight:600;">${c}</th>`).join('')+'</tr>';
   document.getElementById('previewBody').innerHTML = importData.slice(0,10).map(r =>
@@ -1253,35 +1265,61 @@ async function doImport() {
   if (!importData.length) { alert('取り込むデータがありません'); return; }
   const btn = document.getElementById('importBtn');
   btn.disabled = true; btn.textContent = '登録中...';
+
+  // 応募日時点の年齢を計算（フォームと同じロジック）
+  function calcAgeAt(byear, bmonth, bday, appDateStr) {
+    if (!byear || !bmonth || !bday || !appDateStr) return null;
+    const birth = new Date(byear, bmonth - 1, bday);
+    const apply = new Date(appDateStr);
+    if (isNaN(birth.getTime()) || isNaN(apply.getTime())) return null;
+    let age = apply.getFullYear() - birth.getFullYear();
+    const md = apply.getMonth() - birth.getMonth();
+    if (md < 0 || (md === 0 && apply.getDate() < birth.getDate())) age--;
+    if (age < 0 || age > 120) return null;
+    return age;
+  }
+
   const rows = importData.map(r => {
     // 生年月日：旧テンプレートの「生年月日_年/月/日」、新テンプレートの「生年/月/日」両対応
     const byear = parseInt(r['生年月日_年'] || r['生年']) || null;
     const bmonth = parseInt(r['生年月日_月'] || r['月']) || null;
     const bday = parseInt(r['生年月日_日'] || r['日']) || null;
-    const age = byear ? new Date().getFullYear() - byear : null;
-    // 面接日時：新テンプレートの「面接日時」を1次面接日時にマップ。旧テンプレートの「1次面接日時」もサポート
+    const appDate = r['応募日'] || null;
+    // 応募日時点の年齢を計算（フォームと同じ振る舞い）
+    const age = calcAgeAt(byear, bmonth, bday, appDate);
+    // 表示用 birthdate 文字列（フォーム経由と整合）
+    const birthdate = (byear && bmonth && bday) ? `${byear}年${bmonth}月${bday}日` : null;
+    // 面接日時：新テンプレートの「1次面接日時」、旧テンプレートの「面接日時」両対応
     const int1d = r['1次面接日時'] || r['面接日時'] || null;
+    // 書類URL：単一URLが指定されていれば docs 配列に1件として格納
+    const docUrl = (r['書類URL'] || '').trim();
+    const docs = docUrl ? [{ type: '履歴書', name: '履歴書', url: docUrl, id: Date.now() + '' + Math.floor(Math.random()*1000) }] : [];
     return {
       client_id: currentClientId,
-      app_date: r['応募日']||null,
-      job_type: r['応募職種']||null,
-      location: r['勤務地']||null,
-      name: r['名前']||'',
-      kana: r['ふりがな']||null,
-      email: r['メール']||null,
-      phone: r['電話']||null,
-      media: r['媒体名']||null,
-      agency: r['人材紹介会社']||null,
-      birth_year: byear, birth_month: bmonth, birth_day: bday, age,
-      gender: r['性別']||null,
-      status: r['ステータス']||'書類依頼中',
-      dept: r['部署']||null,
-      contact_date: r['コンタクト日']||null,
-      int1_date: int1d, int1_result: r['1次面接結果']||null,
-      int2_date: r['2次面接日時']||null, int2_result: r['2次面接結果']||null,
-      retire_date: r['退職日']||null,
-      doc_url: r['書類URL']||null,
-      memo: r['メモ']||null, docs: []
+      app_date: appDate,
+      job_no: r['求人番号'] || null,
+      job_name: r['求人名称'] || null,
+      job_type: r['応募職種'] || null,
+      location: r['勤務地'] || null,
+      name: r['名前'] || '',
+      kana: r['ふりがな'] || null,
+      email: r['メール'] || null,
+      tel: r['電話'] || null,
+      media: r['媒体名'] || null,
+      agency: r['人材紹介会社'] || null,
+      birth_year: byear, birth_month: bmonth, birth_day: bday,
+      birthdate,
+      age,
+      gender: r['性別'] || null,
+      status: r['ステータス'] || '書類依頼中',
+      hire_status: r['採用可否'] || null,
+      dept: r['部署'] || null,
+      contact_date: r['コンタクト日'] || null,
+      int1_date: int1d, int1_result: r['1次面接結果'] || null,
+      int2_date: r['2次面接日時'] || null, int2_result: r['2次面接結果'] || null,
+      resign_date: r['退職日'] || null,
+      memo: r['メモ'] || null,
+      docs
     };
   });
   rows.forEach(r => { r.client_id = currentClientId; }); // マルチテナント強制付与
@@ -1333,17 +1371,31 @@ async function doImport() {
 }
 
 function exportCSV() {
-  const headers = ['応募日','応募職種','勤務地','名前','ふりがな','メール','電話','媒体','人材紹介会社','生年月日','年齢','性別','ステータス','コンタクト日','1次面接日時','1次面接結果','2次面接日時','2次面接結果','退職日','書類URL','メモ'];
-  const rows = applicants.map(a => [
-    a.appDate,a.jobType,a.location,a.name,a.kana,a.email,a.tel,
-    a.media,a.agency,a.birthdate,a.age,a.gender,a.status,
-    a.contactDate,a.int1Date,a.int1Res,a.int2Date,a.int2Res,a.resignDate,
-    (a.docs||[]).map(d=>`${d.name}:${d.url}`).join(' | '),a.memo
-  ].map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(','));
-  const csv = '\uFEFF' + headers.join(',') + '\n' + rows.join('\n');
+  // テンプレートCSVと同じ26カラム構成（往復可能なフォーマット）
+  const headers = [
+    '応募日','求人番号','求人名称','応募職種','勤務地','部署',
+    '名前','ふりがな','メール','電話','性別','生年','月','日',
+    '媒体名','人材紹介会社','ステータス','採用可否','コンタクト日',
+    '1次面接日時','1次面接結果','2次面接日時','2次面接結果','退職日',
+    '書類URL','メモ'
+  ];
+  const rows = applicants.map(a => {
+    // 書類URL：複数あれば「name:url | name:url」で結合
+    const docStr = (a.docs||[]).map(d => `${d.name||d.type||''}:${d.url||''}`).join(' | ');
+    return [
+      a.appDate||'', a.jobNo||'', a.jobName||'', a.jobType||'', a.location||'', a.dept||'',
+      a.name||'', a.kana||'', a.email||'', a.tel||'', a.gender||'',
+      a.birthYear||'', a.birthMonth||'', a.birthDay||'',
+      a.media||'', a.agency||'', a.status||'', a.hireStatus||'', a.contactDate||'',
+      a.int1Date||'', a.int1Res||'', a.int2Date||'', a.int2Res||'', a.resignDate||'',
+      docStr, a.memo||''
+    ].map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',');
+  });
+  const csv = '\uFEFF' + headers.join(',') + '\r\n' + rows.join('\r\n');
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
   const a = document.createElement('a');
-  a.href=URL.createObjectURL(blob); a.download=`採用コア_${currentClientName}_${new Date().toISOString().split('T')[0]}.csv`;
+  a.href = URL.createObjectURL(blob);
+  a.download = `採用コア_${currentClientName}_${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
 }
 
