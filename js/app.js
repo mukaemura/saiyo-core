@@ -1281,6 +1281,61 @@ function exportPDF() {
 // ========================================
 // ダッシュボード
 // ========================================
+// ダッシュボードのタスクサマリー（renderDashboard から呼ばれる）
+function renderDashTasks() {
+  const el = document.getElementById('dashTaskList');
+  if (!el) return;
+  const today = new Date().toISOString().split('T')[0];
+  // 自分のクライアントの未完了タスクを抽出（管理者は全件）
+  const visible = tasks.filter(t => isAdmin || t.clientId === currentClientId || !t.clientId);
+  const pending = visible.filter(t => !t.done);
+
+  // 並び順：期限超過→期限近い→残り、期限内では期限が早い順
+  pending.sort((a, b) => {
+    const aDue = a.due || '9999-12-31';
+    const bDue = b.due || '9999-12-31';
+    return aDue.localeCompare(bDue);
+  });
+
+  // バッジ更新
+  const badge = document.getElementById('dashTaskBadge');
+  if (badge) {
+    if (pending.length > 0) {
+      const overdueCnt = pending.filter(t => t.due && t.due < today).length;
+      badge.textContent = overdueCnt > 0 ? `${pending.length}件（期限超過 ${overdueCnt}）` : `${pending.length}件`;
+      badge.style.display = 'inline-block';
+      badge.style.background = overdueCnt > 0 ? '#D85A30' : '#378ADD';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  if (!pending.length) {
+    el.innerHTML = '<div style="text-align:center;padding:1rem;color:#aaa;font-size:12px;">未完了タスクはありません 🎉</div>';
+    return;
+  }
+
+  // 上位5件まで表示
+  const top = pending.slice(0, 5);
+  el.innerHTML = top.map(t => {
+    const isOverdue = t.due && t.due < today;
+    const dueText = t.due ? t.due.slice(5).replace('-', '/') : '期限なし';
+    const ownerColor = t.owner === 'LinkCore' ? '#185FA5' : '#854F0B';
+    const safeContent = String(t.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#fafaf8;border-radius:6px;margin-bottom:4px;font-size:11px;">
+      <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+        <span style="background:${ownerColor};color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;flex-shrink:0;">${t.owner || ''}</span>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${safeContent}</span>
+      </div>
+      <span style="color:${isOverdue ? '#D85A30' : '#888'};font-weight:${isOverdue ? '600' : '400'};flex-shrink:0;margin-left:8px;">${isOverdue ? '⚠ ' : ''}${dueText}</span>
+    </div>`;
+  }).join('');
+
+  if (pending.length > 5) {
+    el.innerHTML += `<div style="text-align:center;padding:6px;font-size:11px;color:#888;">他 ${pending.length - 5} 件</div>`;
+  }
+}
+
 function renderDashboard() {
   const now = new Date();
   const toStr = d => d.toISOString().split('T')[0];
