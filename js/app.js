@@ -305,6 +305,322 @@ function getAxisLabel(axisKey) {
   return m[axisKey] || axisKey;
 }
 
+// ========================================
+// 比較ビュー（テーブル + ピックアップ詳細）
+// ========================================
+// セクションごとのビュー状態（'table'=テーブル比較、'card'=カード、'nest'=ネスト）
+const sectionViewMode = {};
+// セクションごとの選択行
+const sectionSelectedRows = {};
+
+// テーブル比較ビュー（単一軸）
+function renderCompareTable(data, axisKey, secId) {
+  if (!data.length) return '<div class="empty" style="padding:1rem;text-align:center;color:#aaa;font-size:12px;">データがありません</div>';
+
+  // グループ化
+  const groups = {};
+  data.forEach(a => {
+    const v = getAxisValue(a, axisKey);
+    if (!groups[v]) groups[v] = [];
+    groups[v].push(a);
+  });
+  // 応募数降順、上位10件
+  const sorted = Object.entries(groups)
+    .sort((a,b) => b[1].length - a[1].length)
+    .slice(0, 10);
+  const remaining = Object.keys(groups).length - 10;
+
+  // 全体平均（％）を計算
+  const overallCum = calcFunnelCumulative(data);
+  const overallTotal = overallCum['applied'] || 0;
+  const avgPcts = {};
+  FUNNEL_STEPS.forEach(s => {
+    avgPcts[s.id] = overallTotal ? (overallCum[s.id] / overallTotal * 100) : 0;
+  });
+  // その他平均
+  const overallOther = data.filter(a => {
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
+    return cid === 'other' || cid === 'resigned';
+  }).length;
+  const avgOther = overallTotal ? (overallOther / overallTotal * 100) : 0;
+
+  // 行を生成
+  const selectedSet = sectionSelectedRows[secId] || new Set();
+  const rows = sorted.map(([name, arr], idx) => {
+    const cum = calcFunnelCumulative(arr);
+    const total = cum['applied'] || 0;
+    const otherCount = arr.filter(a => {
+      const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
+      return cid === 'other' || cid === 'resigned';
+    }).length;
+
+    const cells = FUNNEL_STEPS.slice(1).map(s => { // 応募(applied)はスキップ、他のステップだけ
+      const cnt = cum[s.id] || 0;
+      const pct = total ? Math.round(cnt/total*100) : 0;
+      const heat = total < 3 ? '' : // データ少ない場合は色付けしない
+        (pct > avgPcts[s.id] + 3) ? ' heat-good' :
+        (pct < avgPcts[s.id] - 3) ? ' heat-bad' : '';
+      return `<td class="cell-step${heat}"><span class="num">${cnt}</span><span class="pct">${pct}%</span></td>`;
+    }).join('');
+
+    const otherPct = total ? Math.round(otherCount/total*100) : 0;
+    const otherCell = `<td class="cell-step"><span class="num">${otherCount}</span><span class="pct">${otherPct}%</span></td>`;
+
+    const isSel = selectedSet.has(name);
+    const safeName = escFunnel(name);
+    return `<tr class="${isSel?'selected':''}" data-row-name="${safeName}">
+      <td class="cell-checkbox"><input type="checkbox" class="row-check" data-sec="${secId}" data-name="${safeName}" ${isSel?'checked':''} onchange="onCompareRowCheck('${secId}', this)"></td>
+      <td class="cell-name"><span class="badge-rank">${idx+1}</span>${safeName}</td>
+      <td class="cell-applied">${total}</td>
+      ${cells}
+      ${otherCell}
+    </tr>`;
+  }).join('');
+
+  // 全体平均行
+  const avgPctStrs = FUNNEL_STEPS.slice(1).map(s => `<td>${Math.round(avgPcts[s.id])}%</td>`).join('');
+
+  const note = remaining > 0
+    ? `<div style="text-align:center;padding:8px;font-size:11px;color:#aaa;">他 ${remaining} 件は省略（応募数上位10件のみ表示）</div>`
+    : '';
+
+  const selCount = selectedSet.size;
+  const selNames = [...selectedSet].slice(0,3).join('、') + (selCount > 3 ? ` 他${selCount-3}件` : '');
+
+  return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+    <div style="font-size:11px;color:#666;">応募 100% 基準。<strong style="color:#5aaa8e;">クリックで複数選択 → 下のボタンで詳細比較</strong></div>
+    <div class="compare-legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#639922;"></span>平均より高い</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#D85A30;"></span>平均より低い</span>
+    </div>
+  </div>
+  <div class="compare-table-wrap">
+    <table class="compare-table">
+      <thead><tr>
+        <th></th>
+        <th class="col-name">${getAxisLabel(axisKey)}</th>
+        <th class="col-step">応募</th>
+        <th class="col-step">対応中以上</th>
+        <th class="col-step">面接以上</th>
+        <th class="col-step">採用</th>
+        <th class="col-step">入社</th>
+        <th class="col-step">その他</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr>
+        <td colspan="2" class="cell-name">全体平均</td>
+        <td>${overallTotal}</td>
+        ${avgPctStrs}
+        <td>${Math.round(avgOther)}%</td>
+      </tr></tfoot>
+    </table>
+  </div>${note}
+  <div class="compare-action-bar">
+    <div class="compare-action-info" id="compare_info_${secId}">
+      ${selCount > 0 ? `<strong>${selCount}件 選択中</strong>　${escFunnel(selNames)}` : '未選択（チェックして比較できます）'}
+    </div>
+    <button class="compare-action-btn" id="compare_btn_${secId}" onclick="showPickupDetails('${secId}')" ${selCount===0?'disabled':''}>✓ チェックしたものを比較${selCount>0?`（${selCount}件）`:''}</button>
+  </div>
+  <div id="pickup_${secId}"></div>`;
+}
+
+// テーブル比較ビュー（複数軸：2軸・3軸対応）
+function renderCompareTableMulti(data, axes, secId) {
+  if (!data.length) return '<div class="empty" style="padding:1rem;text-align:center;color:#aaa;font-size:12px;">データがありません</div>';
+  if (!axes || axes.length < 2) return '<div class="empty">2軸以上を選択してください</div>';
+
+  // 全組み合わせをキー化してグループ化
+  const groups = {};
+  data.forEach(a => {
+    const key = axes.map(ax => getAxisValue(a, ax)).join('|||');
+    if (!groups[key]) groups[key] = { axisVals: axes.map(ax => getAxisValue(a, ax)), data: [] };
+    groups[key].data.push(a);
+  });
+  const sorted = Object.values(groups)
+    .sort((a,b) => b.data.length - a.data.length)
+    .slice(0, 20);
+  const remaining = Object.keys(groups).length - 20;
+
+  // 全体平均
+  const overallCum = calcFunnelCumulative(data);
+  const overallTotal = overallCum['applied'] || 0;
+  const avgPcts = {};
+  FUNNEL_STEPS.forEach(s => {
+    avgPcts[s.id] = overallTotal ? (overallCum[s.id] / overallTotal * 100) : 0;
+  });
+
+  const selectedSet = sectionSelectedRows[secId] || new Set();
+
+  // 親軸が変わるごとに区切り線を入れる
+  let prevAx1 = null;
+  const rows = sorted.map((g, idx) => {
+    const cum = calcFunnelCumulative(g.data);
+    const total = cum['applied'] || 0;
+
+    const cells = FUNNEL_STEPS.slice(1).map(s => {
+      const cnt = cum[s.id] || 0;
+      const pct = total ? Math.round(cnt/total*100) : 0;
+      const heat = total < 3 ? '' :
+        (pct > avgPcts[s.id] + 3) ? ' heat-good' :
+        (pct < avgPcts[s.id] - 3) ? ' heat-bad' : '';
+      return `<td class="cell-step${heat}"><span class="num">${cnt}</span><span class="pct">${pct}%</span></td>`;
+    }).join('');
+
+    const axCells = g.axisVals.map((v, i) => {
+      const styleClass = i === 0 ? '' : 'style="font-weight:500;color:#666;"';
+      return `<td class="cell-name" ${styleClass}>${escFunnel(v)}</td>`;
+    }).join('');
+
+    const rowKey = g.axisVals.join(' / ');
+    const isSel = selectedSet.has(rowKey);
+    const isNewParent = prevAx1 !== g.axisVals[0];
+    prevAx1 = g.axisVals[0];
+    const borderStyle = isNewParent && idx > 0 ? 'border-top:2px solid #e4e8e7;' : '';
+    const safeKey = escFunnel(rowKey);
+
+    return `<tr class="${isSel?'selected':''}" style="${borderStyle}" data-row-name="${safeKey}">
+      <td class="cell-checkbox"><input type="checkbox" class="row-check" data-sec="${secId}" data-name="${safeKey}" ${isSel?'checked':''} onchange="onCompareRowCheck('${secId}', this)"></td>
+      ${axCells}
+      <td class="cell-applied">${total}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  const headerCells = axes.map(ax => `<th class="col-name">${getAxisLabel(ax)}</th>`).join('');
+  const avgPctStrs = FUNNEL_STEPS.slice(1).map(s => `<td>${Math.round(avgPcts[s.id])}%</td>`).join('');
+
+  const note = remaining > 0
+    ? `<div style="text-align:center;padding:8px;font-size:11px;color:#aaa;">他 ${remaining} 件は省略（応募数上位20件のみ表示）</div>`
+    : '';
+
+  const selCount = selectedSet.size;
+  const selNames = [...selectedSet].slice(0,2).join('、') + (selCount > 2 ? ` 他${selCount-2}件` : '');
+
+  return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+    <div style="font-size:11px;color:#666;">応募 100% 基準。<strong style="color:#5aaa8e;">親軸ごとに区切り線。クリックで複数選択 → 詳細比較</strong></div>
+    <div class="compare-legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#639922;"></span>平均より高い</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#D85A30;"></span>平均より低い</span>
+    </div>
+  </div>
+  <div class="compare-table-wrap">
+    <table class="compare-table">
+      <thead><tr>
+        <th></th>
+        ${headerCells}
+        <th class="col-step">応募</th>
+        <th class="col-step">対応中以上</th>
+        <th class="col-step">面接以上</th>
+        <th class="col-step">採用</th>
+        <th class="col-step">入社</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr>
+        <td colspan="${axes.length+1}" class="cell-name">全体平均</td>
+        <td>${overallTotal}</td>
+        ${avgPctStrs}
+      </tr></tfoot>
+    </table>
+  </div>${note}
+  <div class="compare-action-bar">
+    <div class="compare-action-info" id="compare_info_${secId}">
+      ${selCount > 0 ? `<strong>${selCount}件 選択中</strong>　${escFunnel(selNames)}` : '未選択'}
+    </div>
+    <button class="compare-action-btn" id="compare_btn_${secId}" onclick="showPickupDetailsMulti('${secId}')" ${selCount===0?'disabled':''}>✓ チェックしたものを比較${selCount>0?`（${selCount}件）`:''}</button>
+  </div>
+  <div id="pickup_${secId}"></div>`;
+}
+
+// チェックボックスの変更を反映
+function onCompareRowCheck(secId, checkbox) {
+  if (!sectionSelectedRows[secId]) sectionSelectedRows[secId] = new Set();
+  const set = sectionSelectedRows[secId];
+  const name = checkbox.getAttribute('data-name');
+  if (checkbox.checked) set.add(name);
+  else set.delete(name);
+
+  // 行のハイライト切替
+  const tr = checkbox.closest('tr');
+  if (tr) tr.classList.toggle('selected', checkbox.checked);
+
+  // ボタンテキスト・有効状態の更新
+  const btn = document.getElementById('compare_btn_' + secId);
+  const info = document.getElementById('compare_info_' + secId);
+  const cnt = set.size;
+  if (btn) {
+    btn.disabled = cnt === 0;
+    btn.textContent = cnt > 0 ? `✓ チェックしたものを比較（${cnt}件）` : '✓ チェックしたものを比較';
+  }
+  if (info) {
+    if (cnt > 0) {
+      const names = [...set].slice(0,3).join('、') + (cnt > 3 ? ` 他${cnt-3}件` : '');
+      info.innerHTML = `<strong>${cnt}件 選択中</strong>　${escFunnel(names)}`;
+    } else {
+      info.textContent = '未選択（チェックして比較できます）';
+    }
+  }
+}
+
+// ピックアップ詳細表示（単一軸）
+function showPickupDetails(secId) {
+  const set = sectionSelectedRows[secId];
+  if (!set || set.size === 0) return;
+  const sec = activeSections.find(s => s.id === secId);
+  if (!sec) return;
+  const data = getAnData();
+  const axisKeyMap = {
+    media: 'media', job: 'jobType', dept: 'dept', age: 'ageGroup',
+    gender: 'gender', agency: 'agency', status: 'status', hire: 'hireStatus'
+  };
+  const axisKey = axisKeyMap[sec.type];
+  if (!axisKey) return;
+
+  const cards = [...set].map(name => {
+    const filtered = data.filter(a => getAxisValue(a, axisKey) === name);
+    return renderFunnelCard(filtered, name);
+  }).join('');
+
+  const target = document.getElementById('pickup_' + secId);
+  if (target) {
+    target.innerHTML = `<div class="pickup-details">
+      <div class="pickup-details-head"><span class="check-icon">✓</span>ピックアップした${set.size}件の詳細ファネル</div>
+      <div class="pickup-grid">${cards}</div>
+    </div>`;
+  }
+}
+
+// ピックアップ詳細表示（複数軸）
+function showPickupDetailsMulti(secId) {
+  const set = sectionSelectedRows[secId];
+  if (!set || set.size === 0) return;
+  const sec = activeSections.find(s => s.id === secId);
+  if (!sec || !sec.opts || !sec.opts.axes) return;
+  const data = getAnData();
+  const axes = sec.opts.axes;
+
+  const cards = [...set].map(rowKey => {
+    const vals = rowKey.split(' / ');
+    const filtered = data.filter(a => axes.every((ax, i) => getAxisValue(a, ax) === vals[i]));
+    return renderFunnelCard(filtered, rowKey);
+  }).join('');
+
+  const target = document.getElementById('pickup_' + secId);
+  if (target) {
+    target.innerHTML = `<div class="pickup-details">
+      <div class="pickup-details-head"><span class="check-icon">✓</span>ピックアップした${set.size}件の詳細ファネル</div>
+      <div class="pickup-grid">${cards}</div>
+    </div>`;
+  }
+}
+
+// ビュー切替
+function setSectionView(secId, mode) {
+  sectionViewMode[secId] = mode;
+  // 選択状態をリセット
+  if (sectionSelectedRows[secId]) sectionSelectedRows[secId].clear();
+  renderCustomSections();
+}
+
 
 // ========================================
 // アプリ状態
@@ -2191,6 +2507,8 @@ function addSection(type, opts) {
 function removeSection(id) {
   if (sectionCharts[id]) { sectionCharts[id].forEach(c => c.destroy()); delete sectionCharts[id]; }
   activeSections = activeSections.filter(s => s.id !== id);
+  delete sectionViewMode[id];
+  delete sectionSelectedRows[id];
   renderCustomSections();
 }
 
@@ -2523,6 +2841,15 @@ function buildSectionInline(data, s) {
     return '<div style="color:#aaa;font-size:12px;padding:.5rem;text-align:center;">分析中...</div>';
   }
 
+  // ビュー切替トグルのHTML生成
+  const renderToggle = (current, options) => {
+    return `<div class="view-toggle" style="margin-bottom:10px;">${
+      options.map(o =>
+        `<button class="${current===o.value?'active':''}" onclick="setSectionView('${secId}','${o.value}')">${o.label}</button>`
+      ).join('')
+    }</div>`;
+  };
+
   // 単一軸ファネル分析
   const axisKeyMap = {
     media: 'media', job: 'jobType', dept: 'dept', age: 'ageGroup',
@@ -2530,13 +2857,29 @@ function buildSectionInline(data, s) {
   };
   if (axisKeyMap[type]) {
     const axisKey = axisKeyMap[type];
-    return renderSingleAxisFunnel(data, a => getAxisValue(a, axisKey));
+    const view = sectionViewMode[secId] || 'table'; // デフォルトはテーブル比較
+    const toggle = renderToggle(view, [
+      {value:'table', label:'📊 比較表示'},
+      {value:'card',  label:'🎴 カード表示'}
+    ]);
+    const body = view === 'card'
+      ? renderSingleAxisFunnel(data, a => getAxisValue(a, axisKey))
+      : renderCompareTable(data, axisKey, secId);
+    return toggle + body;
   }
 
-  // 複数軸ネスト型クロス集計
+  // 複数軸クロス集計
   if (type === 'multi_axis') {
     const axes = s.opts ? s.opts.axes : [];
-    return buildMultiAxisHTML(data, axes, secId);
+    const view = sectionViewMode[secId] || 'table'; // デフォルトはテーブル比較
+    const toggle = renderToggle(view, [
+      {value:'table', label:'📊 比較表示'},
+      {value:'nest',  label:'🌳 ネスト表示'}
+    ]);
+    const body = view === 'nest'
+      ? buildMultiAxisHTML(data, axes, secId)
+      : renderCompareTableMulti(data, axes, secId);
+    return toggle + body;
   }
 
   return '<div class="empty">不明なセクションタイプです</div>';
@@ -4392,6 +4735,10 @@ if (typeof window !== 'undefined') {
   window.renderTaskCalendar = renderTaskCalendar;
   window.clickTaskCalDay = clickTaskCalDay;
   window.afJump = afJump;
+  window.setSectionView = setSectionView;
+  window.onCompareRowCheck = onCompareRowCheck;
+  window.showPickupDetails = showPickupDetails;
+  window.showPickupDetailsMulti = showPickupDetailsMulti;
   // 上記以外の関数は function宣言により既にグローバルだが、
   // 万一のミニファイ等に備えて主要関数も明示しておく
 }
