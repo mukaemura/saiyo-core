@@ -401,6 +401,7 @@ async function loadApplicants() {
     return {
       id: r.id,
       appDate: r.app_date, jobType: r.job_type, location: r.location,
+      jobNo: r.job_no || '', jobName: r.job_name || '',
       name: r.name, kana: r.kana, email: r.email, tel: r.tel,
       gender: r.gender, age: r.age, media: r.media, agency: r.agency,
       status: newStatus, contactDate: r.contact_date,
@@ -453,14 +454,81 @@ async function loadMasters() {
 // ========================================
 function initFormOptions() {
   const bm = document.getElementById('fBM');
-  bm.innerHTML = '<option value="">月</option>';
-  for (let i = 1; i <= 12; i++) bm.innerHTML += `<option>${i}</option>`;
+  if (bm) {
+    bm.innerHTML = '<option value="">--</option>';
+    for (let i = 1; i <= 12; i++) bm.innerHTML += `<option>${i}</option>`;
+  }
   const bd = document.getElementById('fBD');
-  bd.innerHTML = '<option value="">日</option>';
-  for (let i = 1; i <= 31; i++) bd.innerHTML += `<option>${i}</option>`;
-  const ag = document.getElementById('fAg');
-  ag.innerHTML = '<option value="">選択</option>';
-  for (let i = 18; i <= 70; i++) ag.innerHTML += `<option>${i}歳</option>`;
+  if (bd) {
+    bd.innerHTML = '<option value="">--</option>';
+    for (let i = 1; i <= 31; i++) bd.innerHTML += `<option>${i}</option>`;
+  }
+  // 年齢自動計算のセットアップ
+  setupAutoAge();
+}
+
+// ===== 年齢自動計算（応募日 - 生年月日） =====
+window._ageAutoOverride = false;
+function setupAutoAge() {
+  const yEl = document.getElementById('fBY');
+  const mEl = document.getElementById('fBM');
+  const dEl = document.getElementById('fBD');
+  const adEl = document.getElementById('fAD');
+  const ageEl = document.getElementById('fAg');
+  const autoMark = document.getElementById('fAgAuto');
+  if (!yEl || !mEl || !dEl || !adEl || !ageEl) return;
+
+  // 既にイベント登録済みなら何もしない
+  if (yEl.dataset.autoAgeBound) return;
+  yEl.dataset.autoAgeBound = '1';
+
+  function calcAge() {
+    const y = parseInt(yEl.value);
+    const m = parseInt(mEl.value);
+    const d = parseInt(dEl.value);
+    const ad = adEl.value;
+    if (!y || !m || !d || !ad) return null;
+    const birth = new Date(y, m - 1, d);
+    const apply = new Date(ad);
+    if (isNaN(birth.getTime()) || isNaN(apply.getTime())) return null;
+    let age = apply.getFullYear() - birth.getFullYear();
+    const md = (apply.getMonth() - birth.getMonth());
+    if (md < 0 || (md === 0 && apply.getDate() < birth.getDate())) age--;
+    if (age < 0 || age > 120) return null;
+    return age;
+  }
+  function update() {
+    if (window._ageAutoOverride) return;
+    const age = calcAge();
+    if (age !== null) {
+      ageEl.value = age;
+      if (autoMark) autoMark.style.display = 'inline';
+    }
+  }
+  [yEl, mEl, dEl, adEl].forEach(el => {
+    el.addEventListener('change', update);
+    el.addEventListener('input', update);
+  });
+  // ユーザーが年齢を直接編集したら以後自動計算しない
+  ageEl.addEventListener('input', () => {
+    window._ageAutoOverride = true;
+    if (autoMark) autoMark.style.display = 'none';
+  });
+  // 年齢欄を空にすると自動計算復帰
+  ageEl.addEventListener('change', () => {
+    if (!ageEl.value) {
+      window._ageAutoOverride = false;
+      update();
+    }
+  });
+}
+
+// セクションナビのクリック処理
+function afJump(targetId, link) {
+  const t = document.getElementById(targetId);
+  if (t) t.scrollIntoView({behavior:'smooth', block:'start'});
+  document.querySelectorAll('.addform-nav a').forEach(a => a.classList.remove('active'));
+  if (link) link.classList.add('active');
 }
 
 function popSelects() {
@@ -777,8 +845,17 @@ function renderList() {
   const em = document.getElementById('emptyList');
   if (!fil.length) { tb.innerHTML = ''; em.style.display = 'block'; return; }
   em.style.display = 'none';
+  // 面接日時を MM/DD コンパクト形式に
+  const fmtIntDate = (v) => {
+    if (!v) return '<span class="list-col-int list-col-empty">-</span>';
+    // YYYY-MM-DD or YYYY-MM-DDTHH:MM 両対応
+    const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return `<span class="list-col-int has-value">${v}</span>`;
+    return `<span class="list-col-int has-value">${m[2]}/${m[3]}</span>`;
+  };
+  // 求人名称をHTMLエスケープ（titleとテキスト両方で使うため）
+  const esc = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   tb.innerHTML = fil.map(a => {
-    const dc = (a.docs||[]).length;
     const hireColor = {'内定':'bg','内定承諾':'bt','採用':'bg','不採用':'br','保留':'ba'}[a.hireStatus] || 'bgr';
     const coreId = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
     const hireOk = ['hired','joined'].includes(coreId);
@@ -788,11 +865,19 @@ function renderList() {
       : hireNg
       ? 'background:linear-gradient(90deg,#eef4ff,#f0f6ff);'
       : '';
+    const jobNoCell = a.jobNo
+      ? `<span class="list-col-job-no">${esc(a.jobNo)}</span>`
+      : `<span class="list-col-empty">-</span>`;
+    const jobNameCell = a.jobName
+      ? `<span class="list-col-job-name" title="${esc(a.jobName)}">${esc(a.jobName)}</span>`
+      : `<span class="list-col-empty">-</span>`;
     return `<tr id="row_${a.id}" style="${rowBg}">
       <td style="width:36px;" onclick="event.stopPropagation()">
         <input type="checkbox" class="rowCheck" value="${a.id}" onchange="onCheckChange()" style="cursor:pointer;width:14px;height:14px;">
       </td>
       <td>${a.appDate||''}</td>
+      <td>${jobNoCell}</td>
+      <td>${jobNameCell}</td>
       <td style="font-weight:500;">${a.name}</td>
       <td>${a.jobType||''}</td>
       <td onclick="event.stopPropagation()">
@@ -808,10 +893,11 @@ function renderList() {
           ${(masters.status||[]).map(s=>`<option value="${s}" ${a.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
-      <td>${dc?`<span class="badge bgr">${dc}件</span>`:''}</td>
+      <td>${fmtIntDate(a.int1Date)}</td>
+      <td>${fmtIntDate(a.int2Date)}</td>
       <td><button class="btn-sm" onclick="openDetail('${a.id}')">詳細</button></td>
     </tr>
-    <tr id="detail_${a.id}" style="display:none;"><td colspan="9" style="padding:0;"></td></tr>`;
+    <tr id="detail_${a.id}" style="display:none;"><td colspan="12" style="padding:0;"></td></tr>`;
   }).join('');
 }
 
@@ -929,7 +1015,7 @@ function closeDetail() {
 function editApp() {
   const a = applicants.find(x => x.id === curId); if (!a) return;
   closeDetail(); editId = a.id;
-  const map = {fAD:'appDate',fJT:'jobType',fLoc:'location',fNm:'name',fKn:'kana',fEm:'email',fTel:'tel',fGe:'gender',fAg:'age',fMed:'media',fAg2:'agency',fSt2:'status',fCD:'contactDate',fI1D:'int1Date',fI1R:'int1Res',fI2D:'int2Date',fI2R:'int2Res',fRD:'resignDate',fMemo:'memo',fDept2:'dept',fHire2:'hireStatus'};
+  const map = {fAD:'appDate',fJT:'jobType',fJobNo:'jobNo',fJobName:'jobName',fLoc:'location',fNm:'name',fKn:'kana',fEm:'email',fTel:'tel',fGe:'gender',fAg:'age',fMed:'media',fAg2:'agency',fSt2:'status',fCD:'contactDate',fI1D:'int1Date',fI1R:'int1Res',fI2D:'int2Date',fI2R:'int2Res',fRD:'resignDate',fMemo:'memo',fDept2:'dept',fHire2:'hireStatus'};
   Object.entries(map).forEach(([fid,key])=>{ const el=document.getElementById(fid); if(el&&a[key]!=null)el.value=a[key]; });
   if(a.birthYear) document.getElementById('fBY').value=a.birthYear;
   if(a.birthMonth) document.getElementById('fBM').value=a.birthMonth;
@@ -953,11 +1039,14 @@ async function delApp() {
 // ========================================
 function resetForm() {
   editId = null; tempDocs = [];
-  ['fAD','fJT','fLoc','fNm','fKn','fEm','fTel','fCD','fI1D','fI2D','fRD','fMemo','fBY'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  ['fGe','fAg','fMed','fAg2','fSt2','fBM','fBD','fI1R','fI2R','fDept2','fHire2'].forEach(id=>{const e=document.getElementById(id);if(e)e.selectedIndex=0;});
+  ['fAD','fJT','fJobNo','fJobName','fLoc','fNm','fKn','fEm','fTel','fAg','fCD','fI1D','fI2D','fRD','fMemo','fBY'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['fGe','fMed','fAg2','fSt2','fBM','fBD','fI1R','fI2R','fDept2','fHire2'].forEach(id=>{const e=document.getElementById(id);if(e)e.selectedIndex=0;});
   document.getElementById('fAD').value = new Date().toISOString().split('T')[0];
   document.getElementById('docList').innerHTML='';
   document.getElementById('docName').value=''; document.getElementById('docUrl').value='';
+  // 自動年齢計算の状態をリセット
+  if (typeof window._ageAutoOverride !== 'undefined') window._ageAutoOverride = false;
+  const ageAuto = document.getElementById('fAgAuto'); if (ageAuto) ageAuto.style.display = 'none';
 }
 
 async function saveApp() {
@@ -971,13 +1060,15 @@ async function saveApp() {
     client_id: cid,
     app_date: document.getElementById('fAD').value,
     job_type: document.getElementById('fJT').value,
+    job_no: document.getElementById('fJobNo') ? document.getElementById('fJobNo').value : '',
+    job_name: document.getElementById('fJobName') ? document.getElementById('fJobName').value : '',
     location: document.getElementById('fLoc').value,
     name: document.getElementById('fNm').value,
     kana: document.getElementById('fKn').value,
     email: document.getElementById('fEm').value,
     tel: document.getElementById('fTel').value,
     gender: document.getElementById('fGe').value,
-    age: document.getElementById('fAg').value,
+    age: document.getElementById('fAg').value || null,
     media: document.getElementById('fMed').value,
     agency: document.getElementById('fAg2').value,
     status: document.getElementById('fSt2').value,
@@ -1369,8 +1460,30 @@ function renderDashboard() {
   const rate = total ? Math.round(hired / total * 100) : 0;
   const thisMonth = applicants.filter(a => a.appDate && a.appDate >= monthStart).length;
 
-  // 上部 KPI: すべて累計表示
+  // ===== 本日のKPI =====
+  const todayStr = toStr(now); // YYYY-MM-DD
+  // 本日の応募数：応募日が今日と一致
+  const todayApps = applicants.filter(a => a.appDate === todayStr).length;
+  // 本日の面接数：1次/2次の日時が今日と一致（同日に両方なら2件）
+  const todayInterviews = applicants.reduce((cnt, a) => {
+    // int1Date / int2Date は YYYY-MM-DD or YYYY-MM-DDTHH:MM 形式
+    const i1 = a.int1Date ? String(a.int1Date).slice(0,10) : '';
+    const i2 = a.int2Date ? String(a.int2Date).slice(0,10) : '';
+    if (i1 === todayStr) cnt++;
+    if (i2 === todayStr) cnt++;
+    return cnt;
+  }, 0);
+
+  // 上部 KPI: 本日カード2枚 + 既存5枚
   document.getElementById('dashKpi').innerHTML = `
+    <div class="mc mc-today" style="border-left:3px solid #EF9F27;">
+      <span class="badge-today">TODAY</span>
+      <div class="mc-lbl">本日の応募数</div><div class="mc-val">${todayApps}<span style="font-size:14px;color:#888;font-weight:500;">件</span></div><div class="mc-sub">応募日が今日</div>
+    </div>
+    <div class="mc mc-today" style="border-left:3px solid #9B59B6;">
+      <span class="badge-today">TODAY</span>
+      <div class="mc-lbl">本日の面接数</div><div class="mc-val">${todayInterviews}<span style="font-size:14px;color:#888;font-weight:500;">件</span></div><div class="mc-sub">1次/2次の合算</div>
+    </div>
     <div class="mc" style="border-left:3px solid #378ADD;">
       <div class="mc-lbl">総応募数</div><div class="mc-val">${total}</div><div class="mc-sub">累計</div>
     </div>
@@ -4125,6 +4238,7 @@ if (typeof window !== 'undefined') {
   window.deleteClient = deleteClient;
   window.renderTaskCalendar = renderTaskCalendar;
   window.clickTaskCalDay = clickTaskCalDay;
+  window.afJump = afJump;
   // 上記以外の関数は function宣言により既にグローバルだが、
   // 万一のミニファイ等に備えて主要関数も明示しておく
 }

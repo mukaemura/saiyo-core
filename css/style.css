@@ -143,3 +143,303 @@ tr:hover td{background:#fafafa;}
       0%,100%{transform:translateY(0)}
       50%{transform:translateY(-8px)}
     }
+
+/* ========================================
+   新規登録フォーム（2カラム形式）
+   ======================================== */
+.addform-container {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+.addform-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border-radius: 14px 14px 0 0;
+  padding: 1.25rem 1.75rem;
+  border-bottom: 1px solid #ecefef;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.addform-head h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.addform-icon {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, #6ab49a, #5aaa8e);
+  color: #fff;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  box-shadow: 0 2px 8px rgba(106,180,154,.3);
+}
+.addform-meta {
+  display: flex;
+  gap: 18px;
+  font-size: 11px;
+  color: #888;
+  align-items: center;
+}
+.addform-meta strong { color: #444; font-weight: 600; margin-right: 4px; }
+
+.addform-nav {
+  display: flex;
+  gap: 4px;
+  padding: 0 1.75rem;
+  background: #fff;
+  border-bottom: 1px solid #ecefef;
+  flex-wrap: wrap;
+}
+.addform-nav a {
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #888;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  transition: all .2s;
+  cursor: pointer;
+}
+.addform-nav a:hover { color: #5aaa8e; }
+.addform-nav a.active {
+  color: #5aaa8e;
+  border-bottom-color: #5aaa8e;
+}
+
+.addform-body {
+  background: #fff;
+  border-radius: 0 0 14px 14px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.04);
+}
+
+.afsec { border-top: 1px solid #f0f3f2; }
+.afsec:first-of-type { border-top: none; }
+.afsec-head {
+  padding: 16px 1.75rem 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(180deg, #fafcfb, #fff);
+}
+.afsec-marker {
+  width: 4px; height: 18px;
+  background: linear-gradient(180deg, #6ab49a, #5aaa8e);
+  border-radius: 2px;
+}
+.afsec-head h2 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2a4a3e;
+  letter-spacing: .04em;
+  margin: 0;
+}
+.afsec-body { padding: 4px 0 12px; }
+
+.afrow {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px 1.75rem;
+  border-top: 1px solid #f4f6f5;
+  transition: background .15s;
+  min-height: 56px;
+}
+.afrow:hover { background: #fafcfb; }
+.afrow:first-child { border-top: none; }
+.afrow-label {
+  flex: 0 0 180px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2a4a3e;
+}
+.afrow-input {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.afreq {
+  display: inline-flex;
+  align-items: center;
+  background: #e85a5a;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 3px;
+  letter-spacing: .04em;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+.afreq-spacer {
+  display: inline-block;
+  width: 30px;
+  flex-shrink: 0;
+}
+
+/* 新規登録フォーム内の入力共通スタイル（既存formとぶつからないようスコープ） */
+#sec-add input[type=text], #sec-add input[type=email], #sec-add input[type=tel],
+#sec-add input[type=number], #sec-add input[type=date],
+#sec-add input[type=datetime-local], #sec-add input[type=url],
+#sec-add select {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 12px;
+  border: 1.5px solid #e4e8e7;
+  border-radius: 8px;
+  background: #fafcfb;
+  color: #1a1a1a;
+  transition: all .15s;
+  outline: none;
+}
+#sec-add input:focus, #sec-add select:focus, #sec-add textarea:focus {
+  border-color: #6ab49a;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(106,180,154,.12);
+}
+#sec-add input::placeholder, #sec-add textarea::placeholder { color: #b8bdbb; }
+
+#sec-add select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path fill='%23888' d='M2 4l4 4 4-4z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
+}
+
+.afw-full { width: 100%; flex: 1 1 100%; }
+.afw-lg { width: 320px; }
+.afw-md { width: 220px; }
+.afw-sm { width: 140px; }
+.afw-xs { width: 100px; }
+
+.afbd-fields {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.afbd-suffix {
+  font-size: 12px;
+  color: #888;
+  margin-left: -4px;
+  margin-right: 2px;
+}
+.afbd-age {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+  padding-left: 16px;
+  border-left: 1px solid #e4e8e7;
+  font-size: 12px;
+  color: #666;
+}
+
+.afdoc-area {
+  background: #f8faf9;
+  border: 1px dashed #c8d6d2;
+  border-radius: 10px;
+  padding: 14px;
+  flex: 1;
+  width: 100%;
+}
+.afdoc-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.afbtn-add {
+  background: #5aaa8e;
+  color: #fff;
+  font-size: 12px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-family: inherit;
+  transition: all .15s;
+}
+.afbtn-add:hover { background: #4d9a7e; transform: translateY(-1px); }
+
+.addform-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 1.75rem;
+  border-top: 1px solid #ecefef;
+  background: #fafcfb;
+  border-radius: 0 0 14px 14px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.addform-help {
+  font-size: 11px;
+  color: #888;
+}
+.addform-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* ========================================
+   ダッシュボード：本日カード
+   ======================================== */
+.mc-today {
+  background: linear-gradient(135deg, #fff8eb, #fff) !important;
+  position: relative;
+}
+.mc-today .badge-today {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #EF9F27;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: .04em;
+}
+
+/* ========================================
+   一覧画面：求人番号・求人名称・面接日列
+   ======================================== */
+.list-col-job-no {
+  color: #5aaa8e;
+  font-weight: 600;
+  font-family: Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+.list-col-job-name {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.list-col-empty { color: #ccc; }
+.list-col-int {
+  color: #888;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.list-col-int.has-value {
+  color: #185FA5;
+  font-weight: 600;
+}

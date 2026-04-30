@@ -248,12 +248,15 @@
           <thead><tr>
   <th style="width:36px;"><input type="checkbox" id="checkAll" onclick="toggleCheckAll(this)" style="cursor:pointer;width:14px;height:14px;"></th>
   <th onclick="quickSort('appDate')" style="cursor:pointer;">応募日 <span id="sort_appDate">↓</span></th>
+  <th>求人番号</th>
+  <th>求人名称</th>
   <th onclick="quickSort('name')" style="cursor:pointer;">名前 <span id="sort_name"></span></th>
   <th onclick="quickSort('jobType')" style="cursor:pointer;">職種 <span id="sort_jobType"></span></th>
   <th onclick="quickSort('dept')" style="cursor:pointer;">部署 <span id="sort_dept"></span></th>
   <th>媒体</th>
   <th>ステータス</th>
-  <th>書類</th>
+  <th>1次面接</th>
+  <th>2次面接</th>
   <th></th>
 </tr></thead>
           <tbody id="listBody"></tbody>
@@ -283,54 +286,207 @@
         </div>
         <img src="assets/logo.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
       </div>
-      <div class="fgrid" id="addForm">
-        <div class="fsec">基本情報</div>
-        <div class="fg"><label>応募日<span class="req">*</span></label><input type="date" id="fAD"></div>
-        <div class="fg"><label>応募職種<span class="req">*</span></label><input type="text" id="fJT" placeholder="エンジニア、営業 等"></div>
-        <div class="fg"><label>勤務地</label><input type="text" id="fLoc" placeholder="東京、大阪 等"></div>
-        <div class="fg"><label>性別<span class="req">*</span></label><select id="fGe"><option value="">選択</option><option>男性</option><option>女性</option><option>その他</option><option>未回答</option></select></div>
-        <div class="fg"><label>部署</label><select id="fDept2"><option value="">選択</option></select></div>
-        <div class="fsec">個人情報</div>
-        <div class="fg"><label>名前<span class="req">*</span></label><input type="text" id="fNm" placeholder="山田 太郎"></div>
-        <div class="fg"><label>ふりがな<span class="req">*</span></label><input type="text" id="fKn" placeholder="やまだ たろう"></div>
-        <div class="fg full"><label>メールアドレス<span class="req">*</span></label><input type="email" id="fEm" placeholder="example@email.com"></div>
-        <div class="fg"><label>電話番号<span class="req">*</span></label><input type="tel" id="fTel" placeholder="090-0000-0000"></div>
-        <div class="fg"><label>生年月日</label>
-          <div class="dr3">
-            <input type="number" id="fBY" placeholder="1990年" min="1940" max="2010">
-            <select id="fBM"><option value="">月</option></select>
-            <select id="fBD"><option value="">日</option></select>
+
+      <div class="addform-container">
+        <!-- ヘッダー -->
+        <div class="addform-head">
+          <h1><span class="addform-icon">＋</span>新規登録</h1>
+          <div class="addform-meta">
+            <span><strong>登録モード：</strong><span id="addModeLabel">新規</span></span>
           </div>
         </div>
-        <div class="fg"><label>年齢</label><select id="fAg"><option value="">選択</option></select></div>
-        <div class="fsec">応募情報</div>
-        <div class="fg"><label>媒体名<span class="req">*</span></label><select id="fMed"><option value="">選択</option></select></div>
-        <div class="fg"><label>人材紹介会社</label><select id="fAg2"><option value="">選択</option></select></div>
-        <div class="fg"><label>ステータス<span class="req">*</span></label><select id="fSt2"><option value="">選択</option></select></div>
-        <div class="fg"><label>コンタクト日</label><input type="date" id="fCD"></div>
-        <div class="fsec">選考情報</div>
-        <div class="fg"><label>1次面接日時</label><input type="datetime-local" id="fI1D"></div>
-        <div class="fg"><label>1次面接結果</label><select id="fI1R"><option value="">未定</option><option>合格</option><option>不合格</option><option>辞退</option></select></div>
-        <div class="fg"><label>2次面接日時</label><input type="datetime-local" id="fI2D"></div>
-        <div class="fg"><label>2次面接結果</label><select id="fI2R"><option value="">未定</option><option>合格</option><option>不合格</option><option>辞退</option></select></div>
-        <div class="fg"><label>退職日</label><input type="date" id="fRD"></div>
-        <div class="fg"></div>
-        <div class="fsec">書類管理（GoogleドライブURL）</div>
-        <div class="doc-area full">
-          <div class="doc-area-title">書類を追加（種別を選んでURLを登録）</div>
-          <div id="docList" style="display:flex;flex-direction:column;gap:5px;"></div>
-          <div class="doc-add-row">
-            <select id="docType"><option value="履歴書">履歴書</option><option value="職務経歴書">職務経歴書</option><option value="その他">その他</option></select>
-            <input type="text" id="docName" placeholder="ファイル名（任意）" style="flex:1;min-width:100px;">
-            <input type="url" id="docUrl" placeholder="https://drive.google.com/..." style="flex:2;min-width:160px;">
-            <button class="btn-sm" onclick="addDoc()">追加</button>
-          </div>
+
+        <!-- セクションナビ -->
+        <div class="addform-nav">
+          <a class="active" href="#af-basic" onclick="afJump('af-basic',this);return false;">基本情報</a>
+          <a href="#af-personal" onclick="afJump('af-personal',this);return false;">個人情報</a>
+          <a href="#af-apply" onclick="afJump('af-apply',this);return false;">応募情報</a>
+          <a href="#af-screening" onclick="afJump('af-screening',this);return false;">選考情報</a>
+          <a href="#af-docs" onclick="afJump('af-docs',this);return false;">書類</a>
+          <a href="#af-memo" onclick="afJump('af-memo',this);return false;">メモ</a>
         </div>
-        <div class="fsec">メモ</div>
-        <div class="fg full"><textarea id="fMemo" placeholder="自由記述..."></textarea></div>
-        <div class="fg full" style="display:flex;gap:8px;justify-content:flex-end;padding-top:8px;">
-          <button class="btn btn-s" onclick="resetForm()">クリア</button>
-          <button class="btn btn-p" onclick="saveApp()">登録する</button>
+
+        <!-- フォーム本体 -->
+        <div class="addform-body">
+
+          <!-- ▼ 基本情報 -->
+          <div class="afsec" id="af-basic">
+            <div class="afsec-head"><span class="afsec-marker"></span><h2>基本情報</h2></div>
+            <div class="afsec-body">
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq">必須</span>応募日</div>
+                <div class="afrow-input"><input type="date" class="afw-md" id="fAD"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq">必須</span>応募職種</div>
+                <div class="afrow-input"><input type="text" class="afw-lg" id="fJT" placeholder="エンジニア、営業 等"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>求人番号</div>
+                <div class="afrow-input"><input type="text" class="afw-md" id="fJobNo" placeholder="例：JOB-1234"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>求人名称</div>
+                <div class="afrow-input"><input type="text" class="afw-full" id="fJobName" placeholder="例：Webエンジニア募集（経験3年以上）" style="flex:1;"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>勤務地</div>
+                <div class="afrow-input"><input type="text" class="afw-lg" id="fLoc" placeholder="東京、大阪 等"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq">必須</span>性別</div>
+                <div class="afrow-input">
+                  <select id="fGe" class="afw-md">
+                    <option value="">選択してください</option>
+                    <option>男性</option><option>女性</option><option>その他</option><option>未回答</option>
+                  </select>
+                </div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>部署</div>
+                <div class="afrow-input"><select id="fDept2" class="afw-md"><option value="">選択してください</option></select></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ▼ 個人情報 -->
+          <div class="afsec" id="af-personal">
+            <div class="afsec-head"><span class="afsec-marker"></span><h2>個人情報</h2></div>
+            <div class="afsec-body">
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq">必須</span>氏名</div>
+                <div class="afrow-input"><input type="text" class="afw-md" id="fNm" placeholder="山田 太郎"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq">必須</span>ふりがな</div>
+                <div class="afrow-input"><input type="text" class="afw-md" id="fKn" placeholder="やまだ たろう"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq">必須</span>メール</div>
+                <div class="afrow-input"><input type="email" id="fEm" placeholder="example@email.com" style="flex:1;"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq">必須</span>電話番号</div>
+                <div class="afrow-input"><input type="tel" class="afw-md" id="fTel" placeholder="090-0000-0000"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>生年月日</div>
+                <div class="afrow-input">
+                  <div class="afbd-fields">
+                    <input type="number" class="afw-xs" id="fBY" placeholder="1990" min="1940" max="2010">
+                    <span class="afbd-suffix">年</span>
+                    <select id="fBM" class="afw-xs"><option value="">--</option></select>
+                    <span class="afbd-suffix">月</span>
+                    <select id="fBD" class="afw-xs"><option value="">--</option></select>
+                    <span class="afbd-suffix">日</span>
+                  </div>
+                  <div class="afbd-age">
+                    応募時 <input type="number" id="fAg" min="0" max="100" style="width:60px;text-align:center;padding:8px 8px;border:1.5px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-size:13px;" placeholder="--"> 歳
+                    <span id="fAgAuto" style="font-size:10px;color:#5aaa8e;margin-left:4px;display:none;font-weight:600;">✨自動</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ▼ 応募情報 -->
+          <div class="afsec" id="af-apply">
+            <div class="afsec-head"><span class="afsec-marker"></span><h2>応募情報</h2></div>
+            <div class="afsec-body">
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq">必須</span>媒体名</div>
+                <div class="afrow-input"><select id="fMed" class="afw-lg"><option value="">選択してください</option></select></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>人材紹介会社</div>
+                <div class="afrow-input"><select id="fAg2" class="afw-lg"><option value="">選択してください</option></select></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq">必須</span>ステータス</div>
+                <div class="afrow-input"><select id="fSt2" class="afw-lg"><option value="">選択してください</option></select></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>採用可否</div>
+                <div class="afrow-input"><select id="fHire2" class="afw-md"><option value="">選択してください</option></select></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>コンタクト日</div>
+                <div class="afrow-input"><input type="date" class="afw-md" id="fCD"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ▼ 選考情報 -->
+          <div class="afsec" id="af-screening">
+            <div class="afsec-head"><span class="afsec-marker"></span><h2>選考情報</h2></div>
+            <div class="afsec-body">
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>1次面接日時</div>
+                <div class="afrow-input">
+                  <input type="datetime-local" class="afw-md" id="fI1D">
+                  <select id="fI1R" class="afw-md"><option value="">結果：未定</option><option>合格</option><option>不合格</option><option>辞退</option></select>
+                </div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>2次面接日時</div>
+                <div class="afrow-input">
+                  <input type="datetime-local" class="afw-md" id="fI2D">
+                  <select id="fI2R" class="afw-md"><option value="">結果：未定</option><option>合格</option><option>不合格</option><option>辞退</option></select>
+                </div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>退職日</div>
+                <div class="afrow-input"><input type="date" class="afw-md" id="fRD"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ▼ 書類管理 -->
+          <div class="afsec" id="af-docs">
+            <div class="afsec-head"><span class="afsec-marker"></span><h2>書類管理（GoogleドライブURL）</h2></div>
+            <div class="afsec-body">
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>書類を追加</div>
+                <div class="afrow-input">
+                  <div class="afdoc-area">
+                    <div style="font-size:11px;color:#666;margin-bottom:10px;">種別を選んでURLを登録してください。複数追加できます。</div>
+                    <div id="docList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;"></div>
+                    <div class="afdoc-add-row">
+                      <select id="docType" class="afw-sm">
+                        <option value="履歴書">履歴書</option>
+                        <option value="職務経歴書">職務経歴書</option>
+                        <option value="その他">その他</option>
+                      </select>
+                      <input type="text" id="docName" placeholder="ファイル名（任意）" style="flex:1;min-width:120px;">
+                      <input type="url" id="docUrl" placeholder="https://drive.google.com/..." style="flex:2;min-width:200px;">
+                      <button class="afbtn-add" onclick="addDoc()">＋追加</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ▼ メモ -->
+          <div class="afsec" id="af-memo">
+            <div class="afsec-head"><span class="afsec-marker"></span><h2>メモ</h2></div>
+            <div class="afsec-body">
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>自由記述</div>
+                <div class="afrow-input"><textarea id="fMemo" placeholder="気になった点、引き継ぎ事項などを記入..." style="resize:vertical;min-height:80px;width:100%;font-family:inherit;line-height:1.6;padding:10px 12px;border:1.5px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-size:13px;"></textarea></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- フッターアクション -->
+          <div class="addform-footer">
+            <div class="addform-help">※ <span style="color:#e85a5a;font-weight:700;">必須</span> マークの項目は必ず入力してください</div>
+            <div class="addform-actions">
+              <button class="btn btn-s" onclick="resetForm()">クリア</button>
+              <button class="btn btn-p" onclick="saveApp()">登録する</button>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
