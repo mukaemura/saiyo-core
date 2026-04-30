@@ -2288,36 +2288,6 @@ function getKeyLabel(key) {
   return m[key] || key;
 }
 
-function renderSectionContent(s, data) {
-  const body = document.getElementById('acc_body_' + s.id);
-  if (!body) return;
-  if (s.type === 'ai') {
-    body.innerHTML = '<div style="color:#aaa;font-size:12px;padding:.5rem;">分析中...</div>';
-    setTimeout(() => renderAiAnalysis(data, 'acc_body_' + s.id), 50);
-    return;
-  }
-  let html = '';
-  if (s.type === 'custom_cross') {
-    html = buildCrossWithViz(data, s.opts.row, s.opts.col, s.opts.viz || 'both', s.id);
-  } else {
-    html = buildSectionHTML(data, s.type, s.id);
-  }
-  body.innerHTML = html;
-  // グラフ描画はDOMが確定してから実行
-  requestAnimationFrame(() => {
-    if (s.type === 'trend') renderTrendInSection(data, s.id);
-    if (s.type === 'custom_cross') {
-      const viz = s.opts.viz || 'both';
-      if (viz === 'bar' || viz === 'pie' || viz === 'both') {
-        renderCrossChart(data, s.opts.row, s.opts.col, viz, s.id);
-      }
-    }
-    if (['media','job','dept','gender','status','hire'].includes(s.type)) {
-      renderSimpleChart(data, s.type, s.id);
-    }
-  });
-}
-
 function getSectionTitle(type) {
   const map = {
     monthly_ref: '📊 紹介別 月別集計', age: '👥 年代別', media: '📡 媒体別',
@@ -2365,6 +2335,26 @@ function buildSectionHTML(data, type) {
     return renderCrossTable(data, 'media', 'hireStatus', '媒体', '採用可否');
   }
   return '<div class="empty">不明なセクションタイプです</div>';
+}
+
+// ========================================
+// 分析テーブル共通ヘルパー
+// ========================================
+// 割合をパーセント表記の文字列で返す（0除算回避）
+function pct(value, total) {
+  if (!total) return '0%';
+  return Math.round(value / total * 100) + '%';
+}
+
+// 割合に応じた色分けを返す
+// threshold以上: 緑（良好）, threshold/2以上: 茶（注意）, それ未満: グレー
+function pctColor(value, total, threshold) {
+  if (!total) return '#aaa';
+  const rate = value / total * 100;
+  if (rate >= threshold * 2) return '#3B6D11'; // しきい値の2倍以上: 濃い緑
+  if (rate >= threshold)     return '#639922'; // しきい値以上: 緑
+  if (rate >= threshold / 2) return '#854F0B'; // しきい値の半分以上: 茶
+  return '#aaa';                                 // 未満: グレー
 }
 
 // ========================================
