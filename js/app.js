@@ -1061,6 +1061,107 @@ function populateOwnerSelects() {
   }
 }
 
+// クライアントID から表示名を取得（adminグルーピング表示用）
+function getClientDisplayName(cid) {
+  if (!cid) return '（未割当）';
+  if (cid === 'admin') return '管理者';
+  const c = (clients || []).find(x => x.client_id === cid);
+  return c ? c.name : cid;
+}
+
+// adminタスク画面用：クライアント絞り込みプルダウンを生成・表示制御
+function populateTaskClientFilter() {
+  const sel = document.getElementById('taskClientFilter');
+  if (!sel) return;
+  if (!isAdmin) {
+    sel.style.display = 'none';
+    return;
+  }
+  // タスクから登場するクライアントID一覧を集計
+  const cidsInTasks = [...new Set(tasks.map(t => t.clientId).filter(Boolean))];
+  // clients配列にあるもの + tasksに登場するもの両方を選択肢にする
+  const allCids = new Set();
+  (clients || []).forEach(c => { if (c.client_id) allCids.add(c.client_id); });
+  cidsInTasks.forEach(c => allCids.add(c));
+  const sortedCids = [...allCids].sort((a, b) => {
+    const an = getClientDisplayName(a);
+    const bn = getClientDisplayName(b);
+    return an.localeCompare(bn, 'ja');
+  });
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全クライアント</option>'
+    + sortedCids.map(cid => `<option value="${escapeOwnerHtml(cid)}">${escapeOwnerHtml(getClientDisplayName(cid))}</option>`).join('');
+  sel.style.display = 'inline-block';
+  if (cur) sel.value = cur;
+}
+
+// admin応募者一覧画面用：クライアント絞り込みプルダウンを生成・表示制御
+function populateAppClientFilter() {
+  const sel = document.getElementById('appClientFilter');
+  if (!sel) return;
+  if (!isAdmin) {
+    sel.style.display = 'none';
+    return;
+  }
+  // applicantsから登場するクライアントID一覧を集計
+  const cidsInApps = [...new Set(applicants.map(a => a.clientId).filter(Boolean))];
+  const allCids = new Set();
+  (clients || []).forEach(c => { if (c.client_id) allCids.add(c.client_id); });
+  cidsInApps.forEach(c => allCids.add(c));
+  const sortedCids = [...allCids].sort((a, b) => {
+    const an = getClientDisplayName(a);
+    const bn = getClientDisplayName(b);
+    return an.localeCompare(bn, 'ja');
+  });
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全クライアント</option>'
+    + sortedCids.map(cid => `<option value="${escapeOwnerHtml(cid)}">${escapeOwnerHtml(getClientDisplayName(cid))}</option>`).join('');
+  sel.style.display = 'inline-block';
+  if (cur) sel.value = cur;
+}
+
+// タスク配列をクライアントIDでグループ化（admin時用）
+// 戻り値: [{ cid, name, items: [...] }, ...]（応募数降順）
+function groupTasksByClient(taskArr) {
+  const groups = {};
+  taskArr.forEach(t => {
+    const cid = t.clientId || '_no_client';
+    if (!groups[cid]) groups[cid] = [];
+    groups[cid].push(t);
+  });
+  // クライアント名でソート（_no_clientは末尾）
+  return Object.entries(groups)
+    .map(([cid, items]) => ({
+      cid: cid === '_no_client' ? null : cid,
+      name: cid === '_no_client' ? '（未割当）' : getClientDisplayName(cid),
+      items
+    }))
+    .sort((a, b) => {
+      if (!a.cid && b.cid) return 1;
+      if (a.cid && !b.cid) return -1;
+      return a.name.localeCompare(b.name, 'ja');
+    });
+}
+
+// セクション内をクライアント別にグルーピングしたHTMLを返す（admin時のみ呼ばれる）
+// section: { items: [...], headColor: '...', headLabel: '...', icon: '...' }
+function buildGroupedSectionHTML(items, headColor, headLabel) {
+  if (!items.length) return '';
+  const groups = groupTasksByClient(items);
+  let html = `<div style="margin-bottom:1rem;">
+    <div style="font-size:11px;font-weight:600;color:${headColor};margin-bottom:8px;">${headLabel}（${items.length}件）</div>`;
+  groups.forEach(g => {
+    html += `<div style="margin-bottom:10px;padding-left:6px;border-left:3px solid #c8d6d2;">
+      <div style="font-size:11px;font-weight:700;color:#2a4a3e;margin-bottom:4px;padding:3px 8px;background:#f0faf6;border-radius:4px;display:inline-block;">
+        🏢 ${escapeOwnerHtml(g.name)}（${g.items.length}件）
+      </div>
+      ${g.items.map(t => renderTaskRow(t)).join('')}
+    </div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
 // マルチセレクトフィルターUIを構築
 function buildMultiFilter(wrapId, key) {
   const wrap = document.getElementById(wrapId); if (!wrap) return;
@@ -1327,6 +1428,9 @@ function toggleSort(key) {
   renderList();
 }
 function renderList() {
+  // adminのクライアント絞り込みプルダウンを毎回更新
+  populateAppClientFilter();
+
   const q = (document.getElementById('srch').value || '').toLowerCase();
   const fDateFrom = document.getElementById('fDateFrom') ? document.getElementById('fDateFrom').value : '';
   const fDateTo = document.getElementById('fDateTo') ? document.getElementById('fDateTo').value : '';
@@ -1335,6 +1439,10 @@ function renderList() {
   const fmVals = multiFilterState.media || [];
   const fjVals = multiFilterState.jobType || [];
   const fdVals = multiFilterState.dept || [];
+
+  // adminのクライアント絞り込み値
+  const appClientFilter = isAdmin ? (document.getElementById('appClientFilter')?.value || '') : '';
+
   let fil = applicants.filter(a => {
     if (q && !a.name.toLowerCase().includes(q) && !(a.email||'').toLowerCase().includes(q)) return false;
     if (fsVals.length && !fsVals.includes(a.status||'')) return false;
@@ -1343,6 +1451,7 @@ function renderList() {
     if (fdVals.length && !fdVals.includes(a.dept||'')) return false;
     if (fDateFrom && a.appDate && a.appDate < fDateFrom) return false;
     if (fDateTo && a.appDate && a.appDate > fDateTo) return false;
+    if (appClientFilter && a.clientId !== appClientFilter) return false;
     return true;
   });
   fil.sort((a,b) => {
@@ -1353,38 +1462,76 @@ function renderList() {
     }
     return 0;
   });
+  // 表示中のリストを保持（CSV出力で参照）
+  window._currentListView = fil;
   document.getElementById('listCnt').textContent = fil.length + '件' + (fil.length !== applicants.length ? ' / 全'+applicants.length+'件' : '');
   const tb = document.getElementById('listBody');
   const em = document.getElementById('emptyList');
   if (!fil.length) { tb.innerHTML = ''; em.style.display = 'block'; return; }
   em.style.display = 'none';
+
+  // admin かつ クライアント絞り込みなし時はグルーピング表示
+  const useGrouping = isAdmin && !appClientFilter;
+
+  if (useGrouping) {
+    // クライアントID別にグループ化
+    const groups = {};
+    fil.forEach(a => {
+      const cid = a.clientId || '_no_client';
+      if (!groups[cid]) groups[cid] = [];
+      groups[cid].push(a);
+    });
+    const sortedGroups = Object.entries(groups)
+      .map(([cid, items]) => ({
+        cid: cid === '_no_client' ? null : cid,
+        name: cid === '_no_client' ? '（未割当）' : getClientDisplayName(cid),
+        items
+      }))
+      .sort((a, b) => {
+        if (!a.cid && b.cid) return 1;
+        if (a.cid && !b.cid) return -1;
+        return a.name.localeCompare(b.name, 'ja');
+      });
+    tb.innerHTML = sortedGroups.map(g => {
+      const headerRow = `<tr class="client-group-header">
+        <td colspan="12" style="padding:10px 12px;background:linear-gradient(90deg,#f0faf6,#fafcfb);border-top:2px solid #5aaa8e;border-bottom:1px solid #c8d6d2;font-size:12px;font-weight:700;color:#2a4a3e;">
+          🏢 ${escapeOwnerHtml(g.name)}　<span style="font-size:11px;color:#888;font-weight:500;">（${g.items.length}件）</span>
+        </td>
+      </tr>`;
+      const rows = g.items.map(a => buildAppRowHTML(a)).join('');
+      return headerRow + rows;
+    }).join('');
+  } else {
+    // 通常表示（client、またはadminで特定クライアント絞り込み中）
+    tb.innerHTML = fil.map(a => buildAppRowHTML(a)).join('');
+  }
+}
+
+// 応募者1行分のHTMLを生成（共通化）
+function buildAppRowHTML(a) {
   // 面接日時を MM/DD コンパクト形式に
   const fmtIntDate = (v) => {
     if (!v) return '<span class="list-col-int list-col-empty">-</span>';
-    // YYYY-MM-DD or YYYY-MM-DDTHH:MM 両対応
     const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (!m) return `<span class="list-col-int has-value">${v}</span>`;
     return `<span class="list-col-int has-value">${m[2]}/${m[3]}</span>`;
   };
-  // 求人名称をHTMLエスケープ（titleとテキスト両方で使うため）
   const esc = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  tb.innerHTML = fil.map(a => {
-    const hireColor = {'内定':'bg','内定承諾':'bt','採用':'bg','不採用':'br','保留':'ba'}[a.hireStatus] || 'bgr';
-    const coreId = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
-    const hireOk = ['hired','joined'].includes(coreId);
-    const hireNg = coreId === 'other';
-    const rowBg = hireOk
-      ? 'background:linear-gradient(90deg,#fff0f5,#fff5f8);'
-      : hireNg
-      ? 'background:linear-gradient(90deg,#eef4ff,#f0f6ff);'
-      : '';
-    const jobNoCell = a.jobNo
-      ? `<span class="list-col-job-no">${esc(a.jobNo)}</span>`
-      : `<span class="list-col-empty">-</span>`;
-    const jobNameCell = a.jobName
-      ? `<span class="list-col-job-name" title="${esc(a.jobName)}">${esc(a.jobName)}</span>`
-      : `<span class="list-col-empty">-</span>`;
-    return `<tr id="row_${a.id}" style="${rowBg}">
+  const coreId = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
+  const hireOk = ['hired','joined'].includes(coreId);
+  const hireNg = coreId === 'other';
+  const rowBg = hireOk
+    ? 'background:linear-gradient(90deg,#fff0f5,#fff5f8);'
+    : hireNg
+    ? 'background:linear-gradient(90deg,#eef4ff,#f0f6ff);'
+    : '';
+  const jobNoCell = a.jobNo
+    ? `<span class="list-col-job-no">${esc(a.jobNo)}</span>`
+    : `<span class="list-col-empty">-</span>`;
+  const jobNameCell = a.jobName
+    ? `<span class="list-col-job-name" title="${esc(a.jobName)}">${esc(a.jobName)}</span>`
+    : `<span class="list-col-empty">-</span>`;
+  return `<tr id="row_${a.id}" style="${rowBg}">
       <td style="width:36px;" onclick="event.stopPropagation()">
         <input type="checkbox" class="rowCheck" value="${a.id}" onchange="onCheckChange()" style="cursor:pointer;width:14px;height:14px;">
       </td>
@@ -1411,7 +1558,6 @@ function renderList() {
       <td><button class="btn-sm" onclick="openDetail('${a.id}')">詳細</button></td>
     </tr>
     <tr id="detail_${a.id}" style="display:none;"><td colspan="12" style="padding:0;"></td></tr>`;
-  }).join('');
 }
 
 function stColor(s) {
@@ -1902,7 +2048,9 @@ function exportCSV() {
     '1次面接日時','1次面接結果','2次面接日時','2次面接結果','退職日',
     '書類URL','メモ'
   ];
-  const rows = applicants.map(a => {
+  // 現在画面に表示されている応募者を対象にする（絞り込み・クライアント絞り込み反映）
+  const target = (window._currentListView && window._currentListView.length) ? window._currentListView : applicants;
+  const rows = target.map(a => {
     // 書類URL：複数あれば「name:url | name:url」で結合
     const docStr = (a.docs||[]).map(d => `${d.name||d.type||''}:${d.url||''}`).join(' | ');
     return [
@@ -1916,9 +2064,19 @@ function exportCSV() {
   });
   const csv = '\uFEFF' + headers.join(',') + '\r\n' + rows.join('\r\n');
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  // ファイル名：admin時はクライアント絞り込み中ならその名前、未絞り込みなら「全クライアント」
+  let labelForFilename = currentClientName;
+  if (isAdmin) {
+    const cf = document.getElementById('appClientFilter')?.value || '';
+    if (cf) {
+      labelForFilename = getClientDisplayName(cf);
+    } else {
+      labelForFilename = '全クライアント';
+    }
+  }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `採用コア_${currentClientName}_${new Date().toISOString().split('T')[0]}.csv`;
+  a.download = `採用コア_${labelForFilename}_${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
 }
 
@@ -3732,10 +3890,22 @@ function renderTaskRow(task, compact=false) {
 }
 
 function renderTasks() {
+  // adminのクライアント絞り込みプルダウンを毎回更新（タスク追加・削除で選択肢が変わるため）
+  populateTaskClientFilter();
+
   const filter = document.getElementById('taskFilter')?.value || 'all';
   const today = new Date().toISOString().split('T')[0];
   // admin時は全件、client時は自社のみ
   let filtered = isAdmin ? [...tasks] : tasks.filter(t => t.clientId === currentClientId || !t.clientId);
+
+  // adminのクライアント絞り込み
+  if (isAdmin) {
+    const clientFilter = document.getElementById('taskClientFilter')?.value || '';
+    if (clientFilter) {
+      filtered = filtered.filter(t => t.clientId === clientFilter);
+    }
+  }
+
   if (filter === 'pending') filtered = filtered.filter(t => !t.done);
   else if (filter === 'done') filtered = filtered.filter(t => t.done);
   else if (filter && filter.startsWith('owner:')) {
@@ -3761,12 +3931,26 @@ function renderTasks() {
     return;
   }
 
+  // admin かつ クライアント絞り込みなし時はグルーピング表示
+  const clientFilterValue = isAdmin ? (document.getElementById('taskClientFilter')?.value || '') : 'client';
+  const useGrouping = isAdmin && !clientFilterValue;
+
   let html = '';
-  if (overdue.length) html += `<div style="margin-bottom:1rem;"><div style="font-size:11px;font-weight:600;color:#D85A30;margin-bottom:6px;">⚠ 期限超過（${overdue.length}件）</div>${overdue.map(t=>renderTaskRow(t)).join('')}</div>`;
-  if (dueSoon.length) html += `<div style="margin-bottom:1rem;"><div style="font-size:11px;font-weight:600;color:#854F0B;margin-bottom:6px;">⏰ 期限間近（${dueSoon.length}件）</div>${dueSoon.map(t=>renderTaskRow(t)).join('')}</div>`;
   const normal = pending.filter(t => !overdue.includes(t) && !dueSoon.includes(t));
-  if (normal.length) html += `<div style="margin-bottom:1rem;"><div style="font-size:11px;font-weight:600;color:#666;margin-bottom:6px;">未完了（${normal.length}件）</div>${normal.map(t=>renderTaskRow(t)).join('')}</div>`;
-  if (done.length) html += `<div><div style="font-size:11px;font-weight:600;color:#3B6D11;margin-bottom:6px;">✓ 完了（${done.length}件）</div>${done.map(t=>renderTaskRow(t)).join('')}</div>`;
+
+  if (useGrouping) {
+    // admin × 全クライアント表示：セクションごとにクライアント別グルーピング
+    if (overdue.length)  html += buildGroupedSectionHTML(overdue,  '#D85A30', '⚠ 期限超過');
+    if (dueSoon.length)  html += buildGroupedSectionHTML(dueSoon,  '#854F0B', '⏰ 期限間近');
+    if (normal.length)   html += buildGroupedSectionHTML(normal,   '#666',    '未完了');
+    if (done.length)     html += buildGroupedSectionHTML(done,     '#3B6D11', '✓ 完了');
+  } else {
+    // 通常表示（client、またはadminで特定クライアント絞り込み中）
+    if (overdue.length) html += `<div style="margin-bottom:1rem;"><div style="font-size:11px;font-weight:600;color:#D85A30;margin-bottom:6px;">⚠ 期限超過（${overdue.length}件）</div>${overdue.map(t=>renderTaskRow(t)).join('')}</div>`;
+    if (dueSoon.length) html += `<div style="margin-bottom:1rem;"><div style="font-size:11px;font-weight:600;color:#854F0B;margin-bottom:6px;">⏰ 期限間近（${dueSoon.length}件）</div>${dueSoon.map(t=>renderTaskRow(t)).join('')}</div>`;
+    if (normal.length) html += `<div style="margin-bottom:1rem;"><div style="font-size:11px;font-weight:600;color:#666;margin-bottom:6px;">未完了（${normal.length}件）</div>${normal.map(t=>renderTaskRow(t)).join('')}</div>`;
+    if (done.length) html += `<div><div style="font-size:11px;font-weight:600;color:#3B6D11;margin-bottom:6px;">✓ 完了（${done.length}件）</div>${done.map(t=>renderTaskRow(t)).join('')}</div>`;
+  }
   el.innerHTML = html;
 }
 
@@ -3982,8 +4166,14 @@ function renderTaskCalendar() {
   const ym = monthInput && monthInput.value ? monthInput.value : now.toISOString().slice(0,7);
 
   const markedDates = {};
-  // 自分のクライアントのタスクのみマーク（管理者はすべて）
-  const visibleTasks = tasks.filter(t => isAdmin || t.clientId === currentClientId || !t.clientId);
+  // 自分のクライアントのタスクのみマーク（管理者はすべて、ただしクライアント絞り込みがあればそれを尊重）
+  let visibleTasks = tasks.filter(t => isAdmin || t.clientId === currentClientId || !t.clientId);
+  if (isAdmin) {
+    const clientFilter = document.getElementById('taskClientFilter')?.value || '';
+    if (clientFilter) {
+      visibleTasks = visibleTasks.filter(t => t.clientId === clientFilter);
+    }
+  }
   visibleTasks.forEach(t => {
     if (!t.due) return;
     if (!markedDates[t.due]) markedDates[t.due] = [];
@@ -4000,9 +4190,20 @@ function clickTaskCalDay(dateStr) {
   if (dueEl) dueEl.value = dateStr;
   const startEl = document.getElementById('mtStart');
   if (startEl && !startEl.value) startEl.value = new Date().toISOString().split('T')[0];
-  const existing = tasks.filter(t => t.due === dateStr && (isAdmin || t.clientId === currentClientId));
+  // 既存タスクの内訳をクライアント別で表示（admin時）/件数のみ（client時）
+  let existing = tasks.filter(t => t.due === dateStr && (isAdmin || t.clientId === currentClientId));
+  if (isAdmin) {
+    const clientFilter = document.getElementById('taskClientFilter')?.value || '';
+    if (clientFilter) existing = existing.filter(t => t.clientId === clientFilter);
+  }
   if (existing.length > 0) {
-    setStatus(`${dateStr} は既に${existing.length}件のタスクがあります。新規追加もできます`, 'ok');
+    if (isAdmin) {
+      const groups = groupTasksByClient(existing);
+      const breakdown = groups.map(g => `${g.name} ${g.items.length}件`).join('、');
+      setStatus(`${dateStr} は既に${existing.length}件のタスクがあります（${breakdown}）`, 'ok');
+    } else {
+      setStatus(`${dateStr} は既に${existing.length}件のタスクがあります。新規追加もできます`, 'ok');
+    }
   }
 }
 

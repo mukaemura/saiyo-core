@@ -206,6 +206,9 @@
     <div class="list-top">
         <div class="sr-row">
           <input type="text" id="srch" placeholder="名前・メール検索" style="width:120px;" oninput="renderList()">
+          <select id="appClientFilter" onchange="renderList()" style="display:none;padding:5px 9px;border:1.5px solid #378ADD;border-radius:8px;font-size:11px;font-family:inherit;background:#f0f6ff;color:#185FA5;font-weight:600;">
+            <option value="">全クライアント</option>
+          </select>
           <div id="fSt_wrap" class="multi-filter" data-key="status" data-blank="ステータス（全て）"></div>
           <div id="fMd_wrap" class="multi-filter" data-key="media" data-blank="媒体（全て）"></div>
           <div id="fJb_wrap" class="multi-filter" data-key="jobType" data-blank="職種（全て）"></div>
@@ -641,6 +644,9 @@
           <p style="font-size:11px;color:#aaa;margin-top:2px;">期限・担当・完了状況を一覧で管理します</p>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select id="taskClientFilter" onchange="renderTasks();renderTaskCalendar();" style="display:none;padding:6px 10px;border:1.5px solid #378ADD;border-radius:8px;font-size:11px;font-family:inherit;background:#f0f6ff;color:#185FA5;font-weight:600;">
+            <option value="">全クライアント</option>
+          </select>
           <select id="taskFilter" onchange="renderTasks()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;">
             <option value="all">全て</option>
             <option value="pending">未完了のみ</option>
