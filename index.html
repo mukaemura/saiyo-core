@@ -750,95 +750,40 @@
         <div id="anMonthlyFixed"></div>
       </div>
 
-      <!-- 分析ビルダー -->
+      <!-- 分析ビルダー（シンプル化） -->
       <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
 
         <!-- クイック追加 -->
         <div style="margin-bottom:.875rem;">
-          <div style="font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;">クイック追加</div>
+          <div style="font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;">分析を追加</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button class="btn-sm" onclick="addSection('monthly_ref')">紹介別月次</button>
-            <button class="btn-sm" onclick="addSection('age')">年代別</button>
-            <button class="btn-sm" onclick="addSection('media')">媒体別</button>
-            <button class="btn-sm" onclick="addSection('job')">職種別</button>
-            <button class="btn-sm" onclick="addSection('dept')">部署別</button>
-            <button class="btn-sm" onclick="addSection('gender')">性別</button>
-            <button class="btn-sm" onclick="addSection('status')">ステータス別</button>
-            <button class="btn-sm" onclick="addSection('trend')">月次トレンド</button>
+            <button class="btn-sm" onclick="addSection('media')">📡 媒体別</button>
+            <button class="btn-sm" onclick="addSection('job')">💼 職種別</button>
+            <button class="btn-sm" onclick="addSection('dept')">🏢 部署別</button>
+            <button class="btn-sm" onclick="addSection('age')">👥 年代別</button>
+            <button class="btn-sm" onclick="addSection('gender')">⚧ 性別</button>
+            <button class="btn-sm" onclick="addSection('agency')">🏛️ 紹介会社別</button>
             <button class="btn-sm" onclick="addSection('ai')" style="background:#f0faf6;color:#3B6D11;border-color:#c8e6c9;">🤖 AI分析</button>
           </div>
         </div>
 
-        <!-- クロス集計ビルダー -->
+        <!-- 複数軸ネスト型クロス集計 -->
         <div style="padding-top:.75rem;border-top:1px solid #f0f0ee;">
-          <div style="font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;">カスタムクロス集計</div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <div style="display:flex;align-items:center;gap:6px;">
-              <label style="font-size:11px;color:#666;">行軸：</label>
-              <select id="crossRow" style="padding:5px 9px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;">
-                <option value="jobType">職種</option>
-                <option value="dept">部署</option>
-                <option value="media">媒体</option>
-                <option value="agency">人材紹介会社</option>
-                <option value="ageGroup">年代</option>
-                <option value="gender">性別</option>
-                <option value="status">ステータス</option>
-              </select>
-            </div>
-            <span style="color:#aaa;font-size:12px;">×</span>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <label style="font-size:11px;color:#666;">列軸：</label>
-              <select id="crossCol" style="padding:5px 9px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;">
-                <option value="status">ステータス</option>
-                <option value="media">媒体</option>
-                <option value="dept">部署</option>
-                <option value="agency">人材紹介会社</option>
-                <option value="ageGroup">年代</option>
-                <option value="gender">性別</option>
-                <option value="jobType">職種</option>
-              </select>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <label style="font-size:11px;color:#666;">表示：</label>
-              <select id="crossViz" style="padding:5px 9px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;">
-                <option value="table">クロス表</option>
-                <option value="bar">棒グラフ</option>
-                <option value="pie">円グラフ</option>
-                <option value="both">表＋グラフ</option>
-              </select>
-            </div>
-            <button class="btn btn-p" style="padding:6px 14px;font-size:12px;" onclick="addCustomCross()">追加</button>
-          </div>
-          <div style="margin-top:.625rem;">
-            <div style="font-size:10px;color:#aaa;margin-bottom:4px;">プリセット：</div>
-            <div style="display:flex;gap:5px;flex-wrap:wrap;">
-              <button class="btn-sm" onclick="addPresetCross('dept','media','both')">部署×媒体</button>
-              <button class="btn-sm" onclick="addPresetCross('dept','jobType','both')">部署×職種</button>
-              <button class="btn-sm" onclick="addPresetCross('media','agency','table')">媒体×紹介会社</button>
-              <button class="btn-sm" onclick="addPresetCross('ageGroup','status','both')">年代×ステータス</button>
-              <button class="btn-sm" onclick="addPresetCross('jobType','status','bar')">職種×ステータス</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 多軸クロス集計（複数選択型） -->
-        <div style="padding-top:.75rem;border-top:1px solid #f0f0ee;margin-top:.75rem;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.625rem;">
-            <div style="font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.06em;">複数軸クロス集計（2〜3軸）</div>
-            <span style="font-size:10px;color:#aaa;">クリックで選択・解除</span>
+            <div style="font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.06em;">🔀 複数軸クロス集計（ネスト型・2〜3軸）</div>
+            <span style="font-size:10px;color:#aaa;">クリック順に①親 ②子 ③孫</span>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
-            <button id="maxis_appMonth"  class="btn-sm" onclick="toggleMultiAxis('appMonth')"  style="background:#fafafa;">月別</button>
             <button id="maxis_media"    class="btn-sm" onclick="toggleMultiAxis('media')"    style="background:#fafafa;">媒体</button>
             <button id="maxis_jobType"  class="btn-sm" onclick="toggleMultiAxis('jobType')"  style="background:#fafafa;">職種</button>
             <button id="maxis_dept"     class="btn-sm" onclick="toggleMultiAxis('dept')"     style="background:#fafafa;">部署</button>
-            <button id="maxis_agency"   class="btn-sm" onclick="toggleMultiAxis('agency')"   style="background:#fafafa;">人材紹介会社</button>
             <button id="maxis_ageGroup" class="btn-sm" onclick="toggleMultiAxis('ageGroup')" style="background:#fafafa;">年代</button>
+            <button id="maxis_agency"   class="btn-sm" onclick="toggleMultiAxis('agency')"   style="background:#fafafa;">紹介会社</button>
             <button id="maxis_gender"   class="btn-sm" onclick="toggleMultiAxis('gender')"   style="background:#fafafa;">性別</button>
             <button id="maxis_status"   class="btn-sm" onclick="toggleMultiAxis('status')"   style="background:#fafafa;">ステータス</button>
           </div>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-            <span id="multiAxisPreview" style="font-size:11px;color:#aaa;">軸を選択してください（最大3軸・2軸以上で追加可能）　例：月別→媒体→年代 で画像2のようなピボット表になります</span>
+            <span id="multiAxisPreview" style="font-size:11px;color:#aaa;">軸を選択してください（最大3軸・2軸以上で追加可能）</span>
             <button class="btn btn-p" style="padding:6px 14px;font-size:12px;flex-shrink:0;" onclick="addMultiAxisSection()">追加</button>
           </div>
         </div>
@@ -849,7 +794,7 @@
         </div>
       </div>
 
-      <!-- カスタムセクション表示エリア（ビルダーの下に追加） -->
+      <!-- カスタムセクション表示エリア -->
       <div id="anCustomSections" style="display:flex;flex-direction:column;gap:.75rem;margin-top:1rem;"></div>
     </div>
 

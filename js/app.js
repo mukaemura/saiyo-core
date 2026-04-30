@@ -200,6 +200,113 @@ function calcThroughRate(counts, fromId, toId) {
 }
 
 // ========================================
+// ファネル描画ヘルパー（統一ロジック）
+// ========================================
+// 主要5ステップ（応募/対応中以上/面接以上/採用/入社）+ 参考表示（その他）
+const FUNNEL_STEPS = [
+  { id: 'applied',     label: '応募' },
+  { id: 'in_progress', label: '対応中以上' },
+  { id: 'interview',   label: '面接以上' },
+  { id: 'hired',       label: '採用' },
+  { id: 'joined',      label: '入社' }
+];
+
+// HTMLエスケープ
+function escFunnel(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// 単一データ群からファネルカードのHTMLを生成
+// data: 応募者配列, title: カード見出し, opts: { compact:true なら子用の小さめ }
+function renderFunnelCard(data, title, opts) {
+  opts = opts || {};
+  const cum = calcFunnelCumulative(data);
+  const total = cum['applied'] || 0;
+  const otherCount = data.filter(a => {
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
+    return cid === 'other' || cid === 'resigned';
+  }).length;
+
+  let stepsHtml = '';
+  FUNNEL_STEPS.forEach(s => {
+    const cnt = cum[s.id] || 0;
+    const pct = total ? Math.round(cnt/total*100) : 0;
+    stepsHtml += `<div class="fstep" data-step="${s.id}">
+      <div class="fstep-label">${s.label}</div>
+      <div class="fstep-bar-wrap"><div class="fstep-bar" style="width:${Math.max(pct,1)}%;"></div></div>
+      <div class="fstep-stat"><span class="fstep-num">${cnt}</span><span class="fstep-pct">${pct}%</span></div>
+    </div>`;
+  });
+  // その他（参考）
+  let refHtml = '';
+  if (otherCount > 0) {
+    const otherPct = total ? Math.round(otherCount/total*100) : 0;
+    refHtml = `<div class="fstep-divider"></div>
+    <div class="fstep" data-step="other" data-ref="true">
+      <div class="fstep-label">その他</div>
+      <div class="fstep-bar-wrap"><div class="fstep-bar" style="width:${Math.max(otherPct,1)}%;"></div></div>
+      <div class="fstep-stat"><span class="fstep-num">${otherCount}</span><span class="fstep-pct">${otherPct}%</span></div>
+    </div>`;
+  }
+  return `<div class="funnel-card">
+    <div class="funnel-card-head">
+      <span class="funnel-card-title">${escFunnel(title)}</span>
+      <span class="funnel-card-total">応募 ${total}件</span>
+    </div>
+    ${stepsHtml}
+    ${refHtml}
+  </div>`;
+}
+
+// 単一軸ファネル分析（媒体別/職種別 等）のHTMLを生成
+// keyFn: 応募者から軸の値を取り出す関数
+function renderSingleAxisFunnel(data, keyFn) {
+  if (!data.length) return '<div class="empty" style="padding:1rem;text-align:center;color:#aaa;font-size:12px;">データがありません</div>';
+  // グループ化
+  const groups = {};
+  data.forEach(a => {
+    const v = keyFn(a) || '（未設定）';
+    if (!groups[v]) groups[v] = [];
+    groups[v].push(a);
+  });
+  // 応募数で降順、上位10件
+  const sorted = Object.entries(groups)
+    .sort((a,b) => b[1].length - a[1].length)
+    .slice(0, 10);
+  const cards = sorted.map(([k, arr]) => renderFunnelCard(arr, k)).join('');
+  // 11件以上ある場合の注記
+  const remaining = Object.keys(groups).length - 10;
+  const note = remaining > 0
+    ? `<div style="text-align:center;padding:8px;font-size:11px;color:#aaa;">他 ${remaining} 件は省略（応募数上位10件のみ表示）</div>`
+    : '';
+  return `<div class="funnel-grid">${cards}</div>${note}`;
+}
+
+// 軸キーから値を取り出す共通関数（年代グループ含む）
+function getAxisValue(a, axisKey) {
+  if (axisKey === 'ageGroup') {
+    const age = parseInt(a.age);
+    if (!age) return '（未設定）';
+    if (age < 20) return '10代';
+    if (age < 30) return '20代';
+    if (age < 40) return '30代';
+    if (age < 50) return '40代';
+    if (age < 60) return '50代';
+    if (age < 70) return '60代';
+    return '70代以上';
+  }
+  return a[axisKey] || '（未設定）';
+}
+
+// 軸キーの日本語ラベル
+function getAxisLabel(axisKey) {
+  const m = { media:'媒体', jobType:'職種', dept:'部署', ageGroup:'年代',
+              agency:'紹介会社', gender:'性別', status:'ステータス' };
+  return m[axisKey] || axisKey;
+}
+
+
+// ========================================
 // アプリ状態
 // ========================================
 let currentClientId = null;
@@ -2081,18 +2188,6 @@ function addSection(type, opts) {
   }
 }
 
-function addCustomCross() {
-  const row = document.getElementById('crossRow').value;
-  const col = document.getElementById('crossCol').value;
-  const viz = document.getElementById('crossViz').value;
-  if (row === col) { alert('行軸と列軸が同じです。異なる項目を選択してください。'); return; }
-  addSection('custom_cross', { row, col, viz });
-}
-
-function addPresetCross(row, col, viz) {
-  addSection('custom_cross', { row, col, viz });
-}
-
 function removeSection(id) {
   if (sectionCharts[id]) { sectionCharts[id].forEach(c => c.destroy()); delete sectionCharts[id]; }
   activeSections = activeSections.filter(s => s.id !== id);
@@ -2200,8 +2295,8 @@ function toggleMultiAxis(key) {
 }
 
 function updateMultiAxisUI() {
-  const keys = ['appMonth','jobType','dept','media','agency','ageGroup','gender','status'];
-  const labels = {appMonth:'月別',jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス'};
+  const keys = ['media','jobType','dept','ageGroup','agency','gender','status'];
+  const labels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス'};
   keys.forEach(k => {
     const btn = document.getElementById('maxis_'+k);
     if (!btn) return;
@@ -2237,106 +2332,139 @@ function addMultiAxisSection() {
 
 function buildMultiAxisHTML(data, axes, secId) {
   if (!data.length) return '<div class="empty">データがありません</div>';
-  const getVal = (a, key) => {
-    if (key==='ageGroup'){const age=parseInt(a.age);if(!age)return'不明';if(age<30)return'20代以下';if(age<40)return'30代';if(age<50)return'40代';if(age<60)return'50代';return'60代以上';}
-    if (key==='appMonth') return a.appDate?a.appDate.substring(0,7):'不明';
-    return a[key]||'(未設定)';
-  };
-  const labels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否',appMonth:'月別'};
+  if (!axes || axes.length < 2) return '<div class="empty">2軸以上を選択してください</div>';
 
-  if (axes.length === 2) {
-    const rowKey=axes[0], colKey=axes[1];
-    const tableHtml = renderCrossTable(data, rowKey, colKey, labels[rowKey]||rowKey, labels[colKey]||colKey);
-    const chartDiv = `<div style="margin-top:1rem;" id="cross_chart_${secId}"></div>`;
-    return tableHtml + chartDiv;
-  }
+  const labels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否'};
+  const ax1 = axes[0], ax2 = axes[1], ax3 = axes[2];
 
-  // 3軸：画像2のようなネストピボット表（第1軸×第2軸が行、第3軸が列）
-  const [ax1, ax2, ax3] = axes;
-  const getAgeBand = age => {if(!age)return'不明';if(age<20)return'10代';if(age<30)return'20代';if(age<40)return'30代';if(age<50)return'40代';if(age<60)return'50代';if(age<70)return'60代';return'70代以上';};
-
-  // 全ユニーク値を収集
-  const ax1Vals = [...new Set(data.map(a=>getVal(a,ax1)).filter(Boolean))].sort();
-  const ax2Vals = [...new Set(data.map(a=>getVal(a,ax2)).filter(Boolean))].sort();
-  const ax3Vals = [...new Set(data.map(a=>getVal(a,ax3)).filter(Boolean))].sort();
-
-  // 3次元マトリクス構築
-  const matrix = {};
-  const ax1Totals = {}; const ax2Totals = {}; const ax3Totals = {};
-  let grand = 0;
+  // 親軸（ax1）でグループ化
+  const parentGroups = {};
   data.forEach(a => {
-    const v1=getVal(a,ax1), v2=getVal(a,ax2), v3=getVal(a,ax3);
-    if (!matrix[v1]) matrix[v1] = {};
-    if (!matrix[v1][v2]) matrix[v1][v2] = {};
-    matrix[v1][v2][v3] = (matrix[v1][v2][v3]||0)+1;
-    ax1Totals[v1] = (ax1Totals[v1]||0)+1;
-    ax2Totals[v2] = (ax2Totals[v2]||0)+1;
-    ax3Totals[v3] = (ax3Totals[v3]||0)+1;
-    grand++;
+    const v = getAxisValue(a, ax1);
+    if (!parentGroups[v]) parentGroups[v] = [];
+    parentGroups[v].push(a);
   });
+  // 応募数で降順、上位10件
+  const sortedParents = Object.entries(parentGroups)
+    .sort((a,b) => b[1].length - a[1].length)
+    .slice(0, 10);
+  const remaining = Object.keys(parentGroups).length - 10;
 
-  // 列ヘッダー（ax3の値）- 多い順上位8
-  const topAx3 = ax3Vals.sort((a,b)=>(ax3Totals[b]||0)-(ax3Totals[a]||0)).slice(0,8);
+  const cards = sortedParents.map(([parentName, parentData]) => {
+    // 親ファネル（媒体全体）の数値
+    const cum = calcFunnelCumulative(parentData);
+    const total = cum['applied'] || 0;
+    const hired = cum['hired'] || 0;
+    const hireRate = total ? Math.round(hired/total*100) : 0;
 
-  const thS = 'padding:7px 9px;background:#e8ebf0;font-size:10px;font-weight:700;border-bottom:2px solid #c8cdd8;text-align:right;white-space:nowrap;';
-  const thSL = 'padding:7px 9px;background:#e8ebf0;font-size:10px;font-weight:700;border-bottom:2px solid #c8cdd8;text-align:left;';
-  const tdS = 'padding:6px 9px;font-size:11px;text-align:right;border-bottom:1px solid #f0f0ee;';
-  const tdSL = 'padding:6px 9px;font-size:11px;font-weight:500;border-bottom:1px solid #f0f0ee;';
-  const subTotS = 'padding:6px 9px;font-size:11px;font-weight:700;background:#f0f4f8;border-bottom:2px solid #d8dde8;text-align:right;';
-  const subTotSL = 'padding:6px 9px;font-size:11px;font-weight:700;background:#f0f4f8;border-bottom:2px solid #d8dde8;';
-
-  const headerCols = topAx3.map(v3=>`<th style="${thS}">${v3}</th>`).join('');
-
-  let bodyRows = '';
-  ax1Vals.forEach((v1,idx1) => {
-    const ax2InGroup = ax2Vals.filter(v2=>matrix[v1]&&matrix[v1][v2]);
-    if (!ax2InGroup.length) return;
-    const rowBg = idx1%2===0 ? '' : 'background:#fafbfd;';
-
-    // ax1グループ各行
-    ax2InGroup.forEach((v2, idx2) => {
-      const rowData = matrix[v1]?.[v2] || {};
-      const rowTotal = Object.values(rowData).reduce((s,v)=>s+v,0);
-      const cells = topAx3.map(v3=>{
-        const v = rowData[v3]||0;
-        return `<td style="${tdS}">${v||''}</td>`;
-      }).join('');
-      const v1Cell = idx2===0
-        ? `<td rowspan="${ax2InGroup.length}" style="${tdSL}font-weight:700;${rowBg}border-right:2px solid #d8dde8;vertical-align:top;padding-top:10px;">${v1}</td>`
-        : '';
-      bodyRows += `<tr style="${rowBg}">${v1Cell}<td style="${tdSL}${rowBg}padding-left:1.5rem;">${v2}</td>${cells}<td style="${tdS}font-weight:700;${rowBg}">${rowTotal}人</td></tr>`;
+    // 親ファネル描画
+    let parentSteps = '';
+    FUNNEL_STEPS.forEach(s => {
+      const cnt = cum[s.id] || 0;
+      const pct = total ? Math.round(cnt/total*100) : 0;
+      parentSteps += `<div class="fstep" data-step="${s.id}">
+        <div class="fstep-label">${s.label}</div>
+        <div class="fstep-bar-wrap"><div class="fstep-bar" style="width:${Math.max(pct,1)}%;"></div></div>
+        <div class="fstep-stat"><span class="fstep-num">${cnt}</span><span class="fstep-pct">${pct}%</span></div>
+      </div>`;
     });
 
-    // ax1グループの小計行
-    const groupTotals = {};
-    topAx3.forEach(v3=>{
-      groupTotals[v3]=ax2InGroup.reduce((s,v2)=>(matrix[v1]?.[v2]?.[v3]||0)+s,0);
+    // 子軸（ax2）でグループ化
+    const childGroups = {};
+    parentData.forEach(a => {
+      const v = getAxisValue(a, ax2);
+      if (!childGroups[v]) childGroups[v] = [];
+      childGroups[v].push(a);
     });
-    const groupTotal = ax2InGroup.reduce((s,v2)=>Object.values(matrix[v1]?.[v2]||{}).reduce((a,b)=>a+b,0)+s,0);
-    const subtotalCells = topAx3.map(v3=>`<td style="${subTotS}">${groupTotals[v3]||''}</td>`).join('');
-    bodyRows += `<tr><td style="${subTotSL}" colspan="2">${v1} の合計</td>${subtotalCells}<td style="${subTotS}">${groupTotal}人</td></tr>`;
-  });
+    const sortedChildren = Object.entries(childGroups)
+      .sort((a,b) => b[1].length - a[1].length)
+      .slice(0, 10);
 
-  // 総計行
-  const grandCells = topAx3.map(v3=>`<td style="${subTotS}font-size:12px;">${ax3Totals[v3]||0}人</td>`).join('');
+    // 子ファネル描画
+    const childCards = sortedChildren.map(([childName, childData]) => {
+      const childCum = calcFunnelCumulative(childData);
+      const childTotal = childCum['applied'] || 0;
 
-  return `<div style="font-size:10px;color:#666;margin-bottom:8px;">${labels[ax1]||ax1} × ${labels[ax2]||ax2} × ${labels[ax3]||ax3} のピボット集計（全${grand}名）</div>
-  <div style="overflow-x:auto;">
-    <table style="width:100%;border-collapse:collapse;min-width:500px;">
-      <thead><tr>
-        <th style="${thSL}">${labels[ax1]||ax1}</th>
-        <th style="${thSL}">${labels[ax2]||ax2}</th>
-        ${headerCols}
-        <th style="${thS}">総計</th>
-      </tr></thead>
-      <tbody>${bodyRows}</tbody>
-      <tfoot><tr>
-        <td style="${subTotSL}font-size:12px;font-weight:700;" colspan="2">総計</td>
-        ${grandCells}
-        <td style="${subTotS}font-size:12px;">${grand}人</td>
-      </tr></tfoot>
-    </table>
-  </div>`;
+      let childSteps = '';
+      FUNNEL_STEPS.forEach(s => {
+        const cnt = childCum[s.id] || 0;
+        const pct = childTotal ? Math.round(cnt/childTotal*100) : 0;
+        childSteps += `<div class="fstep" data-step="${s.id}">
+          <div class="fstep-label">${s.label}</div>
+          <div class="fstep-bar-wrap"><div class="fstep-bar" style="width:${Math.max(pct,1)}%;"></div></div>
+          <div class="fstep-stat"><span class="fstep-num">${cnt}</span><span class="fstep-pct">${pct}%</span></div>
+        </div>`;
+      });
+
+      // 3軸目（孫）がある場合：孫1行ミニバー
+      let grandchildHtml = '';
+      if (ax3) {
+        const grandGroups = {};
+        childData.forEach(a => {
+          const v = getAxisValue(a, ax3);
+          if (!grandGroups[v]) grandGroups[v] = [];
+          grandGroups[v].push(a);
+        });
+        const sortedGrand = Object.entries(grandGroups)
+          .sort((a,b) => b[1].length - a[1].length)
+          .slice(0, 8);
+
+        if (sortedGrand.length > 0) {
+          const gcRows = sortedGrand.map(([grandName, grandData]) => {
+            const gCum = calcFunnelCumulative(grandData);
+            const gTotal = gCum['applied'] || 0;
+            const miniSteps = FUNNEL_STEPS.map(s => {
+              const cnt = gCum[s.id] || 0;
+              const pct = gTotal ? Math.round(cnt/gTotal*100) : 0;
+              return `<div class="gc-step" data-step="${s.id}">
+                <div class="gc-bar-wrap"><div class="gc-bar" style="width:${Math.max(pct,1)}%;"></div></div>
+                <span class="gc-num">${cnt}</span>
+              </div>`;
+            }).join('');
+            return `<div class="nest-grandchild">
+              <span class="nest-gc-title">${escFunnel(grandName)}（${gTotal}件）</span>
+              <div class="nest-gc-mini">${miniSteps}</div>
+            </div>`;
+          }).join('');
+          grandchildHtml = `
+            <div class="nest-grandchildren-label">└ ${getAxisLabel(ax3)}別の内訳</div>
+            <div class="nest-grandchildren">${gcRows}</div>`;
+        }
+      }
+
+      return `<div class="nest-child">
+        <div class="nest-child-head">
+          <span class="nest-child-title">${escFunnel(childName)}</span>
+          <span class="nest-child-total">応募 ${childTotal}件</span>
+        </div>
+        ${childSteps}
+        ${grandchildHtml}
+      </div>`;
+    }).join('');
+
+    return `<div class="nest-card">
+      <div class="nest-card-head">
+        <span class="nest-card-name">${escFunnel(parentName)}</span>
+        <div class="nest-card-summary">
+          <span><strong>${total}</strong>応募</span>
+          <span><strong>${hired}</strong>採用</span>
+          <span><strong>${hireRate}%</strong>採用率</span>
+        </div>
+      </div>
+      <div class="nest-parent">
+        <div class="nest-parent-label">▼ ${getAxisLabel(ax1)}全体</div>
+        ${parentSteps}
+      </div>
+      <div class="nest-children-label">▼ ${getAxisLabel(ax2)}${ax3 ? ' → ' + getAxisLabel(ax3) : ''}別の内訳</div>
+      <div class="nest-children">${childCards}</div>
+    </div>`;
+  }).join('');
+
+  const note = remaining > 0
+    ? `<div style="text-align:center;padding:8px;font-size:11px;color:#aaa;">他 ${remaining} 件は省略（応募数上位10件のみ表示）</div>`
+    : '';
+
+  return cards + note;
 }
 
 function renderCustomSections() {
@@ -2346,18 +2474,15 @@ function renderCustomSections() {
   Object.values(sectionCharts).forEach(charts => charts.forEach(c => { try { c.destroy(); } catch(e) {} }));
   Object.keys(sectionCharts).forEach(k => delete sectionCharts[k]);
   const data = getAnData();
-  // HTML生成（secIdをacc_body_に一致させる）
+  // HTML生成
   container.innerHTML = activeSections.map(s => {
     let title;
-    if (s.type === 'custom_cross') {
-      title = '🔀 ' + getKeyLabel(s.opts.row) + ' × ' + getKeyLabel(s.opts.col);
-    } else if (s.type === 'multi_axis' && s.opts && s.opts.axes) {
-      const axisLabels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否',appMonth:'月別'};
+    if (s.type === 'multi_axis' && s.opts && s.opts.axes) {
+      const axisLabels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否'};
       title = '🔀 ' + s.opts.axes.map(k => axisLabels[k] || k).join(' × ');
     } else {
       title = getSectionTitle(s.type);
     }
-    // コンテンツを直接生成（エラーが起きても他のセクションは表示する）
     let bodyHtml;
     try {
       bodyHtml = buildSectionInline(data, s);
@@ -2376,18 +2501,10 @@ function renderCustomSections() {
       <div id="acc_body_${s.id}" style="padding:1rem;">${bodyHtml}</div>
     </div>`;
   }).join('');
-  // グラフはDOM生成後にまとめて描画（エラーで全体が止まらないようにtry/catch）
+  // AI分析だけはDOM生成後に非同期で描画（ファネル系はCSS描画なのでJS呼出不要）
   activeSections.forEach(s => {
     try {
-      if (s.type === 'trend') renderTrendInSection(data, s.id);
-      else if (s.type === 'custom_cross') {
-        const viz = s.opts.viz || 'both';
-        if (viz !== 'table') renderCrossChart(data, s.opts.row, s.opts.col, viz, s.id);
-      } else if (s.type === 'multi_axis' && s.opts && s.opts.axes && s.opts.axes.length === 2) {
-        renderCrossChart(data, s.opts.axes[0], s.opts.axes[1], 'bar', s.id);
-      } else if (['media','job','dept','gender','status','hire'].includes(s.type)) {
-        renderSimpleChart(data, s.type, s.id);
-      } else if (s.type === 'ai') {
+      if (s.type === 'ai') {
         renderAiAnalysis(data, 'acc_body_' + s.id);
       }
     } catch(e) {
@@ -2400,41 +2517,28 @@ function buildSectionInline(data, s) {
   if (!data.length) return '<div class="empty">データがありません</div>';
   const type = s.type;
   const secId = s.id;
-  if (type === 'monthly_ref') {
-    const ref = data.filter(a => a.agency && a.agency.trim());
-    const nonRef = data.filter(a => !a.agency || !a.agency.trim());
-    return renderMonthTable(buildMonthStats(nonRef),'▼ 紹介以外') + renderMonthTable(buildMonthStats(ref),'▼ 紹介');
-  } else if (type === 'age') {
-    return renderAgeTable(data);
-  } else if (type === 'trend') {
-    return `<div style="position:relative;width:100%;height:240px;"><canvas id="trend_${secId}"></canvas></div>`;
-  } else if (type === 'ai') {
+
+  // AI分析（既存維持）
+  if (type === 'ai') {
     return '<div style="color:#aaa;font-size:12px;padding:.5rem;text-align:center;">分析中...</div>';
-  } else if (type === 'custom_cross') {
-    const { row, col, viz } = s.opts;
-    const tableHtml = renderCrossTable(data, row, col, getKeyLabel(row), getKeyLabel(col));
-    if (viz === 'table') return tableHtml;
-    const chartHtml = `<div style="margin-top:1rem;" id="cross_chart_${secId}"></div>`;
-    return tableHtml + chartHtml;
-  } else if (['media','job','dept','gender','status','hire'].includes(type)) {
-    const keyMap = {media:'media',job:'jobType',dept:'dept',gender:'gender',status:'status',hire:'hireStatus'};
-    const tableHtml = renderSimpleTable(data, keyMap[type]);
-    return tableHtml + `<div style="margin-top:1rem;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      <div><div style="font-size:10px;color:#666;font-weight:600;margin-bottom:4px;">棒グラフ（応募数）</div><div style="position:relative;height:200px;"><canvas id="bar_${type}_${secId}"></canvas></div></div>
-      <div><div style="font-size:10px;color:#666;font-weight:600;margin-bottom:4px;">円グラフ（構成比）</div><div style="position:relative;height:200px;"><canvas id="pie_${type}_${secId}"></canvas></div></div>
-    </div>`;
-  } else if (type === 'multi_axis') {
+  }
+
+  // 単一軸ファネル分析
+  const axisKeyMap = {
+    media: 'media', job: 'jobType', dept: 'dept', age: 'ageGroup',
+    gender: 'gender', agency: 'agency', status: 'status', hire: 'hireStatus'
+  };
+  if (axisKeyMap[type]) {
+    const axisKey = axisKeyMap[type];
+    return renderSingleAxisFunnel(data, a => getAxisValue(a, axisKey));
+  }
+
+  // 複数軸ネスト型クロス集計
+  if (type === 'multi_axis') {
     const axes = s.opts ? s.opts.axes : [];
     return buildMultiAxisHTML(data, axes, secId);
-  } else if (type === 'dept_job') {
-    return renderCrossTable(data,'dept','jobType','部署','職種');
-  } else if (type === 'age_job') {
-    return renderCrossTable(data,'ageGroup','jobType','年代','職種');
-  } else if (type === 'job_status') {
-    return renderCrossTable(data,'jobType','status','職種','ステータス');
-  } else if (type === 'media_hire') {
-    return renderCrossTable(data,'media','hireStatus','媒体','採用可否');
   }
+
   return '<div class="empty">不明なセクションタイプです</div>';
 }
 
@@ -2455,13 +2559,10 @@ function getKeyLabel(key) {
 
 function getSectionTitle(type) {
   const map = {
-    monthly_ref: '📊 紹介別 月別集計', age: '👥 年代別', media: '📡 媒体別',
-    job: '💼 職種別', dept: '🏢 部署別', dept_job: '🏢 部署×職種クロス',
-    age_job: '👥 年代×職種クロス', job_status: '💼 職種×ステータスクロス',
-    media_hire: '📡 媒体×採用可否クロス', gender: '⚧ 性別',
+    media: '📡 媒体別', job: '💼 職種別', dept: '🏢 部署別',
+    age: '👥 年代別', gender: '⚧ 性別', agency: '🏛️ 紹介会社別',
     status: '📋 ステータス別', hire: '✅ 採用可否別',
-    trend: '📈 月次トレンド', ai: '🤖 AI分析',
-    multi_axis: '🔀 複数軸クロス集計'
+    ai: '🤖 AI分析', multi_axis: '🔀 複数軸クロス集計'
   };
   return map[type] || type;
 }

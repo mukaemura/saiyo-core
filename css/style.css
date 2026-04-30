@@ -443,3 +443,318 @@ tr:hover td{background:#fafafa;}
   color: #185FA5;
   font-weight: 600;
 }
+
+/* ========================================
+   分析画面：ファネル統一型UI
+   ======================================== */
+
+/* セクションラッパー */
+.an-section-wrap {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.04);
+  overflow: hidden;
+}
+.an-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .75rem 1rem;
+  border-bottom: 1px solid #f0f0ee;
+  cursor: pointer;
+}
+.an-section-head:hover { background: #fafafa; }
+.an-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.an-section-body {
+  padding: 1rem;
+}
+
+/* ファネルカード（共通） */
+.funnel-card {
+  background: #fff;
+  border: 1px solid #ecefef;
+  border-radius: 10px;
+  padding: 12px 14px;
+  transition: all .15s;
+}
+.funnel-card:hover {
+  border-color: #c8d6d2;
+  box-shadow: 0 2px 8px rgba(0,0,0,.04);
+}
+.funnel-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f0f3f2;
+}
+.funnel-card-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+.funnel-card-total {
+  font-size: 10px;
+  color: #888;
+  background: #f5f7f6;
+  padding: 2px 7px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+/* ファネルステップ行 */
+.fstep {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 11px;
+}
+.fstep-label {
+  flex: 0 0 70px;
+  font-weight: 600;
+  color: #444;
+  font-size: 10px;
+}
+.fstep-bar-wrap {
+  flex: 1;
+  height: 18px;
+  background: #f5f7f6;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.fstep-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width .3s ease;
+}
+.fstep-stat {
+  flex: 0 0 80px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 5px;
+  align-items: baseline;
+  white-space: nowrap;
+}
+.fstep-num {
+  font-weight: 700;
+  color: #1a1a1a;
+  font-size: 11px;
+}
+.fstep-pct {
+  color: #888;
+  font-size: 10px;
+}
+
+/* ステップごとの色 */
+.fstep[data-step="applied"] .fstep-bar     { background: linear-gradient(90deg, #378ADD, #5DA1E5); }
+.fstep[data-step="in_progress"] .fstep-bar { background: linear-gradient(90deg, #EF9F27, #F0B65F); }
+.fstep[data-step="interview"] .fstep-bar   { background: linear-gradient(90deg, #9B59B6, #B07DC9); }
+.fstep[data-step="hired"] .fstep-bar       { background: linear-gradient(90deg, #639922, #82B842); }
+.fstep[data-step="joined"] .fstep-bar      { background: linear-gradient(90deg, #1D9E75, #5DCAA5); }
+.fstep[data-step="resigned"] .fstep-bar    { background: linear-gradient(90deg, #95A5A6, #BDC3C7); opacity: .7; }
+.fstep[data-step="other"] .fstep-bar       { background: linear-gradient(90deg, #888, #aaa); opacity: .7; }
+
+.fstep-divider {
+  height: 1px;
+  background: #f0f3f2;
+  margin: 6px 0 4px;
+  position: relative;
+}
+.fstep-divider::after {
+  content: '参考';
+  position: absolute;
+  right: 0;
+  top: -8px;
+  background: #fff;
+  padding: 0 6px;
+  font-size: 9px;
+  color: #aaa;
+  font-weight: 600;
+}
+.fstep[data-ref="true"] {
+  opacity: .65;
+}
+
+/* グリッド：単一軸 */
+.funnel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+/* === ネスト型カード === */
+.nest-card {
+  background: #fff;
+  border: 1px solid #ecefef;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.nest-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 2px solid #f0f3f2;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.nest-card-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2a4a3e;
+}
+.nest-card-summary {
+  display: flex;
+  gap: 10px;
+  font-size: 10px;
+  color: #666;
+}
+.nest-card-summary span strong {
+  color: #1a1a1a;
+  font-size: 12px;
+  margin-right: 2px;
+}
+
+.nest-parent {
+  background: #fafcfb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-left: 3px solid #5aaa8e;
+}
+.nest-parent-label {
+  font-size: 10px;
+  color: #5aaa8e;
+  font-weight: 700;
+  margin-bottom: 6px;
+  letter-spacing: .04em;
+}
+
+.nest-children-label {
+  font-size: 10px;
+  color: #888;
+  font-weight: 600;
+  margin: 10px 0 6px;
+  letter-spacing: .04em;
+}
+.nest-children {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+}
+.nest-child {
+  background: #fafcfb;
+  border: 1px solid #f0f3f2;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.nest-child-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #ecefef;
+}
+.nest-child-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #444;
+}
+.nest-child-total {
+  font-size: 10px;
+  color: #888;
+  font-weight: 600;
+}
+.nest-child .fstep {
+  padding: 3px 0;
+  font-size: 10px;
+}
+.nest-child .fstep-label {
+  flex: 0 0 60px;
+  font-size: 9px;
+}
+.nest-child .fstep-bar-wrap {
+  height: 12px;
+}
+.nest-child .fstep-stat {
+  flex: 0 0 70px;
+}
+.nest-child .fstep-num { font-size: 10px; }
+.nest-child .fstep-pct { font-size: 9px; }
+
+/* 3軸：孫（1行ミニバー） */
+.nest-grandchildren-label {
+  font-size: 9px;
+  color: #aaa;
+  font-weight: 600;
+  margin: 6px 0 3px;
+  padding-left: 4px;
+  letter-spacing: .04em;
+}
+.nest-grandchildren {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 6px;
+  border-left: 2px solid #f0f3f2;
+}
+.nest-grandchild {
+  background: #fff;
+  border: 1px solid #f5f7f6;
+  border-radius: 5px;
+  padding: 5px 7px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+}
+.nest-gc-title {
+  flex: 0 0 70px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #666;
+}
+.nest-gc-mini {
+  flex: 1;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.gc-step {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+}
+.gc-bar-wrap {
+  flex: 1;
+  height: 5px;
+  background: #f0f3f2;
+  border-radius: 2px;
+  overflow: hidden;
+  min-width: 16px;
+}
+.gc-bar { height: 100%; border-radius: 2px; }
+.gc-step[data-step="applied"] .gc-bar     { background: #378ADD; }
+.gc-step[data-step="in_progress"] .gc-bar { background: #EF9F27; }
+.gc-step[data-step="interview"] .gc-bar   { background: #9B59B6; }
+.gc-step[data-step="hired"] .gc-bar       { background: #639922; }
+.gc-step[data-step="joined"] .gc-bar      { background: #1D9E75; }
+.gc-num {
+  font-weight: 700;
+  color: #1a1a1a;
+  min-width: 16px;
+  text-align: right;
+  font-size: 9px;
+}
