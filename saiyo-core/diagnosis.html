@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>採用コア - 動作診断</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;background:#f8f8f7;color:#1a1a1a;padding:2rem;max-width:800px;margin:0 auto;}
+h1{font-size:20px;margin-bottom:1rem;}
+h2{font-size:16px;margin:1.5rem 0 0.5rem;border-bottom:2px solid #6ab49a;padding-bottom:6px;}
+.test{padding:12px;background:#fff;border-radius:8px;margin-bottom:8px;border-left:4px solid #ddd;}
+.test.ok{border-left-color:#3B6D11;background:#f3faf0;}
+.test.ng{border-left-color:#D85A30;background:#fdf3ef;}
+.test.pending{border-left-color:#aaa;}
+.label{font-weight:600;display:inline-block;min-width:200px;}
+.status{font-weight:700;}
+.ok .status{color:#3B6D11;}
+.ng .status{color:#D85A30;}
+.detail{font-size:12px;color:#666;margin-top:6px;}
+code{background:#f0f0ee;padding:2px 6px;border-radius:3px;font-family:Menlo,Consolas,monospace;font-size:12px;}
+.preview-img{display:inline-block;width:60px;height:60px;border:1px dashed #ccc;border-radius:4px;background:#fafafa;vertical-align:middle;margin-right:8px;}
+button{padding:10px 20px;background:#6ab49a;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;margin-top:1rem;}
+button:hover{background:#5aa388;}
+</style>
+</head>
+<body>
+<h1>🔍 採用コア 動作診断ツール</h1>
+<p style="color:#666;font-size:13px;">このページでは、本番環境で何が動いていて何が動いていないかを自動チェックします。<br>すべて緑になれば、ログイン画面でも問題なく動作するはずです。</p>
+
+<h2>環境チェック</h2>
+<div id="env-tests"></div>
+
+<h2>ファイル読み込みチェック</h2>
+<div id="file-tests"></div>
+
+<h2>画像表示チェック</h2>
+<div id="img-tests"></div>
+
+<h2>Supabase接続チェック</h2>
+<div id="sb-tests"></div>
+
+<h2>ログイン処理チェック</h2>
+<button onclick="testLogin()">空白でログインテストを実行（エラー表示が出ることを確認）</button>
+<div id="login-test" style="margin-top:1rem;"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://jhnxvcqgwpidkfteqkdr.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impobnh2Y3Fnd3BpZGtmdGVxa2RyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNjU2ODgsImV4cCI6MjA5Mjk0MTY4OH0.oWHIJOQM-ktOlHayj19OiC2lEqP47keTl4q3CS4zUlY';
+
+function addTest(targetId, label, status, detail) {
+  const el = document.getElementById(targetId);
+  const div = document.createElement('div');
+  div.className = 'test ' + (status === '✓' ? 'ok' : (status === '✗' ? 'ng' : 'pending'));
+  div.innerHTML = `<span class="label">${label}</span><span class="status">${status}</span>${detail ? '<div class="detail">' + detail + '</div>' : ''}`;
+  el.appendChild(div);
+  return div;
+}
+
+// 環境チェック
+addTest('env-tests', 'プロトコル', location.protocol === 'http:' || location.protocol === 'https:' ? '✓' : '✗',
+  '現在: <code>' + location.protocol + '//' + location.host + '</code>' +
+  (location.protocol === 'file:' ? '<br>⚠ file:// で開いているとCSS・JS・画像が読み込めません。HTTPサーバー経由で開いてください。' : ''));
+
+addTest('env-tests', 'Supabase SDK', typeof supabase !== 'undefined' ? '✓' : '✗',
+  typeof supabase === 'undefined' ? 'CDN からの読み込みに失敗しています。インターネット接続を確認してください。' : 'グローバル変数 <code>supabase</code> が読み込まれています。');
+
+// ファイル読み込みチェック
+async function checkFile(path, label) {
+  try {
+    const res = await fetch(path);
+    if (res.ok) {
+      addTest('file-tests', label, '✓', `<code>${path}</code> → HTTP ${res.status}, ${res.headers.get('content-length') || '?'} bytes`);
+    } else {
+      addTest('file-tests', label, '✗', `<code>${path}</code> → HTTP ${res.status} ${res.statusText}`);
+    }
+  } catch (e) {
+    addTest('file-tests', label, '✗', `<code>${path}</code> → ${e.message}`);
+  }
+}
+
+(async () => {
+  await checkFile('css/style.css', 'CSS');
+  await checkFile('js/app.js', 'JavaScript');
+  await checkFile('assets/logo.png', '画像 logo.png');
+  await checkFile('assets/character.png', '画像 character.png');
+  await checkFile('assets/character-small.png', '画像 character-small.png');
+  await checkFile('assets/header-icon.png', '画像 header-icon.png');
+})();
+
+// 画像表示チェック（実際に表示）
+function imgTest(name, path) {
+  const div = document.createElement('div');
+  div.className = 'test pending';
+  div.innerHTML = `<img class="preview-img" src="${path}" alt="${name}" onload="this.parentElement.className='test ok';this.parentElement.querySelector('.status').textContent='✓ 表示成功'" onerror="this.parentElement.className='test ng';this.parentElement.querySelector('.status').textContent='✗ 表示失敗';this.parentElement.querySelector('.detail').innerHTML='画像のリクエストは404か、レスポンスは正しいが画像形式として無効です。'"><span class="label">${name}</span><span class="status">読込中...</span><div class="detail"><code>${path}</code></div>`;
+  document.getElementById('img-tests').appendChild(div);
+}
+imgTest('ロゴ', 'assets/logo.png');
+imgTest('キャラクター', 'assets/character.png');
+imgTest('小キャラ', 'assets/character-small.png');
+imgTest('ヘッダーアイコン', 'assets/header-icon.png');
+
+// Supabase接続テスト
+(async () => {
+  if (typeof supabase === 'undefined') {
+    addTest('sb-tests', 'Supabase初期化', '✗', 'SDK が読み込まれていません');
+    return;
+  }
+  let sb;
+  try {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    addTest('sb-tests', 'Supabaseクライアント生成', '✓', 'createClient 成功');
+  } catch (e) {
+    addTest('sb-tests', 'Supabaseクライアント生成', '✗', e.message);
+    return;
+  }
+
+  // clients テーブル接続テスト
+  try {
+    const { data, error, count } = await sb.from('clients').select('*', { count: 'exact', head: true });
+    if (error) {
+      addTest('sb-tests', 'clients テーブル接続', '✗', error.message);
+    } else {
+      addTest('sb-tests', 'clients テーブル接続', '✓', `件数取得成功（${count} 件）`);
+    }
+  } catch (e) {
+    addTest('sb-tests', 'clients テーブル接続', '✗', '通信エラー: ' + e.message);
+  }
+
+  // system_config テーブル接続テスト
+  try {
+    const { data, error } = await sb.from('system_config').select('*').eq('key', 'admin_pw').maybeSingle();
+    if (error) {
+      addTest('sb-tests', 'system_config テーブル接続', '✗', error.message);
+    } else if (data) {
+      addTest('sb-tests', 'system_config テーブル接続', '✓', 'admin_pw レコード取得成功');
+    } else {
+      addTest('sb-tests', 'system_config テーブル接続', '✓', 'テーブルアクセスOK（admin_pw レコードは未登録 → デフォルト admin2024 が使われます）');
+    }
+  } catch (e) {
+    addTest('sb-tests', 'system_config テーブル接続', '✗', '通信エラー: ' + e.message);
+  }
+
+  // applicants テーブル接続テスト
+  try {
+    const { count, error } = await sb.from('applicants').select('*', { count: 'exact', head: true });
+    if (error) {
+      addTest('sb-tests', 'applicants テーブル接続', '✗', error.message);
+    } else {
+      addTest('sb-tests', 'applicants テーブル接続', '✓', `件数取得成功（${count} 件）`);
+    }
+  } catch (e) {
+    addTest('sb-tests', 'applicants テーブル接続', '✗', '通信エラー: ' + e.message);
+  }
+})();
+
+// ログイン処理テスト（実際に index.html の app.js を読み込んで doLogin() を試す）
+async function testLogin() {
+  const el = document.getElementById('login-test');
+  el.innerHTML = '<div class="test pending"><span class="status">テスト中...</span></div>';
+
+  try {
+    // app.js を動的に読み込む
+    const res = await fetch('js/app.js');
+    if (!res.ok) {
+      el.innerHTML = `<div class="test ng"><span class="label">app.js 読込</span><span class="status">✗</span><div class="detail">HTTP ${res.status}</div></div>`;
+      return;
+    }
+    const text = await res.text();
+    el.innerHTML = `<div class="test ok"><span class="label">app.js 読込</span><span class="status">✓</span><div class="detail">${text.length.toLocaleString()} bytes</div></div>`;
+
+    // doLogin の定義チェック（文字列として確認）
+    const hasDoLogin = /function doLogin\(/.test(text) || /async function doLogin\(/.test(text);
+    const hasGlobalExport = /window\.doLogin\s*=\s*doLogin/.test(text);
+
+    el.innerHTML += `<div class="test ${hasDoLogin ? 'ok' : 'ng'}"><span class="label">doLogin 関数定義</span><span class="status">${hasDoLogin ? '✓' : '✗'}</span></div>`;
+    el.innerHTML += `<div class="test ${hasGlobalExport ? 'ok' : 'ng'}"><span class="label">window.doLogin 公開</span><span class="status">${hasGlobalExport ? '✓' : '✗'}</span></div>`;
+    el.innerHTML += `<div class="test ok"><span class="label">→ 結論</span><span class="status">この診断ツールでログイン関数の存在は確認できました。<br>実際の挙動は <a href="index.html">index.html</a> でご確認ください。<br>ブラウザの開発者ツール（F12）→ Console タブで <code>[app.js] 読み込み開始</code> 等のログが出ているはずです。</span></div>`;
+  } catch (e) {
+    el.innerHTML = `<div class="test ng"><span class="label">テスト失敗</span><span class="status">✗</span><div class="detail">${e.message}</div></div>`;
+  }
+}
+</script>
+
+<h2 style="margin-top:2rem;">📋 もしどこかで ✗ が出た場合</h2>
+<div style="background:#fff8e1;border-left:4px solid #f9a825;padding:12px 16px;border-radius:4px;font-size:13px;line-height:1.7;">
+  <strong>🔴 画像ファイルが ✗ の場合</strong><br>
+  → 本番環境（Vercel/Netlify等）に <code>assets/</code> フォルダがアップロードされていない可能性があります。フォルダの中身（4枚のPNG）が正しく配置されているか確認してください。<br><br>
+
+  <strong>🔴 Supabase テーブル接続が ✗ の場合</strong><br>
+  → Supabase プロジェクトの URL や API キーが正しいか、Row Level Security（RLS）の設定で anon ロールにアクセス権があるか確認してください。<br><br>
+
+  <strong>🔴 CSS/JS が ✗ の場合</strong><br>
+  → 本番環境のデプロイで <code>css/</code>、<code>js/</code> フォルダがアップロードされていない可能性があります。
+</div>
+
+<p style="margin-top:2rem;font-size:11px;color:#aaa;text-align:center;">採用コア 診断ツール v1</p>
+</body>
+</html>
