@@ -829,6 +829,9 @@
               <span style="font-size:11px;color:#aaa;">〜</span>
               <input type="month" id="budgetTo" onchange="renderBudget()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;">
             </div>
+            <select id="budgetClientFilter" onchange="renderBudget()" style="display:none;padding:6px 10px;border:1.5px solid #378ADD;border-radius:8px;font-size:11px;font-family:inherit;background:#f0f6ff;color:#185FA5;font-weight:600;">
+              <option value="">全クライアント</option>
+            </select>
             <select id="budgetDeptFilter" onchange="renderBudget()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;"><option value="">部署（全て）</option></select>
             <select id="budgetJobFilter" onchange="renderBudget()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;"><option value="">職種（全て）</option></select>
             <button class="btn-sm" onclick="exportBudgetCSV()">CSV出力</button>
