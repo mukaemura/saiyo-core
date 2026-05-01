@@ -67,8 +67,8 @@
       <!-- 入力フォーム -->
       <div style="display:flex;flex-direction:column;gap:1rem;">
         <div>
-          <label style="font-size:11px;font-weight:700;color:#667;display:block;margin-bottom:6px;letter-spacing:.04em;">クライアントID</label>
-          <input type="text" id="loginId" placeholder="例: client01"
+          <label style="font-size:11px;font-weight:700;color:#667;display:block;margin-bottom:6px;letter-spacing:.04em;">メールアドレス</label>
+          <input type="email" id="loginId" placeholder="例: client@example.com" autocomplete="email"
             onkeydown="if(event.key==='Enter')doLogin()"
             style="width:100%;padding:13px 16px;border:1.5px solid #deeee9;border-radius:12px;font-size:14px;font-family:inherit;background:#f7fcfa;outline:none;box-sizing:border-box;transition:all .2s;"
             onfocus="this.style.borderColor='#6ab49a';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(106,180,154,.12)'"
@@ -76,7 +76,7 @@
         </div>
         <div>
           <label style="font-size:11px;font-weight:700;color:#667;display:block;margin-bottom:6px;letter-spacing:.04em;">パスワード</label>
-          <input type="password" id="loginPw" placeholder="パスワードを入力"
+          <input type="password" id="loginPw" placeholder="パスワードを入力" autocomplete="current-password"
             onkeydown="if(event.key==='Enter')doLogin()"
             style="width:100%;padding:13px 16px;border:1.5px solid #deeee9;border-radius:12px;font-size:14px;font-family:inherit;background:#f7fcfa;outline:none;box-sizing:border-box;transition:all .2s;"
             onfocus="this.style.borderColor='#6ab49a';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(106,180,154,.12)'"
@@ -84,7 +84,7 @@
         </div>
 
         <div id="loginErr" style="display:none;font-size:12px;color:#e05555;background:#fff5f5;border-radius:8px;padding:9px 12px;text-align:center;border:1px solid #fdd;">
-          IDまたはパスワードが正しくありません
+          メールアドレスまたはパスワードが正しくありません
         </div>
 
         <button id="loginBtn" onclick="doLogin()"

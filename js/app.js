@@ -730,14 +730,14 @@ async function doLogin() {
 
   hideErr();
 
-  const id = (idEl?.value || '').trim();
+  const email = (idEl?.value || '').trim();
   const pw = pwEl?.value || '';
-  console.log('[doLogin] 入力ID:', id, '/ パスワード長:', pw.length);
+  console.log('[doLogin] 入力email:', email, '/ パスワード長:', pw.length);
 
   // 入力バリデーション
-  if (!id) {
-    console.log('[doLogin] ID未入力');
-    showErr('クライアントIDを入力してください');
+  if (!email) {
+    console.log('[doLogin] email未入力');
+    showErr('メールアドレスを入力してください');
     if (idEl) idEl.focus();
     return;
   }
@@ -758,21 +758,27 @@ async function doLogin() {
   setBtnLoading(true);
 
   try {
-    console.log('[doLogin] ログイン判定開始');
+    console.log('[doLogin] Supabase Auth signInWithPassword 開始');
 
-    // 管理者ログイン: system_config から admin_pw を取得
-    let adminPw = 'admin2024'; // デフォルト
-    try {
-      const { data: adminData, error: adminErr } = await sb.from('system_config')
-        .select('value').eq('key', 'admin_pw').single();
-      if (!adminErr && adminData?.value) {
-        adminPw = adminData.value;
-      }
-    } catch (e) {
-      console.warn('[doLogin] system_config取得失敗（デフォルトを使用）', e);
+    // Supabase Auth で認証
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: email,
+      password: pw
+    });
+
+    if (error || !data?.user) {
+      console.log('[doLogin] 認証失敗:', error?.message);
+      showErr('メールアドレスまたはパスワードが正しくありません');
+      return;
     }
 
-    if (id === 'admin' && pw === adminPw) {
+    const user = data.user;
+    console.log('[doLogin] 認証成功 uid:', user.id);
+
+    // admin判定（app_metadata.role === 'admin'）
+    // ※ user_metadataは本人改ざん可能なので使わない
+    const role = user.app_metadata?.role;
+    if (role === 'admin') {
       console.log('[doLogin] 管理者ログイン成功');
       currentClientId = 'admin';
       currentClientName = '管理者（全社）';
@@ -781,26 +787,32 @@ async function doLogin() {
       return;
     }
 
-    // クライアントログイン
+    // 一般クライアント：auth_user_id から対応する clients レコードを取得
     const { data: clientData, error: clientErr } = await sb.from('clients')
-      .select('*').eq('client_id', id).eq('password', pw).maybeSingle();
+      .select('client_id, name')
+      .eq('auth_user_id', user.id)
+      .maybeSingle();
 
     if (clientErr) {
-      console.error('[doLogin] Supabaseエラー', clientErr);
-      showErr('ログイン処理でエラーが発生しました。管理者に確認してください');
+      console.error('[doLogin] clients取得エラー', clientErr);
+      showErr('アカウント情報の取得に失敗しました。管理者に確認してください');
+      await sb.auth.signOut();
       return;
     }
 
-    if (clientData) {
-      console.log('[doLogin] クライアントログイン成功:', clientData.name);
-      currentClientId = id;
-      currentClientName = clientData.name;
-      isAdmin = false;
-      await startApp();
-    } else {
-      console.log('[doLogin] ログイン失敗: 該当なし');
-      showErr('IDまたはパスワードが正しくありません');
+    if (!clientData) {
+      console.log('[doLogin] clients紐付けなし');
+      showErr('アカウント情報が見つかりません。管理者にお問い合わせください');
+      await sb.auth.signOut();
+      return;
     }
+
+    console.log('[doLogin] クライアントログイン成功:', clientData.name);
+    currentClientId = clientData.client_id;
+    currentClientName = clientData.name;
+    isAdmin = false;
+    await startApp();
+
   } catch (e) {
     console.error('[doLogin] 例外発生', e);
     showErr('ログイン処理でエラーが発生しました。管理者に確認してください');
@@ -838,7 +850,13 @@ async function startApp() {
   }
 }
 
-function doLogout() {
+async function doLogout() {
+  // Supabase Auth のセッションを破棄（localStorageのJWTもクリア）
+  try {
+    await sb.auth.signOut();
+  } catch (e) {
+    console.warn('[doLogout] signOut失敗（続行）', e);
+  }
   currentClientId = null; isAdmin = false;
   applicants = []; masters = { media: [], status: [], agency: [] };
   editId = null; curId = null; tempDocs = [];
