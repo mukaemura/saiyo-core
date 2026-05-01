@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260501">
+<link rel="stylesheet" href="css/style.css?v=20260501d">
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
   if (location.protocol === 'file:') {
@@ -102,6 +102,81 @@
   </div>
 
 </div>
+
+<!-- ===== パスワードリセット画面 ===== -->
+<div id="resetPwScreen" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(145deg,#e8f7f3 0%,#f0faf8 40%,#fef9f2 100%);position:relative;overflow:hidden;">
+
+  <!-- 背景デコ -->
+  <div style="position:absolute;top:-80px;left:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(106,180,154,.15) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;bottom:-60px;right:-60px;width:280px;height:280px;background:radial-gradient(circle,rgba(55,138,221,.08) 0%,transparent 70%);pointer-events:none;"></div>
+
+  <!-- カード全体 -->
+  <div style="position:relative;width:100%;max-width:460px;margin:2rem 1rem;">
+
+    <!-- 上部：ロゴ＋キャラクター -->
+    <div style="display:flex;align-items:flex-end;justify-content:center;gap:16px;margin-bottom:-20px;position:relative;z-index:2;pointer-events:none;">
+      <div style="animation:floatLogo 3.5s ease-in-out infinite;filter:drop-shadow(0 10px 20px rgba(0,0,0,.15));">
+        <img src="assets/logo.png" alt="ロゴ" style="width:90px;height:90px;object-fit:contain;">
+      </div>
+      <div style="animation:floatChar 3.2s ease-in-out infinite;filter:drop-shadow(0 8px 16px rgba(0,0,0,.1));">
+        <img src="assets/character.png" alt="キャラクター" style="width:110px;height:110px;object-fit:contain;">
+      </div>
+    </div>
+
+    <!-- リセットカード本体 -->
+    <div style="background:#fff;border-radius:24px;padding:2.5rem 2.5rem 2rem;box-shadow:0 8px 40px rgba(0,0,0,.07),0 2px 8px rgba(106,180,154,.12);position:relative;z-index:1;">
+
+      <!-- タイトル -->
+      <div style="text-align:center;margin-bottom:1.75rem;">
+        <div style="font-size:24px;font-weight:800;color:#1a1a1a;letter-spacing:-.04em;margin-bottom:6px;">🔐 パスワード再設定</div>
+        <div style="font-size:11px;color:#aab;letter-spacing:.07em;font-weight:500;">新しいパスワードを設定してください</div>
+      </div>
+
+      <div style="height:1px;background:linear-gradient(to right,transparent,#deeee9,transparent);margin-bottom:1.75rem;"></div>
+
+      <!-- 入力フォーム -->
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#667;display:block;margin-bottom:6px;letter-spacing:.04em;">新しいパスワード（6文字以上）</label>
+          <input type="password" id="resetPw1" placeholder="新しいパスワード" autocomplete="new-password"
+            onkeydown="if(event.key==='Enter')document.getElementById('resetPw2').focus()"
+            style="width:100%;padding:13px 16px;border:1.5px solid #deeee9;border-radius:12px;font-size:14px;font-family:inherit;background:#f7fcfa;outline:none;box-sizing:border-box;transition:all .2s;"
+            onfocus="this.style.borderColor='#6ab49a';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(106,180,154,.12)'"
+            onblur="this.style.borderColor='#deeee9';this.style.background='#f7fcfa';this.style.boxShadow='none'">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#667;display:block;margin-bottom:6px;letter-spacing:.04em;">確認のためもう一度</label>
+          <input type="password" id="resetPw2" placeholder="同じパスワードを再入力" autocomplete="new-password"
+            onkeydown="if(event.key==='Enter')doResetPassword()"
+            style="width:100%;padding:13px 16px;border:1.5px solid #deeee9;border-radius:12px;font-size:14px;font-family:inherit;background:#f7fcfa;outline:none;box-sizing:border-box;transition:all .2s;"
+            onfocus="this.style.borderColor='#6ab49a';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(106,180,154,.12)'"
+            onblur="this.style.borderColor='#deeee9';this.style.background='#f7fcfa';this.style.boxShadow='none'">
+        </div>
+
+        <div id="resetPwErr" style="display:none;font-size:12px;color:#e05555;background:#fff5f5;border-radius:8px;padding:9px 12px;text-align:center;border:1px solid #fdd;"></div>
+        <div id="resetPwOk" style="display:none;font-size:12px;color:#3B6D11;background:#f3faf0;border-radius:8px;padding:9px 12px;text-align:center;border:1px solid #c8e6c9;"></div>
+
+        <button id="resetPwBtn" onclick="doResetPassword()"
+          style="width:100%;padding:14px;background:linear-gradient(135deg,#72bda6,#5aaa8e);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.05em;transition:all .25s;box-shadow:0 4px 14px rgba(106,180,154,.3);margin-top:4px;"
+          onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 7px 22px rgba(106,180,154,.42)'"
+          onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 14px rgba(106,180,154,.3)'">
+          パスワードを設定する
+        </button>
+
+        <button onclick="cancelResetPassword()"
+          style="width:100%;padding:10px;background:transparent;color:#888;border:1px solid #deeee9;border-radius:12px;font-size:12px;font-family:inherit;cursor:pointer;margin-top:4px;">
+          キャンセル（ログイン画面に戻る）
+        </button>
+      </div>
+
+      <div style="text-align:center;margin-top:1.75rem;font-size:10px;color:#ccc;line-height:1.9;">
+        © 2025 Link Core｜採用コア
+      </div>
+    </div>
+  </div>
+
+</div>
+
   <div class="app" id="mainApp" style="display:none;">
     <div class="header">
       <div style="display:flex;align-items:center;gap:10px;">
@@ -580,7 +655,10 @@
           <h2 style="font-size:14px;font-weight:600;">議事録</h2>
           <p style="font-size:11px;color:#aaa;margin-top:2px;">MTGごとの議事録とタスクを記録します</p>
         </div>
-        <div style="display:flex;gap:8px;">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select id="minutesClientFilter" onchange="renderMinutes()" style="display:none;padding:6px 10px;border:1.5px solid #378ADD;border-radius:8px;font-size:11px;font-family:inherit;background:#f0f6ff;color:#185FA5;font-weight:600;">
+            <option value="">全クライアント</option>
+          </select>
           <div style="display:flex;align-items:center;gap:4px;">
               <button onclick="shiftMonth('calMonth','renderMinutes',-1)" style="padding:5px 10px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:#fafafa;cursor:pointer;line-height:1;" title="前月">‹</button>
               <input type="month" id="calMonth" onchange="renderMinutes()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fafafa;">
@@ -711,6 +789,9 @@
             <button class="btn-sm" onclick="setPeriod('quarter')">3ヶ月</button>
             <button class="btn-sm" onclick="setPeriod('year')">1年</button>
             <button class="btn-sm" onclick="setPeriod('all')">累計</button>
+            <select id="anClient" onchange="renderAn()" style="display:none;padding:5px 8px;border:1.5px solid #378ADD;border-radius:8px;font-size:11px;font-family:inherit;background:#f0f6ff;color:#185FA5;font-weight:600;">
+              <option value="">全クライアント</option>
+            </select>
             <select id="anDept" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;">
               <option value="">部署（全て）</option>
             </select>
@@ -852,6 +933,7 @@
           <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:800px;">
             <thead>
               <tr style="background:#f8f8f7;">
+                <th id="budgetThClient" style="padding:7px 8px;text-align:left;font-weight:600;white-space:nowrap;display:none;">クライアント<span class="req">*</span></th>
                 <th style="padding:7px 8px;text-align:left;font-weight:600;white-space:nowrap;">月<span class="req">*</span></th>
                 <th style="padding:7px 8px;text-align:left;font-weight:600;white-space:nowrap;">媒体・紹介会社<span class="req">*</span></th>
                 <th style="padding:7px 8px;text-align:left;font-weight:600;white-space:nowrap;">種別</th>
@@ -987,22 +1069,49 @@
     <!-- クライアント管理（管理者のみ） -->
     <div id="sec-admin" class="sec">
       <h2 style="font-size:14px;font-weight:600;margin-bottom:6px;">クライアント管理</h2>
-      <p style="font-size:11px;color:#888;margin-bottom:1rem;">クライアントごとにIDとパスワードを発行します。各クライアントは自社の応募者データのみ閲覧できます。</p>
+      <p style="font-size:11px;color:#888;margin-bottom:1rem;">クライアントごとにメールアドレスとパスワードを発行します。各クライアントは自社の応募者データのみ閲覧できます。</p>
+
+      <!-- 重要な運用上の注意 -->
+      <div style="background:#fff8f0;border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;font-size:11px;color:#854F0B;border-left:3px solid #EF9F27;line-height:1.7;">
+        📌 <strong>重要：</strong>クライアント追加・編集後は、必ず Supabase の Authentication → Users で<strong>同じメールアドレスとパスワード</strong>でAuthユーザーも作成・更新してください。<br>
+        ・新規追加時：Supabase で「Add user」→ 同じメアド・パスワードを入力<br>
+        ・パスワード変更時：Supabase でパスワード再設定 or 当人がアプリのマスター管理から変更
+      </div>
+
       <table class="client-table">
-        <thead><tr><th>クライアント名</th><th>ID</th><th>パスワード</th><th>応募者数 / 採用数</th><th>操作</th></tr></thead>
+        <thead><tr><th>クライアント名</th><th>メールアドレス</th><th>パスワード</th><th>応募者数 / 採用数</th><th>操作</th></tr></thead>
         <tbody id="clientTableBody"></tbody>
       </table>
+
+      <!-- 新規追加フォーム -->
       <div class="add-client-form">
         <div class="fg"><label>クライアント名</label><input type="text" id="newCName" placeholder="株式会社〇〇"></div>
-        <div class="fg"><label>クライアントID</label><input type="text" id="newCId" placeholder="client01"></div>
-        <div class="fg"><label>パスワード</label><input type="text" id="newCPw" placeholder="パスワード"></div>
+        <div class="fg"><label>メールアドレス</label><input type="email" id="newCId" placeholder="example@company.com"></div>
+        <div class="fg"><label>パスワード（6文字以上）</label><input type="text" id="newCPw" placeholder="6文字以上のパスワード"></div>
         <button class="btn btn-p" onclick="addClient()" style="align-self:end;">追加</button>
       </div>
+
+      <!-- 編集ダイアログ -->
+      <div id="editClientForm" style="display:none;background:#f0f6ff;border:1px solid #c8ddf5;border-radius:10px;padding:1rem;margin-top:1rem;">
+        <div style="font-size:13px;font-weight:600;color:#185FA5;margin-bottom:.75rem;">クライアント情報を編集</div>
+        <input type="hidden" id="editCRowId">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:8px;align-items:end;flex-wrap:wrap;">
+          <div class="fg"><label>クライアント名</label><input type="text" id="editCName"></div>
+          <div class="fg"><label>メールアドレス</label><input type="email" id="editCId"></div>
+          <div class="fg"><label>パスワード（変更しない場合は空欄）</label><input type="text" id="editCPw" placeholder="変更しない場合は空欄"></div>
+          <button class="btn btn-p" onclick="saveClientEdit()" style="align-self:end;">保存</button>
+          <button class="btn btn-s" onclick="cancelClientEdit()" style="align-self:end;">キャンセル</button>
+        </div>
+        <div style="font-size:10px;color:#666;margin-top:8px;line-height:1.6;">
+          ※ ここで変更した内容を反映するには、Supabase の Authentication → Users でも同じメールアドレス・パスワードに更新してください。
+        </div>
+      </div>
+
       <p style="font-size:10px;color:#aaa;margin-top:8px;">※管理者(admin)は全クライアントのデータを横断して閲覧・操作できます</p>
     </div>
   </div>
 </div>
 
-<script src="js/app.js?v=20260501"></script>
+<script src="js/app.js?v=20260501d"></script>
 </body>
 </html>

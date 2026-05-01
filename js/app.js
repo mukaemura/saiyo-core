@@ -1138,6 +1138,30 @@ function populateAppClientFilter() {
   if (cur) sel.value = cur;
 }
 
+// admin議事録画面用：クライアント絞り込みプルダウンを生成・表示制御
+function populateMinutesClientFilter() {
+  const sel = document.getElementById('minutesClientFilter');
+  if (!sel) return;
+  if (!isAdmin) {
+    sel.style.display = 'none';
+    return;
+  }
+  const cidsInMinutes = [...new Set(minutes.map(m => m.clientId).filter(Boolean))];
+  const allCids = new Set();
+  (clients || []).forEach(c => { if (c.client_id) allCids.add(c.client_id); });
+  cidsInMinutes.forEach(c => allCids.add(c));
+  const sortedCids = [...allCids].sort((a, b) => {
+    const an = getClientDisplayName(a);
+    const bn = getClientDisplayName(b);
+    return an.localeCompare(bn, 'ja');
+  });
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全クライアント</option>'
+    + sortedCids.map(cid => `<option value="${escapeOwnerHtml(cid)}">${escapeOwnerHtml(getClientDisplayName(cid))}</option>`).join('');
+  sel.style.display = 'inline-block';
+  if (cur) sel.value = cur;
+}
+
 // admin予算管理画面用：クライアント絞り込みプルダウンを生成・表示制御
 function populateBudgetClientFilter() {
   const sel = document.getElementById('budgetClientFilter');
@@ -2514,13 +2538,39 @@ function getAnData() {
   const from=document.getElementById('anFrom').value, to=document.getElementById('anTo').value;
   const dept=document.getElementById('anDept')?document.getElementById('anDept').value:'';
   const job=document.getElementById('anJob')?document.getElementById('anJob').value:'';
+  const clientFilter = isAdmin ? (document.getElementById('anClient')?.value || '') : '';
   return applicants.filter(a=>{
     if(from&&a.appDate<from)return false;
     if(to&&a.appDate>to)return false;
     if(dept&&a.dept!==dept)return false;
     if(job&&a.jobType!==job)return false;
+    if(clientFilter&&a.clientId!==clientFilter)return false;
     return true;
   });
+}
+
+// admin分析画面用：クライアント絞り込みプルダウンを生成・表示制御
+function populateAnClientFilter() {
+  const sel = document.getElementById('anClient');
+  if (!sel) return;
+  if (!isAdmin) {
+    sel.style.display = 'none';
+    return;
+  }
+  const cidsInApps = [...new Set(applicants.map(a => a.clientId).filter(Boolean))];
+  const allCids = new Set();
+  (clients || []).forEach(c => { if (c.client_id) allCids.add(c.client_id); });
+  cidsInApps.forEach(c => allCids.add(c));
+  const sortedCids = [...allCids].sort((a, b) => {
+    const an = getClientDisplayName(a);
+    const bn = getClientDisplayName(b);
+    return an.localeCompare(bn, 'ja');
+  });
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全クライアント</option>'
+    + sortedCids.map(cid => `<option value="${escapeOwnerHtml(cid)}">${escapeOwnerHtml(getClientDisplayName(cid))}</option>`).join('');
+  sel.style.display = 'inline-block';
+  if (cur) sel.value = cur;
 }
 
 function setPeriod(p) {
@@ -2641,6 +2691,8 @@ function setAnTab(t,btn){
 function setTab(t,btn){ setAnTab(t,btn); }
 
 function renderAn() {
+  // admin時はクライアント絞り込みプルダウンを生成
+  populateAnClientFilter();
   const anDept=document.getElementById('anDept');
   const anJob=document.getElementById('anJob');
   if(anDept){
@@ -3803,21 +3855,38 @@ async function saveMinutes() {
 }
 
 function renderMinutes() {
+  populateMinutesClientFilter();
   renderMinutesCalendar();
   const el = document.getElementById('minutesList');
-  if (!minutes.length) {
+
+  // adminのクライアント絞り込み値
+  const minClientFilter = isAdmin ? (document.getElementById('minutesClientFilter')?.value || '') : '';
+
+  // フィルター適用
+  const fil = minutes.filter(m => {
+    if (minClientFilter && m.clientId !== minClientFilter) return false;
+    return true;
+  });
+
+  if (!fil.length) {
     el.innerHTML = '<div style="text-align:center;padding:2rem;"><img src="assets/character-small.png" style="width:70px;opacity:.8;"><div style="font-size:12px;color:#aaa;margin-top:8px;">議事録がまだありません。右上の「＋ 新規議事録」から追加してください。</div></div>';
     return;
   }
-  el.innerHTML = minutes.map(m => {
+
+  // admin かつ クライアント絞り込みなし時はグルーピング表示
+  const useGrouping = isAdmin && !minClientFilter;
+
+  const renderMinuteCard = (m) => {
     const mTasks = tasks.filter(t => t.minuteId === m.id);
     const mId = 'minute_' + m.id;
     const pendingCount = mTasks.filter(t => !t.done).length;
+    const clientLabel = isAdmin && m.clientId ? `<span style="font-size:10px;color:#185FA5;background:#f0f6ff;border:1px solid #c8ddf5;border-radius:6px;padding:1px 6px;">${escapeOwnerHtml(getClientDisplayName(m.clientId))}</span>` : '';
     return `<div id="${mId}" style="border:1px solid #e8e8e6;border-radius:10px;margin-bottom:10px;overflow:hidden;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:.875rem 1rem;background:#fafafa;border-bottom:1px solid #f0f0ee;">
-        <div style="display:flex;align-items:center;gap:12px;">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
           <div style="font-size:12px;color:#aaa;">${m.date}</div>
           <div style="font-size:13px;font-weight:600;">${m.title||'MTG議事録'}</div>
+          ${clientLabel}
           ${m.url ? `<a href="${m.url}" target="_blank" style="font-size:11px;color:#378ADD;">議事録を開く →</a>` : ''}
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
@@ -3830,7 +3899,31 @@ function renderMinutes() {
         ${mTasks.map(t => renderTaskRow(t, true)).join('')}
       </div>` : '<div style="padding:.75rem 1rem;font-size:11px;color:#aaa;">タスクなし</div>'}
     </div>`;
-  }).join('');
+  };
+
+  if (useGrouping) {
+    // クライアントID別にグルーピング
+    const groups = {};
+    fil.forEach(m => {
+      const cid = m.clientId || '_no_client';
+      if (!groups[cid]) groups[cid] = [];
+      groups[cid].push(m);
+    });
+    const sortedGroups = Object.entries(groups).sort((a, b) => {
+      if (a[0] === '_no_client') return 1;
+      if (b[0] === '_no_client') return -1;
+      return getClientDisplayName(a[0]).localeCompare(getClientDisplayName(b[0]), 'ja');
+    });
+    el.innerHTML = sortedGroups.map(([cid, items]) => {
+      const name = cid === '_no_client' ? '（未割当）' : getClientDisplayName(cid);
+      return `<div style="margin-bottom:1.25rem;">
+        <div style="font-size:12px;font-weight:700;color:#185FA5;background:#f0f6ff;border:1px solid #c8ddf5;border-radius:8px;padding:6px 12px;margin-bottom:8px;display:inline-block;">${escapeOwnerHtml(name)} <span style="color:#aaa;font-weight:400;">(${items.length}件)</span></div>
+        ${items.map(renderMinuteCard).join('')}
+      </div>`;
+    }).join('');
+  } else {
+    el.innerHTML = fil.map(renderMinuteCard).join('');
+  }
 }
 
 function editMinute(id) {
@@ -4386,7 +4479,10 @@ async function saveBudgetData() {
 async function deleteBudget(id) {
   if (!confirm('削除しますか？')) return;
   try {
-    await sb.from('budgets').delete().eq('id', id).eq('client_id', currentClientId);
+    let q = sb.from('budgets').delete().eq('id', id);
+    // adminでなければ、自分のクライアントIDに限定（他社のデータは削除できない）
+    if (!isAdmin) q = q.eq('client_id', currentClientId);
+    await q;
   } catch(e) {}
   budgetData = budgetData.filter(d => d.id !== id);
   renderBudget();
@@ -4396,6 +4492,9 @@ function showBudgetForm() {
   const form = document.getElementById('budgetForm');
   if (!form) return;
   form.style.display = 'block';
+  // adminならクライアント列ヘッダーを表示
+  const thClient = document.getElementById('budgetThClient');
+  if (thClient) thClient.style.display = isAdmin ? 'table-cell' : 'none';
   document.getElementById('budgetInputRows').innerHTML = '';
   addBudgetRow();
 }
@@ -4411,8 +4510,26 @@ function addBudgetRow() {
   const dOpts = (masters.dept||[]).map(v=>'<option>'+v+'</option>').join('');
   const jOpts = [...new Set(applicants.map(a=>a.jobType).filter(Boolean))].map(v=>'<option>'+v+'</option>').join('');
   const dm = new Date().toISOString().slice(0,7);
+
+  // admin時はクライアント選択セルを追加（select id="budgetClientFilter"の選択値があればプリセット）
+  let clientCell = '';
+  if (isAdmin) {
+    const cidsInBudget = [...new Set(budgetData.map(d => d.clientId).filter(Boolean))];
+    const allCids = new Set();
+    (clients || []).forEach(c => { if (c.client_id) allCids.add(c.client_id); });
+    cidsInBudget.forEach(c => allCids.add(c));
+    const sortedCids = [...allCids].sort((a, b) => getClientDisplayName(a).localeCompare(getClientDisplayName(b), 'ja'));
+    const presetCid = document.getElementById('budgetClientFilter')?.value || '';
+    const cOpts = sortedCids.map(cid => {
+      const sel = cid === presetCid ? ' selected' : '';
+      return `<option value="${escapeOwnerHtml(cid)}"${sel}>${escapeOwnerHtml(getClientDisplayName(cid))}</option>`;
+    }).join('');
+    clientCell = '<td style="padding:5px;"><select class="bClient" style="padding:5px;border:1.5px solid #378ADD;border-radius:6px;font-size:11px;background:#f0f6ff;color:#185FA5;font-weight:600;min-width:130px;"><option value="">選択してください</option>'+cOpts+'</select></td>';
+  }
+
   document.getElementById('budgetInputRows').insertAdjacentHTML('beforeend',
     '<tr id="'+rid+'" style="border-bottom:1px solid #f0f0ee;">' +
+    clientCell +
     '<td style="padding:5px;"><input type="month" class="bMonth" value="'+dm+'" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;"></td>' +
     '<td style="padding:5px;"><select class="bMedia" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;min-width:110px;"><option value="">選択</option>'+mOpts+'</select></td>' +
     '<td style="padding:5px;"><select class="bType" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;"><option value="media">求人媒体</option><option value="agency">人材紹介</option></select></td>' +
@@ -4424,7 +4541,7 @@ function addBudgetRow() {
 
 async function saveAllBudgets() {
   const rows = document.getElementById('budgetInputRows').querySelectorAll('tr');
-  const toSave = []; let hasError = false;
+  const toSave = []; let hasError = false; let clientMissing = false;
   rows.forEach(row => {
     const month = row.querySelector('.bMonth')?.value || '';
     const media = row.querySelector('.bMedia')?.value || '';
@@ -4432,24 +4549,35 @@ async function saveAllBudgets() {
     const dept  = row.querySelector('.bDept')?.value  || '';
     const job   = row.querySelector('.bJob')?.value   || '';
     const amount= parseInt(row.querySelector('.bAmount')?.value || '0') || 0;
+    // adminは行ごとにクライアントを取得、それ以外はcurrentClientId
+    let rowClientId = currentClientId;
+    if (isAdmin) {
+      const cv = row.querySelector('.bClient')?.value || '';
+      if (!cv) { clientMissing = true; return; }
+      rowClientId = cv;
+    }
     if (!month || !media) { hasError = true; return; }
     if (!amount) return;
-    toSave.push({ id: Date.now()+Math.random()+'', month, media, type, dept, job, amount });
+    toSave.push({ id: Date.now()+Math.random()+'', month, media, type, dept, job, amount, clientId: rowClientId });
   });
+  if (clientMissing) { alert('管理者の場合、行ごとにクライアントを選択してください'); return; }
   if (hasError) { alert('月と媒体は必須です'); return; }
   if (!toSave.length) { alert('登録するデータがありません'); return; }
   const bRows = toSave.map(e => ({
-    id: e.id, client_id: currentClientId,
+    id: e.id, client_id: e.clientId,
     month: e.month, media: e.media, type: e.type,
     dept: e.dept || null, job: e.job || null, amount: e.amount
   }));
   const { error } = await sb.from('budgets').upsert(bRows, { onConflict: 'id' });
   if (!error) {
     toSave.forEach(e => {
-      const i = budgetData.findIndex(d => d.month===e.month && d.media===e.media && d.dept===e.dept && d.job===e.job);
+      const i = budgetData.findIndex(d => d.month===e.month && d.media===e.media && d.dept===e.dept && d.job===e.job && d.clientId===e.clientId);
       if (i >= 0) budgetData[i] = {...budgetData[i], ...e};
       else budgetData.push(e);
     });
+  } else {
+    alert('保存に失敗しました: ' + error.message);
+    return;
   }
   hideBudgetForm();
   renderBudget();
@@ -4592,13 +4720,16 @@ function renderBudget() {
     if (sd.length) {
       let dlRows = '';
       sd.forEach(function(d) {
-        dlRows += '<tr><td style="'+tdL+'">'+d.month+'</td><td style="'+tdL+'">'+d.media+'</td>';
+        dlRows += '<tr>';
+        if (isAdmin) dlRows += '<td style="'+tdL+'"><span style="font-size:10px;color:#185FA5;background:#f0f6ff;border:1px solid #c8ddf5;border-radius:6px;padding:1px 6px;">'+escapeOwnerHtml(getClientDisplayName(d.clientId||'')||'(未割当)')+'</span></td>';
+        dlRows += '<td style="'+tdL+'">'+d.month+'</td><td style="'+tdL+'">'+d.media+'</td>';
         dlRows += '<td style="'+tdL+'">'+(d.dept||'-')+'</td><td style="'+tdL+'">'+(d.job||'-')+'</td>';
         dlRows += '<td style="'+tdR+'">'+d.amount.toLocaleString()+'円</td>';
         dlRows += '<td style="'+tdL+'">'+(d.type==='agency'?'人材紹介':'求人媒体')+'</td>';
         dlRows += '<td style="'+tdR+'"><button class="btn-del" onclick="deleteBudget('+JSON.stringify(d.id)+')">削除</button></td></tr>';
       });
       dlEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>' +
+        (isAdmin ? '<th style="'+thL+'">クライアント</th>' : '') +
         '<th style="'+thL+'">月</th><th style="'+thL+'">媒体</th><th style="'+thL+'">部署</th>' +
         '<th style="'+thL+'">職種</th><th style="'+thR+'">金額</th><th style="'+thL+'">種別</th><th></th>' +
         '</tr></thead><tbody>' + dlRows + '</tbody></table>';
@@ -4803,16 +4934,108 @@ async function renderAdmin() {
   tbody.innerHTML = clients.map(c => {
     const s = stats[c.client_id] || { total: 0, hired: 0 };
     const safeName = String(c.name || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-    const safeId = String(c.client_id || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    const safeEmail = String(c.client_id || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
     const safePw = String(c.password || '').replace(/</g, '&lt;');
+    const rowId = String(c.id).replace(/'/g, "\\'");
+    const pwDisplay = safePw
+      ? `<span id="pwMask_${c.id}" style="font-family:monospace;font-size:11px;letter-spacing:1px;">••••••••</span>
+         <span id="pwReal_${c.id}" style="display:none;font-family:monospace;font-size:11px;">${safePw}</span>
+         <button class="btn-sm" style="padding:2px 8px;font-size:10px;margin-left:4px;" onclick="togglePwVisible('${c.id}')">表示</button>
+         <button class="btn-sm" style="padding:2px 8px;font-size:10px;margin-left:2px;" onclick="copyClientPw('${rowId}')">コピー</button>`
+      : '<span style="color:#aaa;font-size:11px;">未設定</span>';
     return `<tr>
       <td>${safeName}</td>
-      <td><code style="font-size:11px;">${safeId}</code></td>
-      <td><code style="font-size:11px;">${safePw}</code></td>
+      <td><code style="font-size:11px;">${safeEmail}</code></td>
+      <td>${pwDisplay}</td>
       <td>${s.total} 件 / 採用 ${s.hired} 件</td>
-      <td><button class="btn btn-s" onclick="deleteClient('${String(c.id).replace(/'/g, "\\'")}')">削除</button></td>
+      <td>
+        <button class="btn btn-s" onclick="deleteClient('${rowId}')" style="margin-right:4px;">削除</button>
+        <button class="btn btn-s" onclick="editClient('${rowId}')" style="background:#378ADD;color:#fff;border-color:#378ADD;">編集</button>
+      </td>
     </tr>`;
   }).join('');
+}
+
+function togglePwVisible(rowId) {
+  const mask = document.getElementById('pwMask_' + rowId);
+  const real = document.getElementById('pwReal_' + rowId);
+  if (!mask || !real) return;
+  if (real.style.display === 'none') {
+    real.style.display = 'inline';
+    mask.style.display = 'none';
+  } else {
+    real.style.display = 'none';
+    mask.style.display = 'inline';
+  }
+}
+
+function copyClientPw(rowId) {
+  const target = clients.find(c => String(c.id) === String(rowId));
+  if (!target || !target.password) {
+    setStatus('パスワードが未設定です', 'err');
+    return;
+  }
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(target.password)
+      .then(() => setStatus('パスワードをコピーしました', 'ok'))
+      .catch(() => setStatus('コピーに失敗しました', 'err'));
+  }
+}
+
+function editClient(rowId) {
+  if (!isAdmin) { setStatus('管理者のみ実行できます', 'err'); return; }
+  const target = clients.find(c => String(c.id) === String(rowId));
+  if (!target) { setStatus('対象のクライアントが見つかりません', 'err'); return; }
+  const form = document.getElementById('editClientForm');
+  if (!form) return;
+  document.getElementById('editCRowId').value = target.id;
+  document.getElementById('editCName').value = target.name || '';
+  document.getElementById('editCId').value = target.client_id || '';
+  document.getElementById('editCPw').value = ''; // パスワードは初期空欄
+  form.style.display = 'block';
+  form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function cancelClientEdit() {
+  const form = document.getElementById('editClientForm');
+  if (form) form.style.display = 'none';
+}
+
+async function saveClientEdit() {
+  if (!isAdmin) { setStatus('管理者のみ実行できます', 'err'); return; }
+  const rowId = document.getElementById('editCRowId').value;
+  const name = (document.getElementById('editCName').value || '').trim();
+  const newEmail = (document.getElementById('editCId').value || '').trim();
+  const newPw = (document.getElementById('editCPw').value || '').trim();
+
+  if (!rowId) { setStatus('対象IDが取得できません', 'err'); return; }
+  if (!name) { setStatus('クライアント名を入力してください', 'err'); return; }
+  if (!newEmail) { setStatus('メールアドレスを入力してください', 'err'); return; }
+  // 簡易メアドチェック
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+    setStatus('メールアドレス形式が正しくありません', 'err'); return;
+  }
+  if (newPw && newPw.length < 6) { setStatus('パスワードは6文字以上にしてください', 'err'); return; }
+
+  // 他のクライアントで同じメアドが使われていないかチェック
+  const dup = clients.find(c => c.client_id === newEmail && String(c.id) !== String(rowId));
+  if (dup) { setStatus('そのメールアドレスは他のクライアントで使用されています', 'err'); return; }
+
+  // 更新内容を構築
+  const updateObj = { name, client_id: newEmail };
+  if (newPw) updateObj.password = newPw;
+
+  try {
+    const { error } = await sb.from('clients').update(updateObj).eq('id', rowId);
+    if (error) { setStatus('更新に失敗しました: ' + error.message, 'err'); return; }
+  } catch(e) {
+    setStatus('更新に失敗しました: ' + (e.message || e), 'err');
+    return;
+  }
+
+  setStatus('クライアント情報を更新しました（Supabase Auth側も同じメアド・パスワードに更新してください）', 'ok');
+  cancelClientEdit();
+  await renderAdmin();
 }
 
 async function addClient() {
@@ -4825,13 +5048,22 @@ async function addClient() {
   const pw = (pwEl?.value || '').trim();
 
   if (!name || !cid || !pw) {
-    setStatus('クライアント名・ID・パスワードをすべて入力してください', 'err');
+    setStatus('クライアント名・メールアドレス・パスワードをすべて入力してください', 'err');
     return;
   }
-  // ID重複チェック
+  // メアド形式チェック
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cid)) {
+    setStatus('メールアドレス形式が正しくありません', 'err');
+    return;
+  }
+  if (pw.length < 6) {
+    setStatus('パスワードは6文字以上にしてください', 'err');
+    return;
+  }
+  // メアド重複チェック
   const dup = clients.find(c => c.client_id === cid);
   if (dup) {
-    setStatus('そのクライアントIDは既に使われています', 'err');
+    setStatus('そのメールアドレスは既に登録されています', 'err');
     return;
   }
 
@@ -4840,7 +5072,7 @@ async function addClient() {
     setStatus('追加に失敗しました: ' + error.message, 'err');
     return;
   }
-  setStatus('クライアントを追加しました', 'ok');
+  setStatus('クライアントを追加しました（Supabase Authでも同じメアド・パスワードでユーザーを作成してください）', 'ok');
   if (nameEl) nameEl.value = '';
   if (idEl) idEl.value = '';
   if (pwEl) pwEl.value = '';
@@ -4860,6 +5092,7 @@ async function deleteClient(id) {
   if (cnt > 0) {
     msg += `\n\n⚠ このクライアントには ${cnt} 件の応募者データが紐付いています。\nクライアントを削除しても応募者データは残りますが、ログインできなくなり閲覧できなくなります。`;
   }
+  msg += '\n\n※ Supabase Auth側のユーザーは別途手動で削除してください。';
   if (!confirm(msg)) return;
 
   const { error } = await sb.from('clients').delete().eq('id', id);
@@ -4867,7 +5100,7 @@ async function deleteClient(id) {
     setStatus('削除に失敗しました: ' + error.message, 'err');
     return;
   }
-  setStatus('クライアントを削除しました', 'ok');
+  setStatus('クライアントを削除しました（Supabase Authでも同じユーザーを削除してください）', 'ok');
   await renderAdmin();
 }
 
@@ -4963,20 +5196,18 @@ async function chgPw() {
   const p2 = (np2.value || '').trim();
   if (!p1 || !p2) { alert('パスワードを入力してください'); return; }
   if (p1 !== p2) { alert('パスワードが一致しません'); return; }
-  if (p1.length < 4) { alert('パスワードは4文字以上にしてください'); return; }
+  if (p1.length < 6) { alert('パスワードは6文字以上にしてください'); return; }
 
-  if (isAdmin) {
-    // 管理者：system_configのadmin_pwを更新
-    const { error } = await sb.from('system_config').update({ value: p1 }).eq('key', 'admin_pw');
+  // Supabase Auth経由でパスワード変更（adminもクライアントも共通）
+  try {
+    const { data, error } = await sb.auth.updateUser({ password: p1 });
     if (error) {
-      // upsertで作成
-      const { error: e2 } = await sb.from('system_config').upsert({ key: 'admin_pw', value: p1 });
-      if (e2) { alert('変更に失敗しました: ' + e2.message); return; }
+      alert('変更に失敗しました: ' + (error.message || '不明なエラー'));
+      return;
     }
-  } else {
-    // クライアント：clientsテーブルのpasswordを更新
-    const { error } = await sb.from('clients').update({ password: p1 }).eq('id', currentClientId);
-    if (error) { alert('変更に失敗しました: ' + error.message); return; }
+  } catch(e) {
+    alert('変更に失敗しました: ' + (e.message || e));
+    return;
   }
 
   np1.value = ''; np2.value = '';
@@ -5107,6 +5338,121 @@ function exportBudgetCSV() {
 
 
 // ========================================
+// パスワードリセットフロー（Supabase Auth recovery対応）
+// ========================================
+// メール内リンク経由で来た場合、URLハッシュに access_token と type=recovery が含まれる
+// 例: https://example.com/#access_token=xxx&refresh_token=yyy&type=recovery&...
+function checkPasswordRecoveryFlow() {
+  try {
+    const hash = window.location.hash || '';
+    if (!hash || hash.length < 2) return false;
+    // ハッシュをパース
+    const params = new URLSearchParams(hash.substring(1));
+    const type = params.get('type');
+    const accessToken = params.get('access_token');
+    if (type === 'recovery' && accessToken) {
+      console.log('[recovery] パスワードリセットリンクを検知しました');
+      showResetPasswordScreen();
+      return true;
+    }
+  } catch(e) {
+    console.warn('[recovery] ハッシュ解析エラー:', e);
+  }
+  return false;
+}
+
+function showResetPasswordScreen() {
+  // ログイン画面とメイン画面を非表示にしてリセット画面を表示
+  const loginEl = document.getElementById('loginScreen');
+  const mainEl = document.getElementById('mainApp');
+  const resetEl = document.getElementById('resetPwScreen');
+  if (loginEl) loginEl.style.display = 'none';
+  if (mainEl) mainEl.style.display = 'none';
+  if (resetEl) resetEl.style.display = 'flex';
+  // 入力欄をクリア
+  const p1 = document.getElementById('resetPw1');
+  const p2 = document.getElementById('resetPw2');
+  if (p1) p1.value = '';
+  if (p2) p2.value = '';
+  if (p1) setTimeout(() => p1.focus(), 100);
+}
+
+async function doResetPassword() {
+  const p1El = document.getElementById('resetPw1');
+  const p2El = document.getElementById('resetPw2');
+  const errEl = document.getElementById('resetPwErr');
+  const okEl = document.getElementById('resetPwOk');
+  const btnEl = document.getElementById('resetPwBtn');
+
+  const showErr = (msg) => {
+    if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+    if (okEl) okEl.style.display = 'none';
+  };
+  const showOk = (msg) => {
+    if (okEl) { okEl.textContent = msg; okEl.style.display = 'block'; }
+    if (errEl) errEl.style.display = 'none';
+  };
+
+  const p1 = (p1El?.value || '').trim();
+  const p2 = (p2El?.value || '').trim();
+
+  if (!p1 || !p2) { showErr('パスワードを2回とも入力してください'); return; }
+  if (p1.length < 6) { showErr('パスワードは6文字以上にしてください'); return; }
+  if (p1 !== p2) { showErr('パスワードが一致しません。再度入力してください'); return; }
+
+  if (typeof sb === 'undefined' || !sb) {
+    showErr('システム初期化エラー。ページを再読み込みしてください');
+    return;
+  }
+
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = '更新中...'; }
+
+  try {
+    const { data, error } = await sb.auth.updateUser({ password: p1 });
+    if (error) {
+      console.error('[recovery] updateUser失敗:', error);
+      showErr('パスワード更新に失敗しました: ' + (error.message || '不明なエラー'));
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'パスワードを設定する'; }
+      return;
+    }
+    console.log('[recovery] パスワード更新成功');
+    showOk('✓ パスワードを更新しました。ログイン画面に戻ります...');
+    // セッション破棄して、ログイン画面に戻る
+    setTimeout(async () => {
+      try { await sb.auth.signOut(); } catch(e) {}
+      // URLハッシュをクリア
+      try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch(e) {}
+      // ログイン画面表示
+      const loginEl = document.getElementById('loginScreen');
+      const resetEl = document.getElementById('resetPwScreen');
+      if (resetEl) resetEl.style.display = 'none';
+      if (loginEl) loginEl.style.display = 'flex';
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'パスワードを設定する'; }
+    }, 1500);
+  } catch(e) {
+    console.error('[recovery] 例外:', e);
+    showErr('予期しないエラー: ' + (e.message || e));
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'パスワードを設定する'; }
+  }
+}
+
+async function cancelResetPassword() {
+  // セッション破棄してログイン画面に戻る
+  try { await sb.auth.signOut(); } catch(e) {}
+  try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch(e) {}
+  const loginEl = document.getElementById('loginScreen');
+  const resetEl = document.getElementById('resetPwScreen');
+  if (resetEl) resetEl.style.display = 'none';
+  if (loginEl) loginEl.style.display = 'flex';
+}
+
+// DOMContentLoaded 時にリカバリーフローをチェック
+window.addEventListener('DOMContentLoaded', function() {
+  checkPasswordRecoveryFlow();
+});
+
+
+// ========================================
 // グローバル公開（onclick等のインラインハンドラから確実に呼べるようにする）
 // ========================================
 if (typeof window !== 'undefined') {
@@ -5120,6 +5466,15 @@ if (typeof window !== 'undefined') {
   window.onCompareRowCheck = onCompareRowCheck;
   window.showPickupDetails = showPickupDetails;
   window.showPickupDetailsMulti = showPickupDetailsMulti;
+  // パスワードリセット系
+  window.doResetPassword = doResetPassword;
+  window.cancelResetPassword = cancelResetPassword;
+  // クライアント管理: 編集系
+  window.editClient = editClient;
+  window.saveClientEdit = saveClientEdit;
+  window.cancelClientEdit = cancelClientEdit;
+  window.togglePwVisible = togglePwVisible;
+  window.copyClientPw = copyClientPw;
   // 上記以外の関数は function宣言により既にグローバルだが、
   // 万一のミニファイ等に備えて主要関数も明示しておく
 }
