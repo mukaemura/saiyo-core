@@ -144,8 +144,9 @@ function getCoreStatusColor(coreId) {
 // 詳細ステータスを読み込む（Supabaseまたはlocalcache）
 async function loadDetailStatuses() {
   try {
-    const { data, error } = await sb.from('detail_status_master')
-      .select('*').eq('client_id', currentClientId).order('ord');
+    let query = sb.from('detail_status_master').select('*').order('ord');
+    if (!isAdmin) query = query.eq('client_id', currentClientId);
+    const { data, error } = await query;
     if (!error && data && data.length > 0) {
       detailStatuses = data;
     } else {
@@ -171,6 +172,45 @@ function onDetailStatusChange(detailStatusName) {
 // 累積型ファネル集計
 // ========================================
 const FUNNEL_ORDER = ['applied','in_progress','interview','hired','joined','resigned'];
+
+// ========================================
+// 担当者バッジ：色分けロジック
+// ========================================
+// 名前ハッシュで5色パレットの中から1つを選ぶ（決定論的）
+function getOwnerBadgeClass(name) {
+  if (!name) return 'bgr'; // 未設定はグレー
+  const trimmed = String(name).trim();
+  // 既存値の特別扱い
+  if (trimmed === 'LinkCore') return 'bb'; // 青
+  if (trimmed === 'クライアント') return 'ba'; // オレンジ
+  // それ以外は5色パレットから自動選択（名前のハッシュ値）
+  let hash = 0;
+  for (let i = 0; i < trimmed.length; i++) {
+    hash = ((hash << 5) - hash) + trimmed.charCodeAt(i);
+    hash |= 0;
+  }
+  const palette = ['bo1', 'bo2', 'bo3', 'bo4', 'bo5'];
+  return palette[Math.abs(hash) % palette.length];
+}
+
+// owner名 + 必要ならクライアント名併記でバッジHTMLを返す
+function renderOwnerBadge(owner, taskClientId) {
+  const safeOwner = String(owner || '未設定');
+  const cls = getOwnerBadgeClass(safeOwner);
+  let suffix = '';
+  // adminログイン時のみクライアント名を併記
+  if (isAdmin && taskClientId && taskClientId !== 'admin') {
+    const c = (clients || []).find(x => x.client_id === taskClientId);
+    const cname = c ? c.name : taskClientId;
+    suffix = `<span class="owner-suffix">（${escapeOwnerHtml(cname)}）</span>`;
+  }
+  return `<span class="badge ${cls}">${escapeOwnerHtml(safeOwner)}</span>${suffix}`;
+}
+
+// owner用の軽いescape（escapeHtmlが定義前の場所でも使えるように独立定義）
+function escapeOwnerHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 // 応募者のコアステータスランクを取得
 function getCoreRank(a) {
@@ -200,13 +240,436 @@ function calcThroughRate(counts, fromId, toId) {
 }
 
 // ========================================
+// ファネル描画ヘルパー（統一ロジック）
+// ========================================
+// 主要5ステップ（応募/対応中以上/面接以上/採用/入社）+ 参考表示（その他）
+const FUNNEL_STEPS = [
+  { id: 'applied',     label: '応募' },
+  { id: 'in_progress', label: '対応中以上' },
+  { id: 'interview',   label: '面接以上' },
+  { id: 'hired',       label: '採用' },
+  { id: 'joined',      label: '入社' }
+];
+
+// HTMLエスケープ
+function escFunnel(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// 単一データ群からファネルカードのHTMLを生成
+// data: 応募者配列, title: カード見出し, opts: { compact:true なら子用の小さめ }
+function renderFunnelCard(data, title, opts) {
+  opts = opts || {};
+  const cum = calcFunnelCumulative(data);
+  const total = cum['applied'] || 0;
+  const otherCount = data.filter(a => {
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
+    return cid === 'other' || cid === 'resigned';
+  }).length;
+
+  let stepsHtml = '';
+  FUNNEL_STEPS.forEach(s => {
+    const cnt = cum[s.id] || 0;
+    const pct = total ? Math.round(cnt/total*100) : 0;
+    stepsHtml += `<div class="fstep" data-step="${s.id}">
+      <div class="fstep-label">${s.label}</div>
+      <div class="fstep-bar-wrap"><div class="fstep-bar" style="width:${Math.max(pct,1)}%;"></div></div>
+      <div class="fstep-stat"><span class="fstep-num">${cnt}</span><span class="fstep-pct">${pct}%</span></div>
+    </div>`;
+  });
+  // その他（参考）
+  let refHtml = '';
+  if (otherCount > 0) {
+    const otherPct = total ? Math.round(otherCount/total*100) : 0;
+    refHtml = `<div class="fstep-divider"></div>
+    <div class="fstep" data-step="other" data-ref="true">
+      <div class="fstep-label">その他</div>
+      <div class="fstep-bar-wrap"><div class="fstep-bar" style="width:${Math.max(otherPct,1)}%;"></div></div>
+      <div class="fstep-stat"><span class="fstep-num">${otherCount}</span><span class="fstep-pct">${otherPct}%</span></div>
+    </div>`;
+  }
+  return `<div class="funnel-card">
+    <div class="funnel-card-head">
+      <span class="funnel-card-title">${escFunnel(title)}</span>
+      <span class="funnel-card-total">応募 ${total}件</span>
+    </div>
+    ${stepsHtml}
+    ${refHtml}
+  </div>`;
+}
+
+// 単一軸ファネル分析（媒体別/職種別 等）のHTMLを生成
+// keyFn: 応募者から軸の値を取り出す関数
+function renderSingleAxisFunnel(data, keyFn) {
+  if (!data.length) return '<div class="empty" style="padding:1rem;text-align:center;color:#aaa;font-size:12px;">データがありません</div>';
+  // グループ化
+  const groups = {};
+  data.forEach(a => {
+    const v = keyFn(a) || '（未設定）';
+    if (!groups[v]) groups[v] = [];
+    groups[v].push(a);
+  });
+  // 応募数で降順、上位10件
+  const sorted = Object.entries(groups)
+    .sort((a,b) => b[1].length - a[1].length)
+    .slice(0, 10);
+  const cards = sorted.map(([k, arr]) => renderFunnelCard(arr, k)).join('');
+  // 11件以上ある場合の注記
+  const remaining = Object.keys(groups).length - 10;
+  const note = remaining > 0
+    ? `<div style="text-align:center;padding:8px;font-size:11px;color:#aaa;">他 ${remaining} 件は省略（応募数上位10件のみ表示）</div>`
+    : '';
+  return `<div class="funnel-grid">${cards}</div>${note}`;
+}
+
+// 軸キーから値を取り出す共通関数（年代グループ含む）
+function getAxisValue(a, axisKey) {
+  if (axisKey === 'ageGroup') {
+    const age = parseInt(a.age);
+    if (!age) return '（未設定）';
+    if (age < 20) return '10代';
+    if (age < 30) return '20代';
+    if (age < 40) return '30代';
+    if (age < 50) return '40代';
+    if (age < 60) return '50代';
+    if (age < 70) return '60代';
+    return '70代以上';
+  }
+  return a[axisKey] || '（未設定）';
+}
+
+// 軸キーの日本語ラベル
+function getAxisLabel(axisKey) {
+  const m = { media:'媒体', jobType:'職種', dept:'部署', ageGroup:'年代',
+              agency:'紹介会社', gender:'性別', status:'ステータス' };
+  return m[axisKey] || axisKey;
+}
+
+// ========================================
+// 比較ビュー（テーブル + ピックアップ詳細）
+// ========================================
+// セクションごとのビュー状態（'table'=テーブル比較、'card'=カード、'nest'=ネスト）
+const sectionViewMode = {};
+// セクションごとの選択行
+const sectionSelectedRows = {};
+
+// テーブル比較ビュー（単一軸）
+function renderCompareTable(data, axisKey, secId) {
+  if (!data.length) return '<div class="empty" style="padding:1rem;text-align:center;color:#aaa;font-size:12px;">データがありません</div>';
+
+  // グループ化
+  const groups = {};
+  data.forEach(a => {
+    const v = getAxisValue(a, axisKey);
+    if (!groups[v]) groups[v] = [];
+    groups[v].push(a);
+  });
+  // 応募数降順、上位10件
+  const sorted = Object.entries(groups)
+    .sort((a,b) => b[1].length - a[1].length)
+    .slice(0, 10);
+  const remaining = Object.keys(groups).length - 10;
+
+  // 全体平均（％）を計算
+  const overallCum = calcFunnelCumulative(data);
+  const overallTotal = overallCum['applied'] || 0;
+  const avgPcts = {};
+  FUNNEL_STEPS.forEach(s => {
+    avgPcts[s.id] = overallTotal ? (overallCum[s.id] / overallTotal * 100) : 0;
+  });
+  // その他平均
+  const overallOther = data.filter(a => {
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
+    return cid === 'other' || cid === 'resigned';
+  }).length;
+  const avgOther = overallTotal ? (overallOther / overallTotal * 100) : 0;
+
+  // 行を生成
+  const selectedSet = sectionSelectedRows[secId] || new Set();
+  const rows = sorted.map(([name, arr], idx) => {
+    const cum = calcFunnelCumulative(arr);
+    const total = cum['applied'] || 0;
+    const otherCount = arr.filter(a => {
+      const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
+      return cid === 'other' || cid === 'resigned';
+    }).length;
+
+    const cells = FUNNEL_STEPS.slice(1).map(s => { // 応募(applied)はスキップ、他のステップだけ
+      const cnt = cum[s.id] || 0;
+      const pct = total ? Math.round(cnt/total*100) : 0;
+      const heat = total < 3 ? '' : // データ少ない場合は色付けしない
+        (pct > avgPcts[s.id] + 3) ? ' heat-good' :
+        (pct < avgPcts[s.id] - 3) ? ' heat-bad' : '';
+      return `<td class="cell-step${heat}"><span class="num">${cnt}</span><span class="pct">${pct}%</span></td>`;
+    }).join('');
+
+    const otherPct = total ? Math.round(otherCount/total*100) : 0;
+    const otherCell = `<td class="cell-step"><span class="num">${otherCount}</span><span class="pct">${otherPct}%</span></td>`;
+
+    const isSel = selectedSet.has(name);
+    const safeName = escFunnel(name);
+    return `<tr class="${isSel?'selected':''}" data-row-name="${safeName}">
+      <td class="cell-checkbox"><input type="checkbox" class="row-check" data-sec="${secId}" data-name="${safeName}" ${isSel?'checked':''} onchange="onCompareRowCheck('${secId}', this)"></td>
+      <td class="cell-name"><span class="badge-rank">${idx+1}</span>${safeName}</td>
+      <td class="cell-applied">${total}</td>
+      ${cells}
+      ${otherCell}
+    </tr>`;
+  }).join('');
+
+  // 全体平均行
+  const avgPctStrs = FUNNEL_STEPS.slice(1).map(s => `<td>${Math.round(avgPcts[s.id])}%</td>`).join('');
+
+  const note = remaining > 0
+    ? `<div style="text-align:center;padding:8px;font-size:11px;color:#aaa;">他 ${remaining} 件は省略（応募数上位10件のみ表示）</div>`
+    : '';
+
+  const selCount = selectedSet.size;
+  const selNames = [...selectedSet].slice(0,3).join('、') + (selCount > 3 ? ` 他${selCount-3}件` : '');
+
+  return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+    <div style="font-size:11px;color:#666;">応募 100% 基準。<strong style="color:#5aaa8e;">クリックで複数選択 → 下のボタンで詳細比較</strong></div>
+    <div class="compare-legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#639922;"></span>平均より高い</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#D85A30;"></span>平均より低い</span>
+    </div>
+  </div>
+  <div class="compare-table-wrap">
+    <table class="compare-table">
+      <thead><tr>
+        <th></th>
+        <th class="col-name">${getAxisLabel(axisKey)}</th>
+        <th class="col-step">応募</th>
+        <th class="col-step">対応中以上</th>
+        <th class="col-step">面接以上</th>
+        <th class="col-step">採用</th>
+        <th class="col-step">入社</th>
+        <th class="col-step">その他</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr>
+        <td colspan="2" class="cell-name">全体平均</td>
+        <td>${overallTotal}</td>
+        ${avgPctStrs}
+        <td>${Math.round(avgOther)}%</td>
+      </tr></tfoot>
+    </table>
+  </div>${note}
+  <div class="compare-action-bar">
+    <div class="compare-action-info" id="compare_info_${secId}">
+      ${selCount > 0 ? `<strong>${selCount}件 選択中</strong>　${escFunnel(selNames)}` : '未選択（チェックして比較できます）'}
+    </div>
+    <button class="compare-action-btn" id="compare_btn_${secId}" onclick="showPickupDetails('${secId}')" ${selCount===0?'disabled':''}>✓ チェックしたものを比較${selCount>0?`（${selCount}件）`:''}</button>
+  </div>
+  <div id="pickup_${secId}"></div>`;
+}
+
+// テーブル比較ビュー（複数軸：2軸・3軸対応）
+function renderCompareTableMulti(data, axes, secId) {
+  if (!data.length) return '<div class="empty" style="padding:1rem;text-align:center;color:#aaa;font-size:12px;">データがありません</div>';
+  if (!axes || axes.length < 2) return '<div class="empty">2軸以上を選択してください</div>';
+
+  // 全組み合わせをキー化してグループ化
+  const groups = {};
+  data.forEach(a => {
+    const key = axes.map(ax => getAxisValue(a, ax)).join('|||');
+    if (!groups[key]) groups[key] = { axisVals: axes.map(ax => getAxisValue(a, ax)), data: [] };
+    groups[key].data.push(a);
+  });
+  const sorted = Object.values(groups)
+    .sort((a,b) => b.data.length - a.data.length)
+    .slice(0, 20);
+  const remaining = Object.keys(groups).length - 20;
+
+  // 全体平均
+  const overallCum = calcFunnelCumulative(data);
+  const overallTotal = overallCum['applied'] || 0;
+  const avgPcts = {};
+  FUNNEL_STEPS.forEach(s => {
+    avgPcts[s.id] = overallTotal ? (overallCum[s.id] / overallTotal * 100) : 0;
+  });
+
+  const selectedSet = sectionSelectedRows[secId] || new Set();
+
+  // 親軸が変わるごとに区切り線を入れる
+  let prevAx1 = null;
+  const rows = sorted.map((g, idx) => {
+    const cum = calcFunnelCumulative(g.data);
+    const total = cum['applied'] || 0;
+
+    const cells = FUNNEL_STEPS.slice(1).map(s => {
+      const cnt = cum[s.id] || 0;
+      const pct = total ? Math.round(cnt/total*100) : 0;
+      const heat = total < 3 ? '' :
+        (pct > avgPcts[s.id] + 3) ? ' heat-good' :
+        (pct < avgPcts[s.id] - 3) ? ' heat-bad' : '';
+      return `<td class="cell-step${heat}"><span class="num">${cnt}</span><span class="pct">${pct}%</span></td>`;
+    }).join('');
+
+    const axCells = g.axisVals.map((v, i) => {
+      const styleClass = i === 0 ? '' : 'style="font-weight:500;color:#666;"';
+      return `<td class="cell-name" ${styleClass}>${escFunnel(v)}</td>`;
+    }).join('');
+
+    const rowKey = g.axisVals.join(' / ');
+    const isSel = selectedSet.has(rowKey);
+    const isNewParent = prevAx1 !== g.axisVals[0];
+    prevAx1 = g.axisVals[0];
+    const borderStyle = isNewParent && idx > 0 ? 'border-top:2px solid #e4e8e7;' : '';
+    const safeKey = escFunnel(rowKey);
+
+    return `<tr class="${isSel?'selected':''}" style="${borderStyle}" data-row-name="${safeKey}">
+      <td class="cell-checkbox"><input type="checkbox" class="row-check" data-sec="${secId}" data-name="${safeKey}" ${isSel?'checked':''} onchange="onCompareRowCheck('${secId}', this)"></td>
+      ${axCells}
+      <td class="cell-applied">${total}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  const headerCells = axes.map(ax => `<th class="col-name">${getAxisLabel(ax)}</th>`).join('');
+  const avgPctStrs = FUNNEL_STEPS.slice(1).map(s => `<td>${Math.round(avgPcts[s.id])}%</td>`).join('');
+
+  const note = remaining > 0
+    ? `<div style="text-align:center;padding:8px;font-size:11px;color:#aaa;">他 ${remaining} 件は省略（応募数上位20件のみ表示）</div>`
+    : '';
+
+  const selCount = selectedSet.size;
+  const selNames = [...selectedSet].slice(0,2).join('、') + (selCount > 2 ? ` 他${selCount-2}件` : '');
+
+  return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+    <div style="font-size:11px;color:#666;">応募 100% 基準。<strong style="color:#5aaa8e;">親軸ごとに区切り線。クリックで複数選択 → 詳細比較</strong></div>
+    <div class="compare-legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#639922;"></span>平均より高い</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#D85A30;"></span>平均より低い</span>
+    </div>
+  </div>
+  <div class="compare-table-wrap">
+    <table class="compare-table">
+      <thead><tr>
+        <th></th>
+        ${headerCells}
+        <th class="col-step">応募</th>
+        <th class="col-step">対応中以上</th>
+        <th class="col-step">面接以上</th>
+        <th class="col-step">採用</th>
+        <th class="col-step">入社</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr>
+        <td colspan="${axes.length+1}" class="cell-name">全体平均</td>
+        <td>${overallTotal}</td>
+        ${avgPctStrs}
+      </tr></tfoot>
+    </table>
+  </div>${note}
+  <div class="compare-action-bar">
+    <div class="compare-action-info" id="compare_info_${secId}">
+      ${selCount > 0 ? `<strong>${selCount}件 選択中</strong>　${escFunnel(selNames)}` : '未選択'}
+    </div>
+    <button class="compare-action-btn" id="compare_btn_${secId}" onclick="showPickupDetailsMulti('${secId}')" ${selCount===0?'disabled':''}>✓ チェックしたものを比較${selCount>0?`（${selCount}件）`:''}</button>
+  </div>
+  <div id="pickup_${secId}"></div>`;
+}
+
+// チェックボックスの変更を反映
+function onCompareRowCheck(secId, checkbox) {
+  if (!sectionSelectedRows[secId]) sectionSelectedRows[secId] = new Set();
+  const set = sectionSelectedRows[secId];
+  const name = checkbox.getAttribute('data-name');
+  if (checkbox.checked) set.add(name);
+  else set.delete(name);
+
+  // 行のハイライト切替
+  const tr = checkbox.closest('tr');
+  if (tr) tr.classList.toggle('selected', checkbox.checked);
+
+  // ボタンテキスト・有効状態の更新
+  const btn = document.getElementById('compare_btn_' + secId);
+  const info = document.getElementById('compare_info_' + secId);
+  const cnt = set.size;
+  if (btn) {
+    btn.disabled = cnt === 0;
+    btn.textContent = cnt > 0 ? `✓ チェックしたものを比較（${cnt}件）` : '✓ チェックしたものを比較';
+  }
+  if (info) {
+    if (cnt > 0) {
+      const names = [...set].slice(0,3).join('、') + (cnt > 3 ? ` 他${cnt-3}件` : '');
+      info.innerHTML = `<strong>${cnt}件 選択中</strong>　${escFunnel(names)}`;
+    } else {
+      info.textContent = '未選択（チェックして比較できます）';
+    }
+  }
+}
+
+// ピックアップ詳細表示（単一軸）
+function showPickupDetails(secId) {
+  const set = sectionSelectedRows[secId];
+  if (!set || set.size === 0) return;
+  const sec = activeSections.find(s => s.id === secId);
+  if (!sec) return;
+  const data = getAnData();
+  const axisKeyMap = {
+    media: 'media', job: 'jobType', dept: 'dept', age: 'ageGroup',
+    gender: 'gender', agency: 'agency', status: 'status', hire: 'hireStatus'
+  };
+  const axisKey = axisKeyMap[sec.type];
+  if (!axisKey) return;
+
+  const cards = [...set].map(name => {
+    const filtered = data.filter(a => getAxisValue(a, axisKey) === name);
+    return renderFunnelCard(filtered, name);
+  }).join('');
+
+  const target = document.getElementById('pickup_' + secId);
+  if (target) {
+    target.innerHTML = `<div class="pickup-details">
+      <div class="pickup-details-head"><span class="check-icon">✓</span>ピックアップした${set.size}件の詳細ファネル</div>
+      <div class="pickup-grid">${cards}</div>
+    </div>`;
+  }
+}
+
+// ピックアップ詳細表示（複数軸）
+function showPickupDetailsMulti(secId) {
+  const set = sectionSelectedRows[secId];
+  if (!set || set.size === 0) return;
+  const sec = activeSections.find(s => s.id === secId);
+  if (!sec || !sec.opts || !sec.opts.axes) return;
+  const data = getAnData();
+  const axes = sec.opts.axes;
+
+  const cards = [...set].map(rowKey => {
+    const vals = rowKey.split(' / ');
+    const filtered = data.filter(a => axes.every((ax, i) => getAxisValue(a, ax) === vals[i]));
+    return renderFunnelCard(filtered, rowKey);
+  }).join('');
+
+  const target = document.getElementById('pickup_' + secId);
+  if (target) {
+    target.innerHTML = `<div class="pickup-details">
+      <div class="pickup-details-head"><span class="check-icon">✓</span>ピックアップした${set.size}件の詳細ファネル</div>
+      <div class="pickup-grid">${cards}</div>
+    </div>`;
+  }
+}
+
+// ビュー切替
+function setSectionView(secId, mode) {
+  sectionViewMode[secId] = mode;
+  // 選択状態をリセット
+  if (sectionSelectedRows[secId]) sectionSelectedRows[secId].clear();
+  renderCustomSections();
+}
+
+
+// ========================================
 // アプリ状態
 // ========================================
 let currentClientId = null;
 let currentClientName = '';
 let isAdmin = false;
 let applicants = [];
-let masters = { media: [], status: [], agency: [] };
+let masters = { media: [], status: [], agency: [], hire: [], dept: [], assignee: [] };
 // マルチセレクトフィルターの選択状態（{status:[], media:[], jobType:[], dept:[]}）
 let multiFilterState = { status: [], media: [], jobType: [], dept: [] };
 let clients = []; // 管理者用
@@ -267,14 +730,14 @@ async function doLogin() {
 
   hideErr();
 
-  const id = (idEl?.value || '').trim();
+  const email = (idEl?.value || '').trim();
   const pw = pwEl?.value || '';
-  console.log('[doLogin] 入力ID:', id, '/ パスワード長:', pw.length);
+  console.log('[doLogin] 入力email:', email, '/ パスワード長:', pw.length);
 
   // 入力バリデーション
-  if (!id) {
-    console.log('[doLogin] ID未入力');
-    showErr('クライアントIDを入力してください');
+  if (!email) {
+    console.log('[doLogin] email未入力');
+    showErr('メールアドレスを入力してください');
     if (idEl) idEl.focus();
     return;
   }
@@ -295,21 +758,27 @@ async function doLogin() {
   setBtnLoading(true);
 
   try {
-    console.log('[doLogin] ログイン判定開始');
+    console.log('[doLogin] Supabase Auth signInWithPassword 開始');
 
-    // 管理者ログイン: system_config から admin_pw を取得
-    let adminPw = 'admin2024'; // デフォルト
-    try {
-      const { data: adminData, error: adminErr } = await sb.from('system_config')
-        .select('value').eq('key', 'admin_pw').single();
-      if (!adminErr && adminData?.value) {
-        adminPw = adminData.value;
-      }
-    } catch (e) {
-      console.warn('[doLogin] system_config取得失敗（デフォルトを使用）', e);
+    // Supabase Auth で認証
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: email,
+      password: pw
+    });
+
+    if (error || !data?.user) {
+      console.log('[doLogin] 認証失敗:', error?.message);
+      showErr('メールアドレスまたはパスワードが正しくありません');
+      return;
     }
 
-    if (id === 'admin' && pw === adminPw) {
+    const user = data.user;
+    console.log('[doLogin] 認証成功 uid:', user.id);
+
+    // admin判定（app_metadata.role === 'admin'）
+    // ※ user_metadataは本人改ざん可能なので使わない
+    const role = user.app_metadata?.role;
+    if (role === 'admin') {
       console.log('[doLogin] 管理者ログイン成功');
       currentClientId = 'admin';
       currentClientName = '管理者（全社）';
@@ -318,26 +787,32 @@ async function doLogin() {
       return;
     }
 
-    // クライアントログイン
+    // 一般クライアント：auth_user_id から対応する clients レコードを取得
     const { data: clientData, error: clientErr } = await sb.from('clients')
-      .select('*').eq('client_id', id).eq('password', pw).maybeSingle();
+      .select('client_id, name')
+      .eq('auth_user_id', user.id)
+      .maybeSingle();
 
     if (clientErr) {
-      console.error('[doLogin] Supabaseエラー', clientErr);
-      showErr('ログイン処理でエラーが発生しました。管理者に確認してください');
+      console.error('[doLogin] clients取得エラー', clientErr);
+      showErr('アカウント情報の取得に失敗しました。管理者に確認してください');
+      await sb.auth.signOut();
       return;
     }
 
-    if (clientData) {
-      console.log('[doLogin] クライアントログイン成功:', clientData.name);
-      currentClientId = id;
-      currentClientName = clientData.name;
-      isAdmin = false;
-      await startApp();
-    } else {
-      console.log('[doLogin] ログイン失敗: 該当なし');
-      showErr('IDまたはパスワードが正しくありません');
+    if (!clientData) {
+      console.log('[doLogin] clients紐付けなし');
+      showErr('アカウント情報が見つかりません。管理者にお問い合わせください');
+      await sb.auth.signOut();
+      return;
     }
+
+    console.log('[doLogin] クライアントログイン成功:', clientData.name);
+    currentClientId = clientData.client_id;
+    currentClientName = clientData.name;
+    isAdmin = false;
+    await startApp();
+
   } catch (e) {
     console.error('[doLogin] 例外発生', e);
     showErr('ログイン処理でエラーが発生しました。管理者に確認してください');
@@ -375,7 +850,13 @@ async function startApp() {
   }
 }
 
-function doLogout() {
+async function doLogout() {
+  // Supabase Auth のセッションを破棄（localStorageのJWTもクリア）
+  try {
+    await sb.auth.signOut();
+  } catch (e) {
+    console.warn('[doLogout] signOut失敗（続行）', e);
+  }
   currentClientId = null; isAdmin = false;
   applicants = []; masters = { media: [], status: [], agency: [] };
   editId = null; curId = null; tempDocs = [];
@@ -401,6 +882,7 @@ async function loadApplicants() {
     return {
       id: r.id,
       appDate: r.app_date, jobType: r.job_type, location: r.location,
+      jobNo: r.job_no || '', jobName: r.job_name || '',
       name: r.name, kana: r.kana, email: r.email, tel: r.tel,
       gender: r.gender, age: r.age, media: r.media, agency: r.agency,
       status: newStatus, contactDate: r.contact_date,
@@ -425,8 +907,14 @@ async function loadMasters() {
   const cid = isAdmin ? 'admin' : currentClientId;
   const { data } = await sb.from('masters').select('*').eq('client_id', cid);
   if (data && data.length) {
-    masters = { media: [], status: [], agency: [], hire: [], dept: [] };
+    masters = { media: [], status: [], agency: [], hire: [], dept: [], assignee: [] };
     data.forEach(r => { if (masters[r.type] !== undefined) masters[r.type].push(r.value); });
+    // assigneeが空なら初期値を投入（既存マスターはあるが担当者だけ未登録のケース）
+    if (!masters.assignee.length) {
+      masters.assignee = ['LinkCore', 'クライアント'];
+      const aRows = masters.assignee.map(v => ({ client_id: cid, type: 'assignee', value: v }));
+      try { await sb.from('masters').insert(aRows); } catch(e) {}
+    }
   } else {
     // デフォルトマスター（新体系ステータス）
     masters = {
@@ -434,7 +922,8 @@ async function loadMasters() {
       status: ['書類依頼中','書類到着','面接調整中','面接確定','1次面接','2次面接','選考通過','採用','不採用','不来場','内定','内定辞退','内定承諾','連絡不通','キャンセル','入社','退職'],
       agency: [],
       hire: ['内定','内定承諾','採用','不採用','保留'],
-      dept: []
+      dept: [],
+      assignee: ['LinkCore','クライアント']
     };
     // DBに保存
     const rows = [];
@@ -453,14 +942,81 @@ async function loadMasters() {
 // ========================================
 function initFormOptions() {
   const bm = document.getElementById('fBM');
-  bm.innerHTML = '<option value="">月</option>';
-  for (let i = 1; i <= 12; i++) bm.innerHTML += `<option>${i}</option>`;
+  if (bm) {
+    bm.innerHTML = '<option value="">--</option>';
+    for (let i = 1; i <= 12; i++) bm.innerHTML += `<option>${i}</option>`;
+  }
   const bd = document.getElementById('fBD');
-  bd.innerHTML = '<option value="">日</option>';
-  for (let i = 1; i <= 31; i++) bd.innerHTML += `<option>${i}</option>`;
-  const ag = document.getElementById('fAg');
-  ag.innerHTML = '<option value="">選択</option>';
-  for (let i = 18; i <= 70; i++) ag.innerHTML += `<option>${i}歳</option>`;
+  if (bd) {
+    bd.innerHTML = '<option value="">--</option>';
+    for (let i = 1; i <= 31; i++) bd.innerHTML += `<option>${i}</option>`;
+  }
+  // 年齢自動計算のセットアップ
+  setupAutoAge();
+}
+
+// ===== 年齢自動計算（応募日 - 生年月日） =====
+window._ageAutoOverride = false;
+function setupAutoAge() {
+  const yEl = document.getElementById('fBY');
+  const mEl = document.getElementById('fBM');
+  const dEl = document.getElementById('fBD');
+  const adEl = document.getElementById('fAD');
+  const ageEl = document.getElementById('fAg');
+  const autoMark = document.getElementById('fAgAuto');
+  if (!yEl || !mEl || !dEl || !adEl || !ageEl) return;
+
+  // 既にイベント登録済みなら何もしない
+  if (yEl.dataset.autoAgeBound) return;
+  yEl.dataset.autoAgeBound = '1';
+
+  function calcAge() {
+    const y = parseInt(yEl.value);
+    const m = parseInt(mEl.value);
+    const d = parseInt(dEl.value);
+    const ad = adEl.value;
+    if (!y || !m || !d || !ad) return null;
+    const birth = new Date(y, m - 1, d);
+    const apply = new Date(ad);
+    if (isNaN(birth.getTime()) || isNaN(apply.getTime())) return null;
+    let age = apply.getFullYear() - birth.getFullYear();
+    const md = (apply.getMonth() - birth.getMonth());
+    if (md < 0 || (md === 0 && apply.getDate() < birth.getDate())) age--;
+    if (age < 0 || age > 120) return null;
+    return age;
+  }
+  function update() {
+    if (window._ageAutoOverride) return;
+    const age = calcAge();
+    if (age !== null) {
+      ageEl.value = age;
+      if (autoMark) autoMark.style.display = 'inline';
+    }
+  }
+  [yEl, mEl, dEl, adEl].forEach(el => {
+    el.addEventListener('change', update);
+    el.addEventListener('input', update);
+  });
+  // ユーザーが年齢を直接編集したら以後自動計算しない
+  ageEl.addEventListener('input', () => {
+    window._ageAutoOverride = true;
+    if (autoMark) autoMark.style.display = 'none';
+  });
+  // 年齢欄を空にすると自動計算復帰
+  ageEl.addEventListener('change', () => {
+    if (!ageEl.value) {
+      window._ageAutoOverride = false;
+      update();
+    }
+  });
+}
+
+// セクションナビのクリック処理
+function afJump(targetId, link) {
+  const t = document.getElementById(targetId);
+  if (t) t.scrollIntoView({behavior:'smooth', block:'start'});
+  document.querySelectorAll('.addform-nav a').forEach(a => a.classList.remove('active'));
+  if (link) link.classList.add('active');
 }
 
 function popSelects() {
@@ -473,11 +1029,182 @@ function popSelects() {
   set('fMed','media','選択'); set('fAg2','agency','選択'); set('fSt2','status','選択');
   set('fDept2','dept','選択'); set('fHire2','hire','選択');
 
+  // 担当者プルダウン（議事録内タスク・タスク手動追加・タスクフィルター）
+  populateOwnerSelects();
+
   // 一覧フィルター用（マルチセレクトUI）
   buildMultiFilter('fSt_wrap', 'status');
   buildMultiFilter('fMd_wrap', 'media');
   buildMultiFilter('fJb_wrap', 'jobType');
   buildMultiFilter('fDept_wrap', 'dept');
+}
+
+// 担当者プルダウン3箇所を動的生成
+function populateOwnerSelects() {
+  const assignees = masters.assignee || [];
+  // 議事録内タスク追加（tOwner）
+  const tOwner = document.getElementById('tOwner');
+  if (tOwner) {
+    const cur = tOwner.value;
+    tOwner.innerHTML = assignees.length
+      ? assignees.map(v => `<option value="${escapeOwnerHtml(v)}">${escapeOwnerHtml(v)}</option>`).join('')
+      : '<option value="">（マスター未登録）</option>';
+    if (cur && assignees.includes(cur)) tOwner.value = cur;
+  }
+  // タスク手動追加（mtOwner）
+  const mtOwner = document.getElementById('mtOwner');
+  if (mtOwner) {
+    const cur = mtOwner.value;
+    mtOwner.innerHTML = assignees.length
+      ? assignees.map(v => `<option value="${escapeOwnerHtml(v)}">${escapeOwnerHtml(v)}</option>`).join('')
+      : '<option value="">（マスター未登録）</option>';
+    if (cur && assignees.includes(cur)) mtOwner.value = cur;
+  }
+  // タスクフィルター（taskFilter）：固定の3つ + 担当者ごと
+  const taskFilter = document.getElementById('taskFilter');
+  if (taskFilter) {
+    const cur = taskFilter.value;
+    let html = '<option value="all">全て</option>'
+      + '<option value="pending">未完了のみ</option>'
+      + '<option value="done">完了のみ</option>';
+    if (assignees.length) {
+      html += '<optgroup label="担当者で絞り込み">';
+      assignees.forEach(v => {
+        html += `<option value="owner:${escapeOwnerHtml(v)}">${escapeOwnerHtml(v)}担当</option>`;
+      });
+      html += '</optgroup>';
+    }
+    taskFilter.innerHTML = html;
+    if (cur) taskFilter.value = cur;
+  }
+}
+
+// クライアントID から表示名を取得（adminグルーピング表示用）
+function getClientDisplayName(cid) {
+  if (!cid) return '（未割当）';
+  if (cid === 'admin') return '管理者';
+  const c = (clients || []).find(x => x.client_id === cid);
+  return c ? c.name : cid;
+}
+
+// adminタスク画面用：クライアント絞り込みプルダウンを生成・表示制御
+function populateTaskClientFilter() {
+  const sel = document.getElementById('taskClientFilter');
+  if (!sel) return;
+  if (!isAdmin) {
+    sel.style.display = 'none';
+    return;
+  }
+  // タスクから登場するクライアントID一覧を集計
+  const cidsInTasks = [...new Set(tasks.map(t => t.clientId).filter(Boolean))];
+  // clients配列にあるもの + tasksに登場するもの両方を選択肢にする
+  const allCids = new Set();
+  (clients || []).forEach(c => { if (c.client_id) allCids.add(c.client_id); });
+  cidsInTasks.forEach(c => allCids.add(c));
+  const sortedCids = [...allCids].sort((a, b) => {
+    const an = getClientDisplayName(a);
+    const bn = getClientDisplayName(b);
+    return an.localeCompare(bn, 'ja');
+  });
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全クライアント</option>'
+    + sortedCids.map(cid => `<option value="${escapeOwnerHtml(cid)}">${escapeOwnerHtml(getClientDisplayName(cid))}</option>`).join('');
+  sel.style.display = 'inline-block';
+  if (cur) sel.value = cur;
+}
+
+// admin応募者一覧画面用：クライアント絞り込みプルダウンを生成・表示制御
+function populateAppClientFilter() {
+  const sel = document.getElementById('appClientFilter');
+  if (!sel) return;
+  if (!isAdmin) {
+    sel.style.display = 'none';
+    return;
+  }
+  // applicantsから登場するクライアントID一覧を集計
+  const cidsInApps = [...new Set(applicants.map(a => a.clientId).filter(Boolean))];
+  const allCids = new Set();
+  (clients || []).forEach(c => { if (c.client_id) allCids.add(c.client_id); });
+  cidsInApps.forEach(c => allCids.add(c));
+  const sortedCids = [...allCids].sort((a, b) => {
+    const an = getClientDisplayName(a);
+    const bn = getClientDisplayName(b);
+    return an.localeCompare(bn, 'ja');
+  });
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全クライアント</option>'
+    + sortedCids.map(cid => `<option value="${escapeOwnerHtml(cid)}">${escapeOwnerHtml(getClientDisplayName(cid))}</option>`).join('');
+  sel.style.display = 'inline-block';
+  if (cur) sel.value = cur;
+}
+
+// admin予算管理画面用：クライアント絞り込みプルダウンを生成・表示制御
+function populateBudgetClientFilter() {
+  const sel = document.getElementById('budgetClientFilter');
+  if (!sel) return;
+  if (!isAdmin) {
+    sel.style.display = 'none';
+    return;
+  }
+  // applicants と budgetData 両方から登場するクライアントID一覧を集計
+  const cidsInApps = [...new Set(applicants.map(a => a.clientId).filter(Boolean))];
+  const cidsInBudget = [...new Set(budgetData.map(d => d.clientId).filter(Boolean))];
+  const allCids = new Set();
+  (clients || []).forEach(c => { if (c.client_id) allCids.add(c.client_id); });
+  cidsInApps.forEach(c => allCids.add(c));
+  cidsInBudget.forEach(c => allCids.add(c));
+  const sortedCids = [...allCids].sort((a, b) => {
+    const an = getClientDisplayName(a);
+    const bn = getClientDisplayName(b);
+    return an.localeCompare(bn, 'ja');
+  });
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全クライアント</option>'
+    + sortedCids.map(cid => `<option value="${escapeOwnerHtml(cid)}">${escapeOwnerHtml(getClientDisplayName(cid))}</option>`).join('');
+  sel.style.display = 'inline-block';
+  if (cur) sel.value = cur;
+}
+
+// タスク配列をクライアントIDでグループ化（admin時用）
+// 戻り値: [{ cid, name, items: [...] }, ...]（応募数降順）
+function groupTasksByClient(taskArr) {
+  const groups = {};
+  taskArr.forEach(t => {
+    const cid = t.clientId || '_no_client';
+    if (!groups[cid]) groups[cid] = [];
+    groups[cid].push(t);
+  });
+  // クライアント名でソート（_no_clientは末尾）
+  return Object.entries(groups)
+    .map(([cid, items]) => ({
+      cid: cid === '_no_client' ? null : cid,
+      name: cid === '_no_client' ? '（未割当）' : getClientDisplayName(cid),
+      items
+    }))
+    .sort((a, b) => {
+      if (!a.cid && b.cid) return 1;
+      if (a.cid && !b.cid) return -1;
+      return a.name.localeCompare(b.name, 'ja');
+    });
+}
+
+// セクション内をクライアント別にグルーピングしたHTMLを返す（admin時のみ呼ばれる）
+// section: { items: [...], headColor: '...', headLabel: '...', icon: '...' }
+function buildGroupedSectionHTML(items, headColor, headLabel) {
+  if (!items.length) return '';
+  const groups = groupTasksByClient(items);
+  let html = `<div style="margin-bottom:1rem;">
+    <div style="font-size:11px;font-weight:600;color:${headColor};margin-bottom:8px;">${headLabel}（${items.length}件）</div>`;
+  groups.forEach(g => {
+    html += `<div style="margin-bottom:10px;padding-left:6px;border-left:3px solid #c8d6d2;">
+      <div style="font-size:11px;font-weight:700;color:#2a4a3e;margin-bottom:4px;padding:3px 8px;background:#f0faf6;border-radius:4px;display:inline-block;">
+        🏢 ${escapeOwnerHtml(g.name)}（${g.items.length}件）
+      </div>
+      ${g.items.map(t => renderTaskRow(t)).join('')}
+    </div>`;
+  });
+  html += '</div>';
+  return html;
 }
 
 // マルチセレクトフィルターUIを構築
@@ -746,6 +1473,9 @@ function toggleSort(key) {
   renderList();
 }
 function renderList() {
+  // adminのクライアント絞り込みプルダウンを毎回更新
+  populateAppClientFilter();
+
   const q = (document.getElementById('srch').value || '').toLowerCase();
   const fDateFrom = document.getElementById('fDateFrom') ? document.getElementById('fDateFrom').value : '';
   const fDateTo = document.getElementById('fDateTo') ? document.getElementById('fDateTo').value : '';
@@ -754,6 +1484,10 @@ function renderList() {
   const fmVals = multiFilterState.media || [];
   const fjVals = multiFilterState.jobType || [];
   const fdVals = multiFilterState.dept || [];
+
+  // adminのクライアント絞り込み値
+  const appClientFilter = isAdmin ? (document.getElementById('appClientFilter')?.value || '') : '';
+
   let fil = applicants.filter(a => {
     if (q && !a.name.toLowerCase().includes(q) && !(a.email||'').toLowerCase().includes(q)) return false;
     if (fsVals.length && !fsVals.includes(a.status||'')) return false;
@@ -762,6 +1496,7 @@ function renderList() {
     if (fdVals.length && !fdVals.includes(a.dept||'')) return false;
     if (fDateFrom && a.appDate && a.appDate < fDateFrom) return false;
     if (fDateTo && a.appDate && a.appDate > fDateTo) return false;
+    if (appClientFilter && a.clientId !== appClientFilter) return false;
     return true;
   });
   fil.sort((a,b) => {
@@ -772,27 +1507,82 @@ function renderList() {
     }
     return 0;
   });
+  // 表示中のリストを保持（CSV出力で参照）
+  window._currentListView = fil;
   document.getElementById('listCnt').textContent = fil.length + '件' + (fil.length !== applicants.length ? ' / 全'+applicants.length+'件' : '');
   const tb = document.getElementById('listBody');
   const em = document.getElementById('emptyList');
   if (!fil.length) { tb.innerHTML = ''; em.style.display = 'block'; return; }
   em.style.display = 'none';
-  tb.innerHTML = fil.map(a => {
-    const dc = (a.docs||[]).length;
-    const hireColor = {'内定':'bg','内定承諾':'bt','採用':'bg','不採用':'br','保留':'ba'}[a.hireStatus] || 'bgr';
-    const coreId = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
-    const hireOk = ['hired','joined'].includes(coreId);
-    const hireNg = coreId === 'other';
-    const rowBg = hireOk
-      ? 'background:linear-gradient(90deg,#fff0f5,#fff5f8);'
-      : hireNg
-      ? 'background:linear-gradient(90deg,#eef4ff,#f0f6ff);'
-      : '';
-    return `<tr id="row_${a.id}" style="${rowBg}">
+
+  // admin かつ クライアント絞り込みなし時はグルーピング表示
+  const useGrouping = isAdmin && !appClientFilter;
+
+  if (useGrouping) {
+    // クライアントID別にグループ化
+    const groups = {};
+    fil.forEach(a => {
+      const cid = a.clientId || '_no_client';
+      if (!groups[cid]) groups[cid] = [];
+      groups[cid].push(a);
+    });
+    const sortedGroups = Object.entries(groups)
+      .map(([cid, items]) => ({
+        cid: cid === '_no_client' ? null : cid,
+        name: cid === '_no_client' ? '（未割当）' : getClientDisplayName(cid),
+        items
+      }))
+      .sort((a, b) => {
+        if (!a.cid && b.cid) return 1;
+        if (a.cid && !b.cid) return -1;
+        return a.name.localeCompare(b.name, 'ja');
+      });
+    tb.innerHTML = sortedGroups.map(g => {
+      const headerRow = `<tr class="client-group-header">
+        <td colspan="12" style="padding:10px 12px;background:linear-gradient(90deg,#f0faf6,#fafcfb);border-top:2px solid #5aaa8e;border-bottom:1px solid #c8d6d2;font-size:12px;font-weight:700;color:#2a4a3e;">
+          🏢 ${escapeOwnerHtml(g.name)}　<span style="font-size:11px;color:#888;font-weight:500;">（${g.items.length}件）</span>
+        </td>
+      </tr>`;
+      const rows = g.items.map(a => buildAppRowHTML(a)).join('');
+      return headerRow + rows;
+    }).join('');
+  } else {
+    // 通常表示（client、またはadminで特定クライアント絞り込み中）
+    tb.innerHTML = fil.map(a => buildAppRowHTML(a)).join('');
+  }
+}
+
+// 応募者1行分のHTMLを生成（共通化）
+function buildAppRowHTML(a) {
+  // 面接日時を MM/DD コンパクト形式に
+  const fmtIntDate = (v) => {
+    if (!v) return '<span class="list-col-int list-col-empty">-</span>';
+    const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return `<span class="list-col-int has-value">${v}</span>`;
+    return `<span class="list-col-int has-value">${m[2]}/${m[3]}</span>`;
+  };
+  const esc = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const coreId = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
+  const hireOk = ['hired','joined'].includes(coreId);
+  const hireNg = coreId === 'other';
+  const rowBg = hireOk
+    ? 'background:linear-gradient(90deg,#fff0f5,#fff5f8);'
+    : hireNg
+    ? 'background:linear-gradient(90deg,#eef4ff,#f0f6ff);'
+    : '';
+  const jobNoCell = a.jobNo
+    ? `<span class="list-col-job-no">${esc(a.jobNo)}</span>`
+    : `<span class="list-col-empty">-</span>`;
+  const jobNameCell = a.jobName
+    ? `<span class="list-col-job-name" title="${esc(a.jobName)}">${esc(a.jobName)}</span>`
+    : `<span class="list-col-empty">-</span>`;
+  return `<tr id="row_${a.id}" style="${rowBg}">
       <td style="width:36px;" onclick="event.stopPropagation()">
         <input type="checkbox" class="rowCheck" value="${a.id}" onchange="onCheckChange()" style="cursor:pointer;width:14px;height:14px;">
       </td>
       <td>${a.appDate||''}</td>
+      <td>${jobNoCell}</td>
+      <td>${jobNameCell}</td>
       <td style="font-weight:500;">${a.name}</td>
       <td>${a.jobType||''}</td>
       <td onclick="event.stopPropagation()">
@@ -808,11 +1598,11 @@ function renderList() {
           ${(masters.status||[]).map(s=>`<option value="${s}" ${a.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
-      <td>${dc?`<span class="badge bgr">${dc}件</span>`:''}</td>
+      <td>${fmtIntDate(a.int1Date)}</td>
+      <td>${fmtIntDate(a.int2Date)}</td>
       <td><button class="btn-sm" onclick="openDetail('${a.id}')">詳細</button></td>
     </tr>
-    <tr id="detail_${a.id}" style="display:none;"><td colspan="9" style="padding:0;"></td></tr>`;
-  }).join('');
+    <tr id="detail_${a.id}" style="display:none;"><td colspan="12" style="padding:0;"></td></tr>`;
 }
 
 function stColor(s) {
@@ -833,7 +1623,9 @@ function stColor(s) {
 }
 
 async function updateHireStatus(id, val) {
-  const { error } = await sb.from('applicants').update({ hire_status: val }).eq('id', id).eq('client_id', currentClientId);
+  let query = sb.from('applicants').update({ hire_status: val }).eq('id', id);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  const { error } = await query;
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
   const a = applicants.find(x => x.id === id);
   if (a) a.hireStatus = val;
@@ -849,7 +1641,9 @@ async function updateHireStatus(id, val) {
 }
 
 async function updateDept(id, val) {
-  const { error } = await sb.from('applicants').update({ dept: val }).eq('id', id).eq('client_id', currentClientId);
+  let query = sb.from('applicants').update({ dept: val }).eq('id', id);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  const { error } = await query;
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
   const a = applicants.find(x => x.id === id);
   if (a) a.dept = val;
@@ -858,7 +1652,9 @@ async function updateDept(id, val) {
 
 async function updateStatus(id, val) {
   const newCoreId = onDetailStatusChange(val);
-  const { error } = await sb.from('applicants').update({ status: val, core_status_id: newCoreId }).eq('id', id).eq('client_id', currentClientId);
+  let query = sb.from('applicants').update({ status: val, core_status_id: newCoreId }).eq('id', id);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  const { error } = await query;
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
   const a = applicants.find(x => x.id === id);
   if (a) a.status = val;
@@ -929,7 +1725,7 @@ function closeDetail() {
 function editApp() {
   const a = applicants.find(x => x.id === curId); if (!a) return;
   closeDetail(); editId = a.id;
-  const map = {fAD:'appDate',fJT:'jobType',fLoc:'location',fNm:'name',fKn:'kana',fEm:'email',fTel:'tel',fGe:'gender',fAg:'age',fMed:'media',fAg2:'agency',fSt2:'status',fCD:'contactDate',fI1D:'int1Date',fI1R:'int1Res',fI2D:'int2Date',fI2R:'int2Res',fRD:'resignDate',fMemo:'memo',fDept2:'dept',fHire2:'hireStatus'};
+  const map = {fAD:'appDate',fJT:'jobType',fJobNo:'jobNo',fJobName:'jobName',fLoc:'location',fNm:'name',fKn:'kana',fEm:'email',fTel:'tel',fGe:'gender',fAg:'age',fMed:'media',fAg2:'agency',fSt2:'status',fCD:'contactDate',fI1D:'int1Date',fI1R:'int1Res',fI2D:'int2Date',fI2R:'int2Res',fRD:'resignDate',fMemo:'memo',fDept2:'dept',fHire2:'hireStatus'};
   Object.entries(map).forEach(([fid,key])=>{ const el=document.getElementById(fid); if(el&&a[key]!=null)el.value=a[key]; });
   if(a.birthYear) document.getElementById('fBY').value=a.birthYear;
   if(a.birthMonth) document.getElementById('fBM').value=a.birthMonth;
@@ -941,7 +1737,9 @@ function editApp() {
 
 async function delApp() {
   if (!confirm('この応募者を削除しますか？')) return;
-  const { error } = await sb.from('applicants').delete().eq('id', curId).eq('client_id', currentClientId);
+  let query = sb.from('applicants').delete().eq('id', curId);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  const { error } = await query;
   if (error) { alert('削除に失敗しました: ' + error.message); return; }
   applicants = applicants.filter(x => x.id !== curId);
   closeDetail(); popSelects(); renderList();
@@ -953,11 +1751,14 @@ async function delApp() {
 // ========================================
 function resetForm() {
   editId = null; tempDocs = [];
-  ['fAD','fJT','fLoc','fNm','fKn','fEm','fTel','fCD','fI1D','fI2D','fRD','fMemo','fBY'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  ['fGe','fAg','fMed','fAg2','fSt2','fBM','fBD','fI1R','fI2R','fDept2','fHire2'].forEach(id=>{const e=document.getElementById(id);if(e)e.selectedIndex=0;});
+  ['fAD','fJT','fJobNo','fJobName','fLoc','fNm','fKn','fEm','fTel','fAg','fCD','fI1D','fI2D','fRD','fMemo','fBY'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['fGe','fMed','fAg2','fSt2','fBM','fBD','fI1R','fI2R','fDept2','fHire2'].forEach(id=>{const e=document.getElementById(id);if(e)e.selectedIndex=0;});
   document.getElementById('fAD').value = new Date().toISOString().split('T')[0];
   document.getElementById('docList').innerHTML='';
   document.getElementById('docName').value=''; document.getElementById('docUrl').value='';
+  // 自動年齢計算の状態をリセット
+  if (typeof window._ageAutoOverride !== 'undefined') window._ageAutoOverride = false;
+  const ageAuto = document.getElementById('fAgAuto'); if (ageAuto) ageAuto.style.display = 'none';
 }
 
 async function saveApp() {
@@ -971,13 +1772,15 @@ async function saveApp() {
     client_id: cid,
     app_date: document.getElementById('fAD').value,
     job_type: document.getElementById('fJT').value,
+    job_no: document.getElementById('fJobNo') ? document.getElementById('fJobNo').value : '',
+    job_name: document.getElementById('fJobName') ? document.getElementById('fJobName').value : '',
     location: document.getElementById('fLoc').value,
     name: document.getElementById('fNm').value,
     kana: document.getElementById('fKn').value,
     email: document.getElementById('fEm').value,
     tel: document.getElementById('fTel').value,
     gender: document.getElementById('fGe').value,
-    age: document.getElementById('fAg').value,
+    age: document.getElementById('fAg').value || null,
     media: document.getElementById('fMed').value,
     agency: document.getElementById('fAg2').value,
     status: document.getElementById('fSt2').value,
@@ -996,7 +1799,9 @@ async function saveApp() {
   };
   let error;
   if (editId) {
-    ({ error } = await sb.from('applicants').update(row).eq('id', editId).eq('client_id', currentClientId));
+    let query = sb.from('applicants').update(row).eq('id', editId);
+    if (!isAdmin) query = query.eq('client_id', currentClientId);
+    ({ error } = await query);
   } else {
     ({ error } = await sb.from('applicants').insert(row));
   }
@@ -1015,9 +1820,21 @@ async function saveApp() {
 // 一括取り込み（CSV）
 // ========================================
 function downloadTemplate() {
-  // 採用可否は削除。最新のフォーム/一覧/分析に合わせた項目構成
-  const headers = ['応募日','応募職種','名前','ふりがな','メール','電話','性別','媒体名','ステータス','部署','生年','月','日','面接日時','書類URL'];
-  const example = ['2026-04-28','カスタマーサクセス','山田太郎','やまだたろう','test@example.com','09012345678','男性','LinkedIn','採用','大阪支店','1990','4','1','2026-04-30T14:00','https://drive.google.com/xxxx'];
+  // 新規登録フォーム・一覧画面・exportCSVと整合した26カラム
+  const headers = [
+    '応募日','求人番号','求人名称','応募職種','勤務地','部署',
+    '名前','ふりがな','メール','電話','性別','生年','月','日',
+    '媒体名','人材紹介会社','ステータス','採用可否','コンタクト日',
+    '1次面接日時','1次面接結果','2次面接日時','2次面接結果','退職日',
+    '書類URL','メモ'
+  ];
+  const example = [
+    '2026-04-28','JOB-1234','Webエンジニア募集','エンジニア','東京','開発部',
+    '山田太郎','やまだたろう','test@example.com','09012345678','男性','1990','4','1',
+    'リクナビNEXT','','面接','','2026-04-29',
+    '2026-04-30T14:00','合格','','','',
+    'https://drive.google.com/xxxx','備考メモ'
+  ];
   const csv = '\uFEFF' + headers.join(',') + '\r\n' + example.join(',') + '\r\n';
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
   const a = document.createElement('a');
@@ -1131,7 +1948,7 @@ function parseImportCSV(text) {
     errEl.style.display = 'none';
   }
   // プレビュー
-  const previewCols = ['応募日','名前','応募職種','媒体名','ステータス'].filter(c => headers.includes(c));
+  const previewCols = ['応募日','求人番号','名前','応募職種','媒体名','ステータス'].filter(c => headers.includes(c));
   document.getElementById('previewCount').textContent = `${importData.length}件のデータを検出` + (errors.length ? `（${errors.length}件はスキップ）` : '');
   document.getElementById('previewHead').innerHTML = '<tr>'+previewCols.map(c=>`<th style="padding:6px 8px;background:#f8f8f7;font-size:11px;font-weight:600;">${c}</th>`).join('')+'</tr>';
   document.getElementById('previewBody').innerHTML = importData.slice(0,10).map(r =>
@@ -1162,35 +1979,61 @@ async function doImport() {
   if (!importData.length) { alert('取り込むデータがありません'); return; }
   const btn = document.getElementById('importBtn');
   btn.disabled = true; btn.textContent = '登録中...';
+
+  // 応募日時点の年齢を計算（フォームと同じロジック）
+  function calcAgeAt(byear, bmonth, bday, appDateStr) {
+    if (!byear || !bmonth || !bday || !appDateStr) return null;
+    const birth = new Date(byear, bmonth - 1, bday);
+    const apply = new Date(appDateStr);
+    if (isNaN(birth.getTime()) || isNaN(apply.getTime())) return null;
+    let age = apply.getFullYear() - birth.getFullYear();
+    const md = apply.getMonth() - birth.getMonth();
+    if (md < 0 || (md === 0 && apply.getDate() < birth.getDate())) age--;
+    if (age < 0 || age > 120) return null;
+    return age;
+  }
+
   const rows = importData.map(r => {
     // 生年月日：旧テンプレートの「生年月日_年/月/日」、新テンプレートの「生年/月/日」両対応
     const byear = parseInt(r['生年月日_年'] || r['生年']) || null;
     const bmonth = parseInt(r['生年月日_月'] || r['月']) || null;
     const bday = parseInt(r['生年月日_日'] || r['日']) || null;
-    const age = byear ? new Date().getFullYear() - byear : null;
-    // 面接日時：新テンプレートの「面接日時」を1次面接日時にマップ。旧テンプレートの「1次面接日時」もサポート
+    const appDate = r['応募日'] || null;
+    // 応募日時点の年齢を計算（フォームと同じ振る舞い）
+    const age = calcAgeAt(byear, bmonth, bday, appDate);
+    // 表示用 birthdate 文字列（フォーム経由と整合）
+    const birthdate = (byear && bmonth && bday) ? `${byear}年${bmonth}月${bday}日` : null;
+    // 面接日時：新テンプレートの「1次面接日時」、旧テンプレートの「面接日時」両対応
     const int1d = r['1次面接日時'] || r['面接日時'] || null;
+    // 書類URL：単一URLが指定されていれば docs 配列に1件として格納
+    const docUrl = (r['書類URL'] || '').trim();
+    const docs = docUrl ? [{ type: '履歴書', name: '履歴書', url: docUrl, id: Date.now() + '' + Math.floor(Math.random()*1000) }] : [];
     return {
       client_id: currentClientId,
-      app_date: r['応募日']||null,
-      job_type: r['応募職種']||null,
-      location: r['勤務地']||null,
-      name: r['名前']||'',
-      kana: r['ふりがな']||null,
-      email: r['メール']||null,
-      phone: r['電話']||null,
-      media: r['媒体名']||null,
-      agency: r['人材紹介会社']||null,
-      birth_year: byear, birth_month: bmonth, birth_day: bday, age,
-      gender: r['性別']||null,
-      status: r['ステータス']||'書類依頼中',
-      dept: r['部署']||null,
-      contact_date: r['コンタクト日']||null,
-      int1_date: int1d, int1_result: r['1次面接結果']||null,
-      int2_date: r['2次面接日時']||null, int2_result: r['2次面接結果']||null,
-      retire_date: r['退職日']||null,
-      doc_url: r['書類URL']||null,
-      memo: r['メモ']||null, docs: []
+      app_date: appDate,
+      job_no: r['求人番号'] || null,
+      job_name: r['求人名称'] || null,
+      job_type: r['応募職種'] || null,
+      location: r['勤務地'] || null,
+      name: r['名前'] || '',
+      kana: r['ふりがな'] || null,
+      email: r['メール'] || null,
+      tel: r['電話'] || null,
+      media: r['媒体名'] || null,
+      agency: r['人材紹介会社'] || null,
+      birth_year: byear, birth_month: bmonth, birth_day: bday,
+      birthdate,
+      age,
+      gender: r['性別'] || null,
+      status: r['ステータス'] || '書類依頼中',
+      hire_status: r['採用可否'] || null,
+      dept: r['部署'] || null,
+      contact_date: r['コンタクト日'] || null,
+      int1_date: int1d, int1_result: r['1次面接結果'] || null,
+      int2_date: r['2次面接日時'] || null, int2_result: r['2次面接結果'] || null,
+      resign_date: r['退職日'] || null,
+      memo: r['メモ'] || null,
+      docs
     };
   });
   rows.forEach(r => { r.client_id = currentClientId; }); // マルチテナント強制付与
@@ -1242,17 +2085,43 @@ async function doImport() {
 }
 
 function exportCSV() {
-  const headers = ['応募日','応募職種','勤務地','名前','ふりがな','メール','電話','媒体','人材紹介会社','生年月日','年齢','性別','ステータス','コンタクト日','1次面接日時','1次面接結果','2次面接日時','2次面接結果','退職日','書類URL','メモ'];
-  const rows = applicants.map(a => [
-    a.appDate,a.jobType,a.location,a.name,a.kana,a.email,a.tel,
-    a.media,a.agency,a.birthdate,a.age,a.gender,a.status,
-    a.contactDate,a.int1Date,a.int1Res,a.int2Date,a.int2Res,a.resignDate,
-    (a.docs||[]).map(d=>`${d.name}:${d.url}`).join(' | '),a.memo
-  ].map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(','));
-  const csv = '\uFEFF' + headers.join(',') + '\n' + rows.join('\n');
+  // テンプレートCSVと同じ26カラム構成（往復可能なフォーマット）
+  const headers = [
+    '応募日','求人番号','求人名称','応募職種','勤務地','部署',
+    '名前','ふりがな','メール','電話','性別','生年','月','日',
+    '媒体名','人材紹介会社','ステータス','採用可否','コンタクト日',
+    '1次面接日時','1次面接結果','2次面接日時','2次面接結果','退職日',
+    '書類URL','メモ'
+  ];
+  // 現在画面に表示されている応募者を対象にする（絞り込み・クライアント絞り込み反映）
+  const target = (window._currentListView && window._currentListView.length) ? window._currentListView : applicants;
+  const rows = target.map(a => {
+    // 書類URL：複数あれば「name:url | name:url」で結合
+    const docStr = (a.docs||[]).map(d => `${d.name||d.type||''}:${d.url||''}`).join(' | ');
+    return [
+      a.appDate||'', a.jobNo||'', a.jobName||'', a.jobType||'', a.location||'', a.dept||'',
+      a.name||'', a.kana||'', a.email||'', a.tel||'', a.gender||'',
+      a.birthYear||'', a.birthMonth||'', a.birthDay||'',
+      a.media||'', a.agency||'', a.status||'', a.hireStatus||'', a.contactDate||'',
+      a.int1Date||'', a.int1Res||'', a.int2Date||'', a.int2Res||'', a.resignDate||'',
+      docStr, a.memo||''
+    ].map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',');
+  });
+  const csv = '\uFEFF' + headers.join(',') + '\r\n' + rows.join('\r\n');
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  // ファイル名：admin時はクライアント絞り込み中ならその名前、未絞り込みなら「全クライアント」
+  let labelForFilename = currentClientName;
+  if (isAdmin) {
+    const cf = document.getElementById('appClientFilter')?.value || '';
+    if (cf) {
+      labelForFilename = getClientDisplayName(cf);
+    } else {
+      labelForFilename = '全クライアント';
+    }
+  }
   const a = document.createElement('a');
-  a.href=URL.createObjectURL(blob); a.download=`採用コア_${currentClientName}_${new Date().toISOString().split('T')[0]}.csv`;
+  a.href = URL.createObjectURL(blob);
+  a.download = `採用コア_${labelForFilename}_${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
 }
 
@@ -1320,11 +2189,10 @@ function renderDashTasks() {
   el.innerHTML = top.map(t => {
     const isOverdue = t.due && t.due < today;
     const dueText = t.due ? t.due.slice(5).replace('-', '/') : '期限なし';
-    const ownerColor = t.owner === 'LinkCore' ? '#185FA5' : '#854F0B';
     const safeContent = String(t.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#fafaf8;border-radius:6px;margin-bottom:4px;font-size:11px;">
       <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
-        <span style="background:${ownerColor};color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;flex-shrink:0;">${t.owner || ''}</span>
+        ${renderOwnerBadge(t.owner, t.clientId)}
         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${safeContent}</span>
       </div>
       <span style="color:${isOverdue ? '#D85A30' : '#888'};font-weight:${isOverdue ? '600' : '400'};flex-shrink:0;margin-left:8px;">${isOverdue ? '⚠ ' : ''}${dueText}</span>
@@ -1369,8 +2237,30 @@ function renderDashboard() {
   const rate = total ? Math.round(hired / total * 100) : 0;
   const thisMonth = applicants.filter(a => a.appDate && a.appDate >= monthStart).length;
 
-  // 上部 KPI: すべて累計表示
+  // ===== 本日のKPI =====
+  const todayStr = toStr(now); // YYYY-MM-DD
+  // 本日の応募数：応募日が今日と一致
+  const todayApps = applicants.filter(a => a.appDate === todayStr).length;
+  // 本日の面接数：1次/2次の日時が今日と一致（同日に両方なら2件）
+  const todayInterviews = applicants.reduce((cnt, a) => {
+    // int1Date / int2Date は YYYY-MM-DD or YYYY-MM-DDTHH:MM 形式
+    const i1 = a.int1Date ? String(a.int1Date).slice(0,10) : '';
+    const i2 = a.int2Date ? String(a.int2Date).slice(0,10) : '';
+    if (i1 === todayStr) cnt++;
+    if (i2 === todayStr) cnt++;
+    return cnt;
+  }, 0);
+
+  // 上部 KPI: 本日カード2枚 + 既存5枚
   document.getElementById('dashKpi').innerHTML = `
+    <div class="mc mc-today" style="border-left:3px solid #EF9F27;">
+      <span class="badge-today">TODAY</span>
+      <div class="mc-lbl">本日の応募数</div><div class="mc-val">${todayApps}<span style="font-size:14px;color:#888;font-weight:500;">件</span></div><div class="mc-sub">応募日が今日</div>
+    </div>
+    <div class="mc mc-today" style="border-left:3px solid #9B59B6;">
+      <span class="badge-today">TODAY</span>
+      <div class="mc-lbl">本日の面接数</div><div class="mc-val">${todayInterviews}<span style="font-size:14px;color:#888;font-weight:500;">件</span></div><div class="mc-sub">1次/2次の合算</div>
+    </div>
     <div class="mc" style="border-left:3px solid #378ADD;">
       <div class="mc-lbl">総応募数</div><div class="mc-val">${total}</div><div class="mc-sub">累計</div>
     </div>
@@ -1916,21 +2806,11 @@ function addSection(type, opts) {
   }
 }
 
-function addCustomCross() {
-  const row = document.getElementById('crossRow').value;
-  const col = document.getElementById('crossCol').value;
-  const viz = document.getElementById('crossViz').value;
-  if (row === col) { alert('行軸と列軸が同じです。異なる項目を選択してください。'); return; }
-  addSection('custom_cross', { row, col, viz });
-}
-
-function addPresetCross(row, col, viz) {
-  addSection('custom_cross', { row, col, viz });
-}
-
 function removeSection(id) {
   if (sectionCharts[id]) { sectionCharts[id].forEach(c => c.destroy()); delete sectionCharts[id]; }
   activeSections = activeSections.filter(s => s.id !== id);
+  delete sectionViewMode[id];
+  delete sectionSelectedRows[id];
   renderCustomSections();
 }
 
@@ -2035,8 +2915,8 @@ function toggleMultiAxis(key) {
 }
 
 function updateMultiAxisUI() {
-  const keys = ['appMonth','jobType','dept','media','agency','ageGroup','gender','status'];
-  const labels = {appMonth:'月別',jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス'};
+  const keys = ['media','jobType','dept','ageGroup','agency','gender','status'];
+  const labels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス'};
   keys.forEach(k => {
     const btn = document.getElementById('maxis_'+k);
     if (!btn) return;
@@ -2072,106 +2952,139 @@ function addMultiAxisSection() {
 
 function buildMultiAxisHTML(data, axes, secId) {
   if (!data.length) return '<div class="empty">データがありません</div>';
-  const getVal = (a, key) => {
-    if (key==='ageGroup'){const age=parseInt(a.age);if(!age)return'不明';if(age<30)return'20代以下';if(age<40)return'30代';if(age<50)return'40代';if(age<60)return'50代';return'60代以上';}
-    if (key==='appMonth') return a.appDate?a.appDate.substring(0,7):'不明';
-    return a[key]||'(未設定)';
-  };
-  const labels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否',appMonth:'月別'};
+  if (!axes || axes.length < 2) return '<div class="empty">2軸以上を選択してください</div>';
 
-  if (axes.length === 2) {
-    const rowKey=axes[0], colKey=axes[1];
-    const tableHtml = renderCrossTable(data, rowKey, colKey, labels[rowKey]||rowKey, labels[colKey]||colKey);
-    const chartDiv = `<div style="margin-top:1rem;" id="cross_chart_${secId}"></div>`;
-    return tableHtml + chartDiv;
-  }
+  const labels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否'};
+  const ax1 = axes[0], ax2 = axes[1], ax3 = axes[2];
 
-  // 3軸：画像2のようなネストピボット表（第1軸×第2軸が行、第3軸が列）
-  const [ax1, ax2, ax3] = axes;
-  const getAgeBand = age => {if(!age)return'不明';if(age<20)return'10代';if(age<30)return'20代';if(age<40)return'30代';if(age<50)return'40代';if(age<60)return'50代';if(age<70)return'60代';return'70代以上';};
-
-  // 全ユニーク値を収集
-  const ax1Vals = [...new Set(data.map(a=>getVal(a,ax1)).filter(Boolean))].sort();
-  const ax2Vals = [...new Set(data.map(a=>getVal(a,ax2)).filter(Boolean))].sort();
-  const ax3Vals = [...new Set(data.map(a=>getVal(a,ax3)).filter(Boolean))].sort();
-
-  // 3次元マトリクス構築
-  const matrix = {};
-  const ax1Totals = {}; const ax2Totals = {}; const ax3Totals = {};
-  let grand = 0;
+  // 親軸（ax1）でグループ化
+  const parentGroups = {};
   data.forEach(a => {
-    const v1=getVal(a,ax1), v2=getVal(a,ax2), v3=getVal(a,ax3);
-    if (!matrix[v1]) matrix[v1] = {};
-    if (!matrix[v1][v2]) matrix[v1][v2] = {};
-    matrix[v1][v2][v3] = (matrix[v1][v2][v3]||0)+1;
-    ax1Totals[v1] = (ax1Totals[v1]||0)+1;
-    ax2Totals[v2] = (ax2Totals[v2]||0)+1;
-    ax3Totals[v3] = (ax3Totals[v3]||0)+1;
-    grand++;
+    const v = getAxisValue(a, ax1);
+    if (!parentGroups[v]) parentGroups[v] = [];
+    parentGroups[v].push(a);
   });
+  // 応募数で降順、上位10件
+  const sortedParents = Object.entries(parentGroups)
+    .sort((a,b) => b[1].length - a[1].length)
+    .slice(0, 10);
+  const remaining = Object.keys(parentGroups).length - 10;
 
-  // 列ヘッダー（ax3の値）- 多い順上位8
-  const topAx3 = ax3Vals.sort((a,b)=>(ax3Totals[b]||0)-(ax3Totals[a]||0)).slice(0,8);
+  const cards = sortedParents.map(([parentName, parentData]) => {
+    // 親ファネル（媒体全体）の数値
+    const cum = calcFunnelCumulative(parentData);
+    const total = cum['applied'] || 0;
+    const hired = cum['hired'] || 0;
+    const hireRate = total ? Math.round(hired/total*100) : 0;
 
-  const thS = 'padding:7px 9px;background:#e8ebf0;font-size:10px;font-weight:700;border-bottom:2px solid #c8cdd8;text-align:right;white-space:nowrap;';
-  const thSL = 'padding:7px 9px;background:#e8ebf0;font-size:10px;font-weight:700;border-bottom:2px solid #c8cdd8;text-align:left;';
-  const tdS = 'padding:6px 9px;font-size:11px;text-align:right;border-bottom:1px solid #f0f0ee;';
-  const tdSL = 'padding:6px 9px;font-size:11px;font-weight:500;border-bottom:1px solid #f0f0ee;';
-  const subTotS = 'padding:6px 9px;font-size:11px;font-weight:700;background:#f0f4f8;border-bottom:2px solid #d8dde8;text-align:right;';
-  const subTotSL = 'padding:6px 9px;font-size:11px;font-weight:700;background:#f0f4f8;border-bottom:2px solid #d8dde8;';
-
-  const headerCols = topAx3.map(v3=>`<th style="${thS}">${v3}</th>`).join('');
-
-  let bodyRows = '';
-  ax1Vals.forEach((v1,idx1) => {
-    const ax2InGroup = ax2Vals.filter(v2=>matrix[v1]&&matrix[v1][v2]);
-    if (!ax2InGroup.length) return;
-    const rowBg = idx1%2===0 ? '' : 'background:#fafbfd;';
-
-    // ax1グループ各行
-    ax2InGroup.forEach((v2, idx2) => {
-      const rowData = matrix[v1]?.[v2] || {};
-      const rowTotal = Object.values(rowData).reduce((s,v)=>s+v,0);
-      const cells = topAx3.map(v3=>{
-        const v = rowData[v3]||0;
-        return `<td style="${tdS}">${v||''}</td>`;
-      }).join('');
-      const v1Cell = idx2===0
-        ? `<td rowspan="${ax2InGroup.length}" style="${tdSL}font-weight:700;${rowBg}border-right:2px solid #d8dde8;vertical-align:top;padding-top:10px;">${v1}</td>`
-        : '';
-      bodyRows += `<tr style="${rowBg}">${v1Cell}<td style="${tdSL}${rowBg}padding-left:1.5rem;">${v2}</td>${cells}<td style="${tdS}font-weight:700;${rowBg}">${rowTotal}人</td></tr>`;
+    // 親ファネル描画
+    let parentSteps = '';
+    FUNNEL_STEPS.forEach(s => {
+      const cnt = cum[s.id] || 0;
+      const pct = total ? Math.round(cnt/total*100) : 0;
+      parentSteps += `<div class="fstep" data-step="${s.id}">
+        <div class="fstep-label">${s.label}</div>
+        <div class="fstep-bar-wrap"><div class="fstep-bar" style="width:${Math.max(pct,1)}%;"></div></div>
+        <div class="fstep-stat"><span class="fstep-num">${cnt}</span><span class="fstep-pct">${pct}%</span></div>
+      </div>`;
     });
 
-    // ax1グループの小計行
-    const groupTotals = {};
-    topAx3.forEach(v3=>{
-      groupTotals[v3]=ax2InGroup.reduce((s,v2)=>(matrix[v1]?.[v2]?.[v3]||0)+s,0);
+    // 子軸（ax2）でグループ化
+    const childGroups = {};
+    parentData.forEach(a => {
+      const v = getAxisValue(a, ax2);
+      if (!childGroups[v]) childGroups[v] = [];
+      childGroups[v].push(a);
     });
-    const groupTotal = ax2InGroup.reduce((s,v2)=>Object.values(matrix[v1]?.[v2]||{}).reduce((a,b)=>a+b,0)+s,0);
-    const subtotalCells = topAx3.map(v3=>`<td style="${subTotS}">${groupTotals[v3]||''}</td>`).join('');
-    bodyRows += `<tr><td style="${subTotSL}" colspan="2">${v1} の合計</td>${subtotalCells}<td style="${subTotS}">${groupTotal}人</td></tr>`;
-  });
+    const sortedChildren = Object.entries(childGroups)
+      .sort((a,b) => b[1].length - a[1].length)
+      .slice(0, 10);
 
-  // 総計行
-  const grandCells = topAx3.map(v3=>`<td style="${subTotS}font-size:12px;">${ax3Totals[v3]||0}人</td>`).join('');
+    // 子ファネル描画
+    const childCards = sortedChildren.map(([childName, childData]) => {
+      const childCum = calcFunnelCumulative(childData);
+      const childTotal = childCum['applied'] || 0;
 
-  return `<div style="font-size:10px;color:#666;margin-bottom:8px;">${labels[ax1]||ax1} × ${labels[ax2]||ax2} × ${labels[ax3]||ax3} のピボット集計（全${grand}名）</div>
-  <div style="overflow-x:auto;">
-    <table style="width:100%;border-collapse:collapse;min-width:500px;">
-      <thead><tr>
-        <th style="${thSL}">${labels[ax1]||ax1}</th>
-        <th style="${thSL}">${labels[ax2]||ax2}</th>
-        ${headerCols}
-        <th style="${thS}">総計</th>
-      </tr></thead>
-      <tbody>${bodyRows}</tbody>
-      <tfoot><tr>
-        <td style="${subTotSL}font-size:12px;font-weight:700;" colspan="2">総計</td>
-        ${grandCells}
-        <td style="${subTotS}font-size:12px;">${grand}人</td>
-      </tr></tfoot>
-    </table>
-  </div>`;
+      let childSteps = '';
+      FUNNEL_STEPS.forEach(s => {
+        const cnt = childCum[s.id] || 0;
+        const pct = childTotal ? Math.round(cnt/childTotal*100) : 0;
+        childSteps += `<div class="fstep" data-step="${s.id}">
+          <div class="fstep-label">${s.label}</div>
+          <div class="fstep-bar-wrap"><div class="fstep-bar" style="width:${Math.max(pct,1)}%;"></div></div>
+          <div class="fstep-stat"><span class="fstep-num">${cnt}</span><span class="fstep-pct">${pct}%</span></div>
+        </div>`;
+      });
+
+      // 3軸目（孫）がある場合：孫1行ミニバー
+      let grandchildHtml = '';
+      if (ax3) {
+        const grandGroups = {};
+        childData.forEach(a => {
+          const v = getAxisValue(a, ax3);
+          if (!grandGroups[v]) grandGroups[v] = [];
+          grandGroups[v].push(a);
+        });
+        const sortedGrand = Object.entries(grandGroups)
+          .sort((a,b) => b[1].length - a[1].length)
+          .slice(0, 8);
+
+        if (sortedGrand.length > 0) {
+          const gcRows = sortedGrand.map(([grandName, grandData]) => {
+            const gCum = calcFunnelCumulative(grandData);
+            const gTotal = gCum['applied'] || 0;
+            const miniSteps = FUNNEL_STEPS.map(s => {
+              const cnt = gCum[s.id] || 0;
+              const pct = gTotal ? Math.round(cnt/gTotal*100) : 0;
+              return `<div class="gc-step" data-step="${s.id}">
+                <div class="gc-bar-wrap"><div class="gc-bar" style="width:${Math.max(pct,1)}%;"></div></div>
+                <span class="gc-num">${cnt}</span>
+              </div>`;
+            }).join('');
+            return `<div class="nest-grandchild">
+              <span class="nest-gc-title">${escFunnel(grandName)}（${gTotal}件）</span>
+              <div class="nest-gc-mini">${miniSteps}</div>
+            </div>`;
+          }).join('');
+          grandchildHtml = `
+            <div class="nest-grandchildren-label">└ ${getAxisLabel(ax3)}別の内訳</div>
+            <div class="nest-grandchildren">${gcRows}</div>`;
+        }
+      }
+
+      return `<div class="nest-child">
+        <div class="nest-child-head">
+          <span class="nest-child-title">${escFunnel(childName)}</span>
+          <span class="nest-child-total">応募 ${childTotal}件</span>
+        </div>
+        ${childSteps}
+        ${grandchildHtml}
+      </div>`;
+    }).join('');
+
+    return `<div class="nest-card">
+      <div class="nest-card-head">
+        <span class="nest-card-name">${escFunnel(parentName)}</span>
+        <div class="nest-card-summary">
+          <span><strong>${total}</strong>応募</span>
+          <span><strong>${hired}</strong>採用</span>
+          <span><strong>${hireRate}%</strong>採用率</span>
+        </div>
+      </div>
+      <div class="nest-parent">
+        <div class="nest-parent-label">▼ ${getAxisLabel(ax1)}全体</div>
+        ${parentSteps}
+      </div>
+      <div class="nest-children-label">▼ ${getAxisLabel(ax2)}${ax3 ? ' → ' + getAxisLabel(ax3) : ''}別の内訳</div>
+      <div class="nest-children">${childCards}</div>
+    </div>`;
+  }).join('');
+
+  const note = remaining > 0
+    ? `<div style="text-align:center;padding:8px;font-size:11px;color:#aaa;">他 ${remaining} 件は省略（応募数上位10件のみ表示）</div>`
+    : '';
+
+  return cards + note;
 }
 
 function renderCustomSections() {
@@ -2181,18 +3094,15 @@ function renderCustomSections() {
   Object.values(sectionCharts).forEach(charts => charts.forEach(c => { try { c.destroy(); } catch(e) {} }));
   Object.keys(sectionCharts).forEach(k => delete sectionCharts[k]);
   const data = getAnData();
-  // HTML生成（secIdをacc_body_に一致させる）
+  // HTML生成
   container.innerHTML = activeSections.map(s => {
     let title;
-    if (s.type === 'custom_cross') {
-      title = '🔀 ' + getKeyLabel(s.opts.row) + ' × ' + getKeyLabel(s.opts.col);
-    } else if (s.type === 'multi_axis' && s.opts && s.opts.axes) {
-      const axisLabels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否',appMonth:'月別'};
+    if (s.type === 'multi_axis' && s.opts && s.opts.axes) {
+      const axisLabels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否'};
       title = '🔀 ' + s.opts.axes.map(k => axisLabels[k] || k).join(' × ');
     } else {
       title = getSectionTitle(s.type);
     }
-    // コンテンツを直接生成（エラーが起きても他のセクションは表示する）
     let bodyHtml;
     try {
       bodyHtml = buildSectionInline(data, s);
@@ -2211,18 +3121,10 @@ function renderCustomSections() {
       <div id="acc_body_${s.id}" style="padding:1rem;">${bodyHtml}</div>
     </div>`;
   }).join('');
-  // グラフはDOM生成後にまとめて描画（エラーで全体が止まらないようにtry/catch）
+  // AI分析だけはDOM生成後に非同期で描画（ファネル系はCSS描画なのでJS呼出不要）
   activeSections.forEach(s => {
     try {
-      if (s.type === 'trend') renderTrendInSection(data, s.id);
-      else if (s.type === 'custom_cross') {
-        const viz = s.opts.viz || 'both';
-        if (viz !== 'table') renderCrossChart(data, s.opts.row, s.opts.col, viz, s.id);
-      } else if (s.type === 'multi_axis' && s.opts && s.opts.axes && s.opts.axes.length === 2) {
-        renderCrossChart(data, s.opts.axes[0], s.opts.axes[1], 'bar', s.id);
-      } else if (['media','job','dept','gender','status','hire'].includes(s.type)) {
-        renderSimpleChart(data, s.type, s.id);
-      } else if (s.type === 'ai') {
+      if (s.type === 'ai') {
         renderAiAnalysis(data, 'acc_body_' + s.id);
       }
     } catch(e) {
@@ -2235,41 +3137,53 @@ function buildSectionInline(data, s) {
   if (!data.length) return '<div class="empty">データがありません</div>';
   const type = s.type;
   const secId = s.id;
-  if (type === 'monthly_ref') {
-    const ref = data.filter(a => a.agency && a.agency.trim());
-    const nonRef = data.filter(a => !a.agency || !a.agency.trim());
-    return renderMonthTable(buildMonthStats(nonRef),'▼ 紹介以外') + renderMonthTable(buildMonthStats(ref),'▼ 紹介');
-  } else if (type === 'age') {
-    return renderAgeTable(data);
-  } else if (type === 'trend') {
-    return `<div style="position:relative;width:100%;height:240px;"><canvas id="trend_${secId}"></canvas></div>`;
-  } else if (type === 'ai') {
+
+  // AI分析（既存維持）
+  if (type === 'ai') {
     return '<div style="color:#aaa;font-size:12px;padding:.5rem;text-align:center;">分析中...</div>';
-  } else if (type === 'custom_cross') {
-    const { row, col, viz } = s.opts;
-    const tableHtml = renderCrossTable(data, row, col, getKeyLabel(row), getKeyLabel(col));
-    if (viz === 'table') return tableHtml;
-    const chartHtml = `<div style="margin-top:1rem;" id="cross_chart_${secId}"></div>`;
-    return tableHtml + chartHtml;
-  } else if (['media','job','dept','gender','status','hire'].includes(type)) {
-    const keyMap = {media:'media',job:'jobType',dept:'dept',gender:'gender',status:'status',hire:'hireStatus'};
-    const tableHtml = renderSimpleTable(data, keyMap[type]);
-    return tableHtml + `<div style="margin-top:1rem;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      <div><div style="font-size:10px;color:#666;font-weight:600;margin-bottom:4px;">棒グラフ（応募数）</div><div style="position:relative;height:200px;"><canvas id="bar_${type}_${secId}"></canvas></div></div>
-      <div><div style="font-size:10px;color:#666;font-weight:600;margin-bottom:4px;">円グラフ（構成比）</div><div style="position:relative;height:200px;"><canvas id="pie_${type}_${secId}"></canvas></div></div>
-    </div>`;
-  } else if (type === 'multi_axis') {
-    const axes = s.opts ? s.opts.axes : [];
-    return buildMultiAxisHTML(data, axes, secId);
-  } else if (type === 'dept_job') {
-    return renderCrossTable(data,'dept','jobType','部署','職種');
-  } else if (type === 'age_job') {
-    return renderCrossTable(data,'ageGroup','jobType','年代','職種');
-  } else if (type === 'job_status') {
-    return renderCrossTable(data,'jobType','status','職種','ステータス');
-  } else if (type === 'media_hire') {
-    return renderCrossTable(data,'media','hireStatus','媒体','採用可否');
   }
+
+  // ビュー切替トグルのHTML生成
+  const renderToggle = (current, options) => {
+    return `<div class="view-toggle" style="margin-bottom:10px;">${
+      options.map(o =>
+        `<button class="${current===o.value?'active':''}" onclick="setSectionView('${secId}','${o.value}')">${o.label}</button>`
+      ).join('')
+    }</div>`;
+  };
+
+  // 単一軸ファネル分析
+  const axisKeyMap = {
+    media: 'media', job: 'jobType', dept: 'dept', age: 'ageGroup',
+    gender: 'gender', agency: 'agency', status: 'status', hire: 'hireStatus'
+  };
+  if (axisKeyMap[type]) {
+    const axisKey = axisKeyMap[type];
+    const view = sectionViewMode[secId] || 'table'; // デフォルトはテーブル比較
+    const toggle = renderToggle(view, [
+      {value:'table', label:'📊 比較表示'},
+      {value:'card',  label:'🎴 カード表示'}
+    ]);
+    const body = view === 'card'
+      ? renderSingleAxisFunnel(data, a => getAxisValue(a, axisKey))
+      : renderCompareTable(data, axisKey, secId);
+    return toggle + body;
+  }
+
+  // 複数軸クロス集計
+  if (type === 'multi_axis') {
+    const axes = s.opts ? s.opts.axes : [];
+    const view = sectionViewMode[secId] || 'table'; // デフォルトはテーブル比較
+    const toggle = renderToggle(view, [
+      {value:'table', label:'📊 比較表示'},
+      {value:'nest',  label:'🌳 ネスト表示'}
+    ]);
+    const body = view === 'nest'
+      ? buildMultiAxisHTML(data, axes, secId)
+      : renderCompareTableMulti(data, axes, secId);
+    return toggle + body;
+  }
+
   return '<div class="empty">不明なセクションタイプです</div>';
 }
 
@@ -2288,45 +3202,12 @@ function getKeyLabel(key) {
   return m[key] || key;
 }
 
-function renderSectionContent(s, data) {
-  const body = document.getElementById('acc_body_' + s.id);
-  if (!body) return;
-  if (s.type === 'ai') {
-    body.innerHTML = '<div style="color:#aaa;font-size:12px;padding:.5rem;">分析中...</div>';
-    setTimeout(() => renderAiAnalysis(data, 'acc_body_' + s.id), 50);
-    return;
-  }
-  let html = '';
-  if (s.type === 'custom_cross') {
-    html = buildCrossWithViz(data, s.opts.row, s.opts.col, s.opts.viz || 'both', s.id);
-  } else {
-    html = buildSectionHTML(data, s.type, s.id);
-  }
-  body.innerHTML = html;
-  // グラフ描画はDOMが確定してから実行
-  requestAnimationFrame(() => {
-    if (s.type === 'trend') renderTrendInSection(data, s.id);
-    if (s.type === 'custom_cross') {
-      const viz = s.opts.viz || 'both';
-      if (viz === 'bar' || viz === 'pie' || viz === 'both') {
-        renderCrossChart(data, s.opts.row, s.opts.col, viz, s.id);
-      }
-    }
-    if (['media','job','dept','gender','status','hire'].includes(s.type)) {
-      renderSimpleChart(data, s.type, s.id);
-    }
-  });
-}
-
 function getSectionTitle(type) {
   const map = {
-    monthly_ref: '📊 紹介別 月別集計', age: '👥 年代別', media: '📡 媒体別',
-    job: '💼 職種別', dept: '🏢 部署別', dept_job: '🏢 部署×職種クロス',
-    age_job: '👥 年代×職種クロス', job_status: '💼 職種×ステータスクロス',
-    media_hire: '📡 媒体×採用可否クロス', gender: '⚧ 性別',
+    media: '📡 媒体別', job: '💼 職種別', dept: '🏢 部署別',
+    age: '👥 年代別', gender: '⚧ 性別', agency: '🏛️ 紹介会社別',
     status: '📋 ステータス別', hire: '✅ 採用可否別',
-    trend: '📈 月次トレンド', ai: '🤖 AI分析',
-    multi_axis: '🔀 複数軸クロス集計'
+    ai: '🤖 AI分析', multi_axis: '🔀 複数軸クロス集計'
   };
   return map[type] || type;
 }
@@ -2366,6 +3247,36 @@ function buildSectionHTML(data, type) {
   }
   return '<div class="empty">不明なセクションタイプです</div>';
 }
+
+// ========================================
+// 分析テーブル共通ヘルパー
+// ========================================
+// 割合をパーセント表記の文字列で返す（0除算回避）
+function pct(value, total) {
+  if (!total) return '0%';
+  return Math.round(value / total * 100) + '%';
+}
+
+// 割合に応じた色分けを返す
+// threshold以上: 緑（良好）, threshold/2以上: 茶（注意）, それ未満: グレー
+function pctColor(value, total, threshold) {
+  if (!total) return '#aaa';
+  const rate = value / total * 100;
+  if (rate >= threshold * 2) return '#3B6D11'; // しきい値の2倍以上: 濃い緑
+  if (rate >= threshold)     return '#639922'; // しきい値以上: 緑
+  if (rate >= threshold / 2) return '#854F0B'; // しきい値の半分以上: 茶
+  return '#aaa';                                 // 未満: グレー
+}
+
+// ========================================
+// 分析テーブル共通スタイル
+// ========================================
+const thStyle  = 'background:#f5f5f5;color:#666;font-size:11px;font-weight:600;padding:8px 6px;text-align:center;border-bottom:2px solid #e0e0e0;white-space:nowrap;';
+const thStyleL = 'background:#f5f5f5;color:#666;font-size:11px;font-weight:600;padding:8px 10px;text-align:left;border-bottom:2px solid #e0e0e0;white-space:nowrap;';
+const tdStyle  = 'padding:7px 6px;text-align:center;border-bottom:1px solid #f0f0f0;font-size:12px;';
+const tdStyleL = 'padding:7px 10px;text-align:left;border-bottom:1px solid #f0f0f0;font-size:12px;font-weight:500;';
+const tfStyle  = 'padding:8px 6px;text-align:center;border-top:2px solid #ddd;background:#fafafa;font-size:12px;font-weight:600;';
+const tfStyleL = 'padding:8px 10px;text-align:left;border-top:2px solid #ddd;background:#fafafa;font-size:12px;font-weight:700;';
 
 function renderAgeTable(data) {
   const ageBands = ['10代','20代','30代','40代','50代','60代','70代以上'];
@@ -2767,14 +3678,18 @@ const TASKS_KEY = () => `saiyo_tasks_${currentClientId}_v1`;
 async function loadMinutesAndTasks() {
   const cid = currentClientId;
   try {
-    const { data: mData } = await sb.from('minutes').select('*').eq('client_id', cid).order('date', { ascending: false });
+    let mQuery = sb.from('minutes').select('*').order('date', { ascending: false });
+    if (!isAdmin) mQuery = mQuery.eq('client_id', cid);
+    const { data: mData } = await mQuery;
     minutes = (mData || []).map(r => ({
       id: r.id, date: r.date, title: r.title, url: r.url,
       tasks: r.tasks || [], clientId: r.client_id, createdAt: r.created_at
     }));
   } catch(e) { minutes = []; }
   try {
-    const { data: tData, error: tErr } = await sb.from('tasks').select('*').eq('client_id', cid).order('created_at', { ascending: false });
+    let tQuery = sb.from('tasks').select('*').order('created_at', { ascending: false });
+    if (!isAdmin) tQuery = tQuery.eq('client_id', cid);
+    const { data: tData, error: tErr } = await tQuery;
     if (tErr && (tErr.message.includes('relation') || tErr.message.includes('does not exist'))) {
       // テーブル未作成時はlocalStorageから読み込み
       const fb = JSON.parse(localStorage.getItem('saiyo_tasks_fallback_' + cid) || '[]');
@@ -2836,7 +3751,7 @@ function renderTempTaskList() {
   if (!tempMinuteTasks.length) { el.innerHTML = ''; return; }
   el.innerHTML = tempMinuteTasks.map(t => `
     <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff;border-radius:6px;border:1px solid #e8e8e6;font-size:11px;">
-      <span class="badge ${t.owner==='LinkCore'?'bb':'ba'}">${t.owner}</span>
+      <span class="badge ${getOwnerBadgeClass(t.owner)}">${escapeOwnerHtml(t.owner||'未設定')}</span>
       <span style="flex:1;">${t.content}</span>
       <span style="color:#aaa;">${t.due||'期限なし'}</span>
       <span class="badge ${t.priority==='高'?'br':t.priority==='低'?'bg':'bgr'}">${t.priority}</span>
@@ -2853,9 +3768,13 @@ async function saveMinutes() {
   const cid = currentClientId;
   const row = { id: mid, client_id: cid, date, url: url||null, title: title||null, tasks: tempMinuteTasks };
   if (editingMinuteId) {
-    await sb.from('minutes').update(row).eq('id', mid).eq('client_id', currentClientId);
+    let mUpdQuery = sb.from('minutes').update(row).eq('id', mid);
+    if (!isAdmin) mUpdQuery = mUpdQuery.eq('client_id', currentClientId);
+    await mUpdQuery;
     // 関連タスクを削除して再挿入
-    await sb.from('tasks').delete().eq('minute_id', mid).eq('client_id', currentClientId);
+    let tDelQuery = sb.from('tasks').delete().eq('minute_id', mid);
+    if (!isAdmin) tDelQuery = tDelQuery.eq('client_id', currentClientId);
+    await tDelQuery;
     tasks = tasks.filter(t => t.minuteId !== mid);
   } else {
     row.client_id = currentClientId; // マルチテナント強制付与
@@ -2928,8 +3847,12 @@ function editMinute(id) {
 
 async function deleteMinute(id) {
   if (!confirm('この議事録を削除しますか？（関連タスクも削除されます）')) return;
-  await sb.from('tasks').delete().eq('minute_id', id).eq('client_id', currentClientId);
-  await sb.from('minutes').delete().eq('id', id).eq('client_id', currentClientId);
+  let tDelQuery = sb.from('tasks').delete().eq('minute_id', id);
+  if (!isAdmin) tDelQuery = tDelQuery.eq('client_id', currentClientId);
+  await tDelQuery;
+  let mDelQuery = sb.from('minutes').delete().eq('id', id);
+  if (!isAdmin) mDelQuery = mDelQuery.eq('client_id', currentClientId);
+  await mDelQuery;
   minutes = minutes.filter(m => m.id !== id);
   tasks = tasks.filter(t => t.minuteId !== id);
   renderMinutes();
@@ -2993,7 +3916,7 @@ function renderTaskRow(task, compact=false) {
   const isDueSoon = task.due && task.due >= today && task.due <= new Date(Date.now()+3*86400000).toISOString().split('T')[0] && !task.done;
   const rowBg = task.done ? 'background:#f8fdf8;' : isOverdue ? 'background:#fff5f5;border-left:3px solid #D85A30;' : isDueSoon ? 'background:#fffbf0;border-left:3px solid #EF9F27;' : 'background:#fff;';
   return `<div style="${rowBg}padding:8px 10px;border-radius:6px;margin-bottom:5px;border:1px solid #f0f0ee;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-    <span class="badge ${task.owner==='LinkCore'?'bb':'ba'}" style="flex-shrink:0;">${task.owner}</span>
+    <span style="flex-shrink:0;">${renderOwnerBadge(task.owner, task.clientId)}</span>
     <span style="flex:1;font-size:12px;${task.done?'text-decoration:line-through;color:#aaa;':''}">${task.content}</span>
     ${task.due ? `<span style="font-size:11px;color:${isOverdue?'#D85A30':isDueSoon?'#854F0B':'#aaa'};">期限: ${task.due}</span>` : ''}
     <span class="badge ${task.priority==='高'?'br':task.priority==='低'?'bg':'bgr'}" style="flex-shrink:0;">${task.priority||'中'}</span>
@@ -3012,13 +3935,28 @@ function renderTaskRow(task, compact=false) {
 }
 
 function renderTasks() {
+  // adminのクライアント絞り込みプルダウンを毎回更新（タスク追加・削除で選択肢が変わるため）
+  populateTaskClientFilter();
+
   const filter = document.getElementById('taskFilter')?.value || 'all';
   const today = new Date().toISOString().split('T')[0];
-  let filtered = tasks.filter(t => t.clientId === currentClientId || !t.clientId);
+  // admin時は全件、client時は自社のみ
+  let filtered = isAdmin ? [...tasks] : tasks.filter(t => t.clientId === currentClientId || !t.clientId);
+
+  // adminのクライアント絞り込み
+  if (isAdmin) {
+    const clientFilter = document.getElementById('taskClientFilter')?.value || '';
+    if (clientFilter) {
+      filtered = filtered.filter(t => t.clientId === clientFilter);
+    }
+  }
+
   if (filter === 'pending') filtered = filtered.filter(t => !t.done);
   else if (filter === 'done') filtered = filtered.filter(t => t.done);
-  else if (filter === 'linkcore') filtered = filtered.filter(t => t.owner === 'LinkCore');
-  else if (filter === 'client') filtered = filtered.filter(t => t.owner === 'クライアント');
+  else if (filter && filter.startsWith('owner:')) {
+    const ownerName = filter.substring(6);
+    filtered = filtered.filter(t => t.owner === ownerName);
+  }
 
   // ソート：未完了→期限近い順、完了→完了日降順
   filtered.sort((a,b) => {
@@ -3038,12 +3976,26 @@ function renderTasks() {
     return;
   }
 
+  // admin かつ クライアント絞り込みなし時はグルーピング表示
+  const clientFilterValue = isAdmin ? (document.getElementById('taskClientFilter')?.value || '') : 'client';
+  const useGrouping = isAdmin && !clientFilterValue;
+
   let html = '';
-  if (overdue.length) html += `<div style="margin-bottom:1rem;"><div style="font-size:11px;font-weight:600;color:#D85A30;margin-bottom:6px;">⚠ 期限超過（${overdue.length}件）</div>${overdue.map(t=>renderTaskRow(t)).join('')}</div>`;
-  if (dueSoon.length) html += `<div style="margin-bottom:1rem;"><div style="font-size:11px;font-weight:600;color:#854F0B;margin-bottom:6px;">⏰ 期限間近（${dueSoon.length}件）</div>${dueSoon.map(t=>renderTaskRow(t)).join('')}</div>`;
   const normal = pending.filter(t => !overdue.includes(t) && !dueSoon.includes(t));
-  if (normal.length) html += `<div style="margin-bottom:1rem;"><div style="font-size:11px;font-weight:600;color:#666;margin-bottom:6px;">未完了（${normal.length}件）</div>${normal.map(t=>renderTaskRow(t)).join('')}</div>`;
-  if (done.length) html += `<div><div style="font-size:11px;font-weight:600;color:#3B6D11;margin-bottom:6px;">✓ 完了（${done.length}件）</div>${done.map(t=>renderTaskRow(t)).join('')}</div>`;
+
+  if (useGrouping) {
+    // admin × 全クライアント表示：セクションごとにクライアント別グルーピング
+    if (overdue.length)  html += buildGroupedSectionHTML(overdue,  '#D85A30', '⚠ 期限超過');
+    if (dueSoon.length)  html += buildGroupedSectionHTML(dueSoon,  '#854F0B', '⏰ 期限間近');
+    if (normal.length)   html += buildGroupedSectionHTML(normal,   '#666',    '未完了');
+    if (done.length)     html += buildGroupedSectionHTML(done,     '#3B6D11', '✓ 完了');
+  } else {
+    // 通常表示（client、またはadminで特定クライアント絞り込み中）
+    if (overdue.length) html += `<div style="margin-bottom:1rem;"><div style="font-size:11px;font-weight:600;color:#D85A30;margin-bottom:6px;">⚠ 期限超過（${overdue.length}件）</div>${overdue.map(t=>renderTaskRow(t)).join('')}</div>`;
+    if (dueSoon.length) html += `<div style="margin-bottom:1rem;"><div style="font-size:11px;font-weight:600;color:#854F0B;margin-bottom:6px;">⏰ 期限間近（${dueSoon.length}件）</div>${dueSoon.map(t=>renderTaskRow(t)).join('')}</div>`;
+    if (normal.length) html += `<div style="margin-bottom:1rem;"><div style="font-size:11px;font-weight:600;color:#666;margin-bottom:6px;">未完了（${normal.length}件）</div>${normal.map(t=>renderTaskRow(t)).join('')}</div>`;
+    if (done.length) html += `<div><div style="font-size:11px;font-weight:600;color:#3B6D11;margin-bottom:6px;">✓ 完了（${done.length}件）</div>${done.map(t=>renderTaskRow(t)).join('')}</div>`;
+  }
   el.innerHTML = html;
 }
 
@@ -3067,7 +4019,9 @@ function showCompleteInput(id) {
 
 async function confirmComplete(id, dateVal) {
   const doneDate = dateVal || new Date().toISOString().split('T')[0];
-  await sb.from('tasks').update({ done: true, done_date: doneDate }).eq('id', id).eq('client_id', currentClientId);
+  let query = sb.from('tasks').update({ done: true, done_date: doneDate }).eq('id', id);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  await query;
   const t = tasks.find(x => x.id === id);
   if (t) { t.done = true; t.doneDate = doneDate; }
   await saveTasksData();
@@ -3078,7 +4032,9 @@ async function confirmComplete(id, dateVal) {
 
 async function deleteTask(id) {
   if (!confirm('このタスクを削除しますか？')) return;
-  await sb.from('tasks').delete().eq('id', id).eq('client_id', currentClientId);
+  let query = sb.from('tasks').delete().eq('id', id);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  await query;
   tasks = tasks.filter(t => t.id !== id);
   await saveTasksData();
   renderTasks();
@@ -3132,7 +4088,9 @@ async function bulkUpdateStatus() {
   const ids = getCheckedIds();
   if (!ids.length) return;
   if (!confirm(`${ids.length}件のステータスを「${val}」に変更しますか？`)) return;
-  const { error } = await sb.from('applicants').update({ status: val }).in('id', ids).eq('client_id', currentClientId);
+  let query = sb.from('applicants').update({ status: val }).in('id', ids);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  const { error } = await query;
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
   ids.forEach(id => { const a = applicants.find(x => x.id === id); if (a) a.status = val; });
   clearChecks();
@@ -3146,7 +4104,9 @@ async function bulkUpdateHire() {
   const ids = getCheckedIds();
   if (!ids.length) return;
   if (!confirm(`${ids.length}件の採用可否を「${val}」に変更しますか？`)) return;
-  const { error } = await sb.from('applicants').update({ hire_status: val }).in('id', ids).eq('client_id', currentClientId);
+  let query = sb.from('applicants').update({ hire_status: val }).in('id', ids);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  const { error } = await query;
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
   ids.forEach(id => { const a = applicants.find(x => x.id === id); if (a) a.hireStatus = val; });
   clearChecks();
@@ -3158,7 +4118,9 @@ async function bulkDelete() {
   const ids = getCheckedIds();
   if (!ids.length) return;
   if (!confirm(`選択した${ids.length}件を削除しますか？\nこの操作は取り消せません。`)) return;
-  const { error } = await sb.from('applicants').delete().in('id', ids).eq('client_id', currentClientId);
+  let query = sb.from('applicants').delete().in('id', ids);
+  if (!isAdmin) query = query.eq('client_id', currentClientId);
+  const { error } = await query;
   if (error) { alert('削除に失敗しました: ' + error.message); return; }
   applicants = applicants.filter(a => !ids.includes(a.id));
   clearChecks();
@@ -3196,7 +4158,9 @@ async function updateTask(id) {
   t.due = due;
   t.priority = document.getElementById('mtPriority').value;
   try {
-    await sb.from('tasks').update({ owner: t.owner, content: taskContent, start_date: t.startDate||null, due_date: due||null, priority: t.priority }).eq('id', id).eq('client_id', currentClientId);
+    let query = sb.from('tasks').update({ owner: t.owner, content: taskContent, start_date: t.startDate||null, due_date: due||null, priority: t.priority }).eq('id', id);
+    if (!isAdmin) query = query.eq('client_id', currentClientId);
+    await query;
   } catch(e) {
     // fallback: update localStorage
     const stored = JSON.parse(localStorage.getItem('saiyo_tasks_fallback_' + currentClientId) || '[]');
@@ -3247,8 +4211,14 @@ function renderTaskCalendar() {
   const ym = monthInput && monthInput.value ? monthInput.value : now.toISOString().slice(0,7);
 
   const markedDates = {};
-  // 自分のクライアントのタスクのみマーク（管理者はすべて）
-  const visibleTasks = tasks.filter(t => isAdmin || t.clientId === currentClientId || !t.clientId);
+  // 自分のクライアントのタスクのみマーク（管理者はすべて、ただしクライアント絞り込みがあればそれを尊重）
+  let visibleTasks = tasks.filter(t => isAdmin || t.clientId === currentClientId || !t.clientId);
+  if (isAdmin) {
+    const clientFilter = document.getElementById('taskClientFilter')?.value || '';
+    if (clientFilter) {
+      visibleTasks = visibleTasks.filter(t => t.clientId === clientFilter);
+    }
+  }
   visibleTasks.forEach(t => {
     if (!t.due) return;
     if (!markedDates[t.due]) markedDates[t.due] = [];
@@ -3265,9 +4235,20 @@ function clickTaskCalDay(dateStr) {
   if (dueEl) dueEl.value = dateStr;
   const startEl = document.getElementById('mtStart');
   if (startEl && !startEl.value) startEl.value = new Date().toISOString().split('T')[0];
-  const existing = tasks.filter(t => t.due === dateStr && (isAdmin || t.clientId === currentClientId));
+  // 既存タスクの内訳をクライアント別で表示（admin時）/件数のみ（client時）
+  let existing = tasks.filter(t => t.due === dateStr && (isAdmin || t.clientId === currentClientId));
+  if (isAdmin) {
+    const clientFilter = document.getElementById('taskClientFilter')?.value || '';
+    if (clientFilter) existing = existing.filter(t => t.clientId === clientFilter);
+  }
   if (existing.length > 0) {
-    setStatus(`${dateStr} は既に${existing.length}件のタスクがあります。新規追加もできます`, 'ok');
+    if (isAdmin) {
+      const groups = groupTasksByClient(existing);
+      const breakdown = groups.map(g => `${g.name} ${g.items.length}件`).join('、');
+      setStatus(`${dateStr} は既に${existing.length}件のタスクがあります（${breakdown}）`, 'ok');
+    } else {
+      setStatus(`${dateStr} は既に${existing.length}件のタスクがあります。新規追加もできます`, 'ok');
+    }
   }
 }
 
@@ -3382,8 +4363,9 @@ const BUDGET_KEY = () => 'saiyo_budget_' + currentClientId + '_v1';
 
 async function loadBudgetData() {
   try {
-    const { data, error } = await sb.from('budgets').select('*')
-      .eq('client_id', currentClientId).order('month', { ascending: false });
+    let query = sb.from('budgets').select('*').order('month', { ascending: false });
+    if (!isAdmin) query = query.eq('client_id', currentClientId);
+    const { data, error } = await query;
     if (error) {
       const raw = localStorage.getItem(BUDGET_KEY());
       budgetData = raw ? JSON.parse(raw) : [];
@@ -3500,6 +4482,9 @@ function syncBudgetPeriod() {
 }
 
 function renderBudget() {
+  // adminのクライアント絞り込みプルダウンを毎回更新
+  populateBudgetClientFilter();
+
   const now=new Date(), curYM=now.toISOString().slice(0,7);
   const fromEl=document.getElementById('budgetFrom'), toEl=document.getElementById('budgetTo');
   const sEl=document.getElementById('budgetSingle');
@@ -3513,6 +4498,8 @@ function renderBudget() {
   const selFrom=fromEl?.value||'', selTo=toEl?.value||'';
   const selDept=document.getElementById('budgetDeptFilter')?.value||'';
   const selJob =document.getElementById('budgetJobFilter')?.value||'';
+  // adminのクライアント絞り込み値（admin時のみ有効）
+  const selClient = isAdmin ? (document.getElementById('budgetClientFilter')?.value || '') : '';
 
   // フィルター選択肢を更新
   ['budgetDeptFilter','simDept'].forEach(id=>{
@@ -3530,11 +4517,13 @@ function renderBudget() {
     const m=a.appDate?a.appDate.substring(0,7):'';
     if(selFrom&&m<selFrom) return false; if(selTo&&m>selTo) return false;
     if(selDept&&a.dept!==selDept) return false; if(selJob&&a.jobType!==selJob) return false;
+    if(selClient&&a.clientId!==selClient) return false;
     return true;
   });
   const bf = budgetData.filter(d=>{
     if(selFrom&&d.month<selFrom) return false; if(selTo&&d.month>selTo) return false;
     if(selDept&&d.dept&&d.dept!==selDept) return false; if(selJob&&d.job&&d.job!==selJob) return false;
+    if(selClient&&d.clientId!==selClient) return false;
     return true;
   });
 
@@ -3599,7 +4588,7 @@ function renderBudget() {
 
   const dlEl=document.getElementById('budgetDataList');
   if(dlEl) {
-    const sd=[...budgetData].filter(d=>{if(selFrom&&d.month<selFrom)return false;if(selTo&&d.month>selTo)return false;return true;}).sort((a,b)=>b.month>a.month?1:-1);
+    const sd=[...budgetData].filter(d=>{if(selFrom&&d.month<selFrom)return false;if(selTo&&d.month>selTo)return false;if(selClient&&d.clientId!==selClient)return false;return true;}).sort((a,b)=>b.month>a.month?1:-1);
     if (sd.length) {
       let dlRows = '';
       sd.forEach(function(d) {
@@ -3890,6 +4879,7 @@ function renderManage() {
   renderMasterList('media', 'mlMed');
   renderMasterList('dept', 'mlDept');
   renderMasterList('agency', 'mlAg');
+  renderMasterList('assignee', 'mlAssignee');
   // ステータスマスターも更新
   renderStatusMaster();
 }
@@ -3918,7 +4908,7 @@ function escapeHtml(s) {
 }
 
 async function addM(type) {
-  const inputId = { media: 'miMed', dept: 'miDept', agency: 'miAg' }[type];
+  const inputId = { media: 'miMed', dept: 'miDept', agency: 'miAg', assignee: 'miAssignee' }[type];
   const input = document.getElementById(inputId);
   if (!input) return;
   const value = (input.value || '').trim();
@@ -4125,6 +5115,11 @@ if (typeof window !== 'undefined') {
   window.deleteClient = deleteClient;
   window.renderTaskCalendar = renderTaskCalendar;
   window.clickTaskCalDay = clickTaskCalDay;
+  window.afJump = afJump;
+  window.setSectionView = setSectionView;
+  window.onCompareRowCheck = onCompareRowCheck;
+  window.showPickupDetails = showPickupDetails;
+  window.showPickupDetailsMulti = showPickupDetailsMulti;
   // 上記以外の関数は function宣言により既にグローバルだが、
   // 万一のミニファイ等に備えて主要関数も明示しておく
 }
