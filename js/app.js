@@ -1138,6 +1138,33 @@ function populateAppClientFilter() {
   if (cur) sel.value = cur;
 }
 
+// admin予算管理画面用：クライアント絞り込みプルダウンを生成・表示制御
+function populateBudgetClientFilter() {
+  const sel = document.getElementById('budgetClientFilter');
+  if (!sel) return;
+  if (!isAdmin) {
+    sel.style.display = 'none';
+    return;
+  }
+  // applicants と budgetData 両方から登場するクライアントID一覧を集計
+  const cidsInApps = [...new Set(applicants.map(a => a.clientId).filter(Boolean))];
+  const cidsInBudget = [...new Set(budgetData.map(d => d.clientId).filter(Boolean))];
+  const allCids = new Set();
+  (clients || []).forEach(c => { if (c.client_id) allCids.add(c.client_id); });
+  cidsInApps.forEach(c => allCids.add(c));
+  cidsInBudget.forEach(c => allCids.add(c));
+  const sortedCids = [...allCids].sort((a, b) => {
+    const an = getClientDisplayName(a);
+    const bn = getClientDisplayName(b);
+    return an.localeCompare(bn, 'ja');
+  });
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全クライアント</option>'
+    + sortedCids.map(cid => `<option value="${escapeOwnerHtml(cid)}">${escapeOwnerHtml(getClientDisplayName(cid))}</option>`).join('');
+  sel.style.display = 'inline-block';
+  if (cur) sel.value = cur;
+}
+
 // タスク配列をクライアントIDでグループ化（admin時用）
 // 戻り値: [{ cid, name, items: [...] }, ...]（応募数降順）
 function groupTasksByClient(taskArr) {
@@ -4455,6 +4482,9 @@ function syncBudgetPeriod() {
 }
 
 function renderBudget() {
+  // adminのクライアント絞り込みプルダウンを毎回更新
+  populateBudgetClientFilter();
+
   const now=new Date(), curYM=now.toISOString().slice(0,7);
   const fromEl=document.getElementById('budgetFrom'), toEl=document.getElementById('budgetTo');
   const sEl=document.getElementById('budgetSingle');
@@ -4468,6 +4498,8 @@ function renderBudget() {
   const selFrom=fromEl?.value||'', selTo=toEl?.value||'';
   const selDept=document.getElementById('budgetDeptFilter')?.value||'';
   const selJob =document.getElementById('budgetJobFilter')?.value||'';
+  // adminのクライアント絞り込み値（admin時のみ有効）
+  const selClient = isAdmin ? (document.getElementById('budgetClientFilter')?.value || '') : '';
 
   // フィルター選択肢を更新
   ['budgetDeptFilter','simDept'].forEach(id=>{
@@ -4485,11 +4517,13 @@ function renderBudget() {
     const m=a.appDate?a.appDate.substring(0,7):'';
     if(selFrom&&m<selFrom) return false; if(selTo&&m>selTo) return false;
     if(selDept&&a.dept!==selDept) return false; if(selJob&&a.jobType!==selJob) return false;
+    if(selClient&&a.clientId!==selClient) return false;
     return true;
   });
   const bf = budgetData.filter(d=>{
     if(selFrom&&d.month<selFrom) return false; if(selTo&&d.month>selTo) return false;
     if(selDept&&d.dept&&d.dept!==selDept) return false; if(selJob&&d.job&&d.job!==selJob) return false;
+    if(selClient&&d.clientId!==selClient) return false;
     return true;
   });
 
@@ -4554,7 +4588,7 @@ function renderBudget() {
 
   const dlEl=document.getElementById('budgetDataList');
   if(dlEl) {
-    const sd=[...budgetData].filter(d=>{if(selFrom&&d.month<selFrom)return false;if(selTo&&d.month>selTo)return false;return true;}).sort((a,b)=>b.month>a.month?1:-1);
+    const sd=[...budgetData].filter(d=>{if(selFrom&&d.month<selFrom)return false;if(selTo&&d.month>selTo)return false;if(selClient&&d.clientId!==selClient)return false;return true;}).sort((a,b)=>b.month>a.month?1:-1);
     if (sd.length) {
       let dlRows = '';
       sd.forEach(function(d) {
