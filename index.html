@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260502a">
+<link rel="stylesheet" href="css/style.css?v=20260502b">
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
   if (location.protocol === 'file:') {
@@ -177,11 +177,82 @@
 
 </div>
 
+<!-- ===== 担当者選択画面（Phase B-2） ===== -->
+<div id="staffSelectScreen" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(145deg,#e8f7f3 0%,#f0faf8 40%,#fef9f2 100%);position:relative;overflow:hidden;">
+
+  <!-- 背景デコ -->
+  <div style="position:absolute;top:-80px;left:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(106,180,154,.15) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;bottom:-60px;right:-60px;width:280px;height:280px;background:radial-gradient(circle,rgba(55,138,221,.08) 0%,transparent 70%);pointer-events:none;"></div>
+
+  <!-- カード全体 -->
+  <div style="position:relative;width:100%;max-width:560px;margin:2rem 1rem;">
+
+    <!-- 上部：ロゴ＋キャラクター -->
+    <div style="display:flex;align-items:flex-end;justify-content:center;gap:16px;margin-bottom:-20px;position:relative;z-index:2;pointer-events:none;">
+      <div style="animation:floatLogo 3.5s ease-in-out infinite;filter:drop-shadow(0 10px 20px rgba(0,0,0,.15));">
+        <img src="assets/logo.png" alt="ロゴ" style="width:80px;height:80px;object-fit:contain;">
+      </div>
+      <div style="animation:floatChar 3.2s ease-in-out infinite;filter:drop-shadow(0 8px 16px rgba(0,0,0,.1));">
+        <img src="assets/character.png" alt="キャラクター" style="width:100px;height:100px;object-fit:contain;">
+      </div>
+    </div>
+
+    <!-- カード本体 -->
+    <div style="background:#fff;border-radius:24px;padding:2.5rem 2.5rem 2rem;box-shadow:0 8px 40px rgba(0,0,0,.07),0 2px 8px rgba(106,180,154,.12);position:relative;z-index:1;">
+
+      <!-- タイトル -->
+      <div style="text-align:center;margin-bottom:.5rem;">
+        <div style="font-size:22px;font-weight:800;color:#1a1a1a;letter-spacing:-.04em;margin-bottom:6px;">担当者を選択してください</div>
+        <div style="font-size:11px;color:#aab;letter-spacing:.07em;font-weight:500;" id="staffSelectClientName"></div>
+      </div>
+
+      <div style="height:1px;background:linear-gradient(to right,transparent,#deeee9,transparent);margin:1.25rem 0;"></div>
+
+      <!-- 担当者リスト（カード形式） -->
+      <div id="staffSelectList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:1rem;">
+        <!-- ここに担当者カードが動的生成 -->
+      </div>
+
+      <!-- 担当者ゼロ時のメッセージ（renderStaffSelect内で切替） -->
+      <div id="staffSelectEmpty" style="display:none;text-align:center;padding:1.5rem 0;">
+        <div style="font-size:13px;color:#888;margin-bottom:1rem;">担当者がまだ登録されていません</div>
+        <button onclick="continueWithoutStaff()"
+          style="padding:10px 22px;background:linear-gradient(135deg,#72bda6,#5aaa8e);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:0 4px 14px rgba(106,180,154,.3);">
+          このまま続ける
+        </button>
+        <div style="font-size:10px;color:#aab;margin-top:8px;">※ ログイン後に「担当者管理」から追加できます</div>
+      </div>
+
+      <!-- 下部のキャンセル -->
+      <div style="text-align:center;margin-top:1rem;">
+        <button onclick="cancelStaffSelect()"
+          style="padding:8px 16px;background:transparent;color:#888;border:1px solid #deeee9;border-radius:10px;font-size:11px;font-family:inherit;cursor:pointer;">
+          ログアウトしてやり直す
+        </button>
+      </div>
+
+      <div style="text-align:center;margin-top:1.5rem;font-size:10px;color:#ccc;line-height:1.9;">
+        © 2025 Link Core｜採用コア
+      </div>
+    </div>
+  </div>
+
+</div>
+
   <div class="app" id="mainApp" style="display:none;">
     <div class="header">
-      <div style="display:flex;align-items:center;gap:10px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <div style="display:flex;align-items:center;gap:6px;"><img src="assets/header-icon.png" style="width:24px;height:24px;object-fit:contain;"><div class="logo">採用<span>コア</span></div></div>
         <span class="client-badge" id="clientBadge"></span>
+        <!-- 担当者表示エリア（Phase B-2） -->
+        <div id="staffSwitcher" style="display:none;align-items:center;gap:6px;">
+          <span style="font-size:10px;color:#aaa;">担当：</span>
+          <select id="staffSwitcherSelect" onchange="switchActiveStaff(this.value)"
+            style="padding:4px 8px;border:1px solid #deeee9;border-radius:6px;background:#f7fcfa;color:#1a1a1a;font-size:12px;font-family:inherit;font-weight:600;cursor:pointer;outline:none;">
+          </select>
+        </div>
+        <!-- admin時の表示 -->
+        <span id="adminStaffBadge" style="display:none;font-size:11px;color:#185FA5;background:#e8f1fc;border:1px solid #c8ddf5;border-radius:20px;padding:3px 10px;font-weight:600;">管理者</span>
       </div>
       <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
         <nav class="nav" id="mainNav">
@@ -1175,6 +1246,6 @@
   </div>
 </div>
 
-<script src="js/app.js?v=20260502a"></script>
+<script src="js/app.js?v=20260502b"></script>
 </body>
 </html>

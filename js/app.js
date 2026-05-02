@@ -674,6 +674,10 @@ let masters = { media: [], status: [], agency: [], hire: [], dept: [], assignee:
 let multiFilterState = { status: [], media: [], jobType: [], dept: [] };
 let clients = []; // 管理者用
 let staffList = []; // 担当者マスタ（Phase B-1で追加）
+// 現在の担当者（Phase B-2で追加）
+let currentStaffId = null;
+let currentStaffName = '';
+let activeStaffList = []; // 担当者選択画面・ヘッダープルダウン用の在籍中担当者一覧
 let editId = null;
 // anTab is declared below
 let anChart = null;
@@ -812,7 +816,32 @@ async function doLogin() {
     currentClientId = clientData.client_id;
     currentClientName = clientData.name;
     isAdmin = false;
-    await startApp();
+    // Phase B-2：担当者選択フロー
+    // 1) 在籍中担当者を取得 → 0人ならスキップ、1人以上なら選択画面へ
+    // 2) localStorageに前回選択がある＋まだ在籍中なら自動選択
+    await loadActiveStaffList();
+    const savedStaffId = loadSavedStaffSelection();
+    if (savedStaffId) {
+      const found = activeStaffList.find(s => String(s.id) === String(savedStaffId));
+      if (found) {
+        // 自動復元
+        currentStaffId = found.id;
+        currentStaffName = found.name;
+        console.log('[doLogin] 担当者を自動復元:', currentStaffName);
+        await startApp();
+        return;
+      }
+    }
+    if (activeStaffList.length === 0) {
+      // 担当者ゼロ → そのまま続行（未設定状態）
+      currentStaffId = null;
+      currentStaffName = '';
+      console.log('[doLogin] 担当者ゼロ、未設定で続行');
+      await startApp();
+      return;
+    }
+    // 担当者選択画面を表示
+    showStaffSelectScreen();
 
   } catch (e) {
     console.error('[doLogin] 例外発生', e);
@@ -823,12 +852,16 @@ async function doLogin() {
 }
 
 async function startApp() {
-  console.log('[startApp] 開始 (isAdmin=' + isAdmin + ', client=' + currentClientName + ')');
+  console.log('[startApp] 開始 (isAdmin=' + isAdmin + ', client=' + currentClientName + ', staff=' + currentStaffName + ')');
   try {
     document.getElementById('loginScreen').style.display = 'none';
+    const staffSel = document.getElementById('staffSelectScreen');
+    if (staffSel) staffSel.style.display = 'none';
     document.getElementById('mainApp').style.display = 'block';
     document.getElementById('clientBadge').textContent = currentClientName;
     document.getElementById('adminNavBtn').style.display = isAdmin ? 'block' : 'none';
+    // Phase B-2：ヘッダー担当者表示
+    updateHeaderStaffDisplay();
     initFormOptions();
     await loadMasters();
     await loadDetailStatuses(); // 詳細ステータス読み込み
@@ -858,11 +891,18 @@ async function doLogout() {
   } catch (e) {
     console.warn('[doLogout] signOut失敗（続行）', e);
   }
+  // Phase B-2：担当者の保存も削除（ログアウト時はリセット）
+  if (currentClientId) {
+    try { localStorage.removeItem(getStaffStorageKey(currentClientId)); } catch(e) {}
+  }
   currentClientId = null; isAdmin = false;
+  currentStaffId = null; currentStaffName = ''; activeStaffList = [];
   applicants = []; masters = { media: [], status: [], agency: [] };
   editId = null; curId = null; tempDocs = [];
   if (typeof anChart !== 'undefined' && anChart) { anChart.destroy(); anChart = null; }
   document.getElementById('mainApp').style.display = 'none';
+  const staffSel = document.getElementById('staffSelectScreen');
+  if (staffSel) staffSel.style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('loginId').value = '';
   document.getElementById('loginPw').value = '';
@@ -5107,6 +5147,215 @@ async function deleteClient(id) {
 }
 
 // ========================================
+// 担当者選択画面・ヘッダー切替（Phase B-2で追加）
+// ========================================
+
+// 在籍中担当者をDBから取得（選択画面・ヘッダープルダウン用）
+async function loadActiveStaffList() {
+  if (isAdmin) {
+    activeStaffList = [];
+    return;
+  }
+  // RLSで自社のみ取得される
+  const { data, error } = await sb.from('staff')
+    .select('*')
+    .eq('is_active', true)
+    .order('ord').order('created_at');
+  if (error) {
+    console.error('[loadActiveStaffList] エラー', error);
+    activeStaffList = [];
+    return;
+  }
+  activeStaffList = data || [];
+}
+
+// localStorageキー（クライアント単位で記憶）
+function getStaffStorageKey(clientId) {
+  return `saiyo_active_staff_${clientId || 'unknown'}`;
+}
+
+// 保存された担当者IDを取得（クライアント単位）
+function loadSavedStaffSelection() {
+  if (!currentClientId) return null;
+  try {
+    return localStorage.getItem(getStaffStorageKey(currentClientId));
+  } catch(e) {
+    return null;
+  }
+}
+
+// 担当者IDを保存
+function saveStaffSelection(staffId) {
+  if (!currentClientId) return;
+  try {
+    if (staffId) {
+      localStorage.setItem(getStaffStorageKey(currentClientId), String(staffId));
+    } else {
+      localStorage.removeItem(getStaffStorageKey(currentClientId));
+    }
+  } catch(e) {
+    console.warn('[saveStaffSelection] 保存失敗', e);
+  }
+}
+
+// 担当者選択画面を表示
+function showStaffSelectScreen() {
+  const sc = document.getElementById('staffSelectScreen');
+  if (!sc) {
+    console.warn('[showStaffSelectScreen] 画面要素なし、startAppへフォールバック');
+    startApp();
+    return;
+  }
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'none';
+  sc.style.display = 'flex';
+  // クライアント名表示
+  const cnameEl = document.getElementById('staffSelectClientName');
+  if (cnameEl) cnameEl.textContent = currentClientName ? currentClientName : '';
+  renderStaffSelect();
+}
+
+// 担当者選択画面のカードを描画
+function renderStaffSelect() {
+  const list = document.getElementById('staffSelectList');
+  const empty = document.getElementById('staffSelectEmpty');
+  if (!list || !empty) return;
+
+  if (!activeStaffList || activeStaffList.length === 0) {
+    list.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+  list.style.display = 'grid';
+  empty.style.display = 'none';
+
+  // 名前のイニシャル取得（日本語の場合は最初の文字、英字なら姓名の頭文字）
+  function getInitial(name) {
+    if (!name) return '?';
+    const trimmed = String(name).trim();
+    if (!trimmed) return '?';
+    // 半角スペース or 全角スペース区切り
+    const parts = trimmed.split(/[\s　]+/).filter(Boolean);
+    if (parts.length >= 2) {
+      // 最初と最後の頭文字（姓名対応）
+      return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+    }
+    return trimmed.charAt(0).toUpperCase();
+  }
+
+  // 担当者ごとに色を変える（名前のハッシュ）
+  const colorPalette = [
+    '#6ab49a', '#378ADD', '#f0a050', '#b07cc6', '#5cb8a8',
+    '#e08585', '#7faedb', '#d4a14e', '#9b8bc1', '#56a48e'
+  ];
+  function pickColor(name) {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+    return colorPalette[Math.abs(hash) % colorPalette.length];
+  }
+
+  list.innerHTML = activeStaffList.map(s => {
+    const initial = getInitial(s.name || '');
+    const color = pickColor(s.name || '');
+    const safeName = escapeHtml(s.name || '');
+    return `
+      <div class="staff-card" onclick="selectStaff('${escapeHtml(String(s.id))}', '${escapeHtml(s.name || '').replace(/'/g, "\\'")}')"
+        style="cursor:pointer;background:#fff;border:1.5px solid #deeee9;border-radius:14px;padding:1rem .75rem;text-align:center;transition:all .2s;"
+        onmouseover="this.style.borderColor='#6ab49a';this.style.transform='translateY(-3px)';this.style.boxShadow='0 6px 18px rgba(106,180,154,.18)'"
+        onmouseout="this.style.borderColor='#deeee9';this.style.transform='translateY(0)';this.style.boxShadow='none'">
+        <div style="width:54px;height:54px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;margin:0 auto .5rem;letter-spacing:.02em;">${initial}</div>
+        <div style="font-size:13px;font-weight:600;color:#1a1a1a;line-height:1.3;word-break:break-word;">${safeName}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// 担当者選択（クリック時）
+async function selectStaff(staffId, staffName) {
+  currentStaffId = staffId;
+  currentStaffName = staffName;
+  saveStaffSelection(staffId);
+  console.log('[selectStaff] 担当者選択:', staffName);
+  await startApp();
+}
+
+// 担当者なしで続行（担当者ゼロ時）
+async function continueWithoutStaff() {
+  currentStaffId = null;
+  currentStaffName = '';
+  saveStaffSelection(null);
+  await startApp();
+}
+
+// 選択画面のキャンセル → ログアウト
+async function cancelStaffSelect() {
+  await doLogout();
+}
+
+// ヘッダー右上の担当者表示を更新（startApp時 + 切替時）
+function updateHeaderStaffDisplay() {
+  const switcher = document.getElementById('staffSwitcher');
+  const adminBadge = document.getElementById('adminStaffBadge');
+  if (isAdmin) {
+    // adminは「管理者」バッジのみ
+    if (switcher) switcher.style.display = 'none';
+    if (adminBadge) adminBadge.style.display = 'inline-block';
+    return;
+  }
+  // クライアントユーザー
+  if (adminBadge) adminBadge.style.display = 'none';
+  if (!switcher) return;
+  // 担当者ゼロなら何も出さない
+  if (!activeStaffList || activeStaffList.length === 0) {
+    switcher.style.display = 'none';
+    return;
+  }
+  switcher.style.display = 'inline-flex';
+  populateStaffSwitcher();
+}
+
+// ヘッダープルダウンの中身を生成
+function populateStaffSwitcher() {
+  const sel = document.getElementById('staffSwitcherSelect');
+  if (!sel) return;
+  const opts = activeStaffList.map(s => {
+    const selected = (currentStaffId && String(currentStaffId) === String(s.id)) ? 'selected' : '';
+    return `<option value="${escapeHtml(String(s.id))}" ${selected}>${escapeHtml(s.name || '')}</option>`;
+  }).join('');
+  // 担当者未設定状態（currentStaffId=null）の場合の選択肢
+  const noneSelected = !currentStaffId ? 'selected' : '';
+  sel.innerHTML = `<option value="" ${noneSelected}>（未設定）</option>` + opts;
+}
+
+// ヘッダープルダウンから担当者を切り替え
+async function switchActiveStaff(staffId) {
+  if (!staffId) {
+    currentStaffId = null;
+    currentStaffName = '';
+    saveStaffSelection(null);
+  } else {
+    const found = activeStaffList.find(s => String(s.id) === String(staffId));
+    if (!found) return;
+    currentStaffId = found.id;
+    currentStaffName = found.name;
+    saveStaffSelection(staffId);
+  }
+  console.log('[switchActiveStaff] 切替:', currentStaffName || '(未設定)');
+  // データ再読み込み（Q2 → A：自動再読み込み）
+  // 「自分の担当のみ」フィルタは Phase F で実装、現状は表示更新のみで十分
+  // 念のため現在表示中の画面を再描画
+  try {
+    if (document.getElementById('sec-dashboard')?.classList.contains('active')) renderDashboard();
+    if (document.getElementById('sec-list')?.classList.contains('active')) renderList();
+    if (document.getElementById('sec-tasks')?.classList.contains('active') && typeof renderTaskList === 'function') renderTaskList();
+  } catch(e) {
+    console.warn('[switchActiveStaff] 再描画で警告', e);
+  }
+}
+
+// escapeHtmlヘルパーは既にこのファイルの後方で定義されているため、ここでは再定義しない
+
+// ========================================
 // 担当者管理（Phase B-1で追加）
 // ========================================
 
@@ -5728,6 +5977,11 @@ if (typeof window !== 'undefined') {
   window.saveStaffEdit = saveStaffEdit;
   window.cancelStaffEdit = cancelStaffEdit;
   window.deleteStaff = deleteStaff;
+  // 担当者選択画面・ヘッダー切替（Phase B-2で追加）
+  window.selectStaff = selectStaff;
+  window.continueWithoutStaff = continueWithoutStaff;
+  window.cancelStaffSelect = cancelStaffSelect;
+  window.switchActiveStaff = switchActiveStaff;
   // 上記以外の関数は function宣言により既にグローバルだが、
   // 万一のミニファイ等に備えて主要関数も明示しておく
 }
