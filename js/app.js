@@ -865,6 +865,9 @@ async function startApp() {
     initFormOptions();
     await loadMasters();
     await loadDetailStatuses(); // 詳細ステータス読み込み
+    // Phase C-1：担当者リストを先にロード（応募者一覧の担当列で使用）
+    // adminも全クライアントの担当者を読む（RLSで自動的に admin=全件、client=自社のみ）
+    try { await loadStaff(); } catch(e) { console.warn('[startApp] loadStaff失敗', e); }
     await loadApplicants();
     await loadMinutesAndTasks();
     await loadBudgetData();
@@ -936,12 +939,38 @@ async function loadApplicants() {
       dept: r.dept || '',
       hireStatus: r.hire_status || '',
       clientId: r.client_id,
+      updatedAt: r.updated_at || r.created_at || null,
       // 新ステータスからcoreStatusIdを再計算（旧データもこれで正しくマッピングされる）
       coreStatusId: STATUS_TO_CORE[newStatus] || r.core_status_id || 'applied',
-      detailStatusId: r.detail_status_id || null
+      detailStatusId: r.detail_status_id || null,
+      // Phase C-1：担当者は別途読み込む（loadApplicantStaff）
+      staffIds: []
     };
   });
+  // Phase C-1：応募者⇔担当者の紐付けを読み込む
+  await loadApplicantStaff();
   setStatus('');
+}
+
+// Phase C-1：応募者と担当者の紐付け（applicant_staff）を取得
+async function loadApplicantStaff() {
+  if (!applicants.length) return;
+  const ids = applicants.map(a => a.id);
+  // RLSで自動的に絞り込まれる
+  const { data, error } = await sb.from('applicant_staff')
+    .select('applicant_id, staff_id')
+    .in('applicant_id', ids);
+  if (error) {
+    console.warn('[loadApplicantStaff] エラー（無視して続行）', error);
+    return;
+  }
+  // 応募者IDごとにグループ化
+  const map = {};
+  (data || []).forEach(r => {
+    if (!map[r.applicant_id]) map[r.applicant_id] = [];
+    map[r.applicant_id].push(r.staff_id);
+  });
+  applicants.forEach(a => { a.staffIds = map[a.id] || []; });
 }
 
 async function loadMasters() {
@@ -1503,17 +1532,17 @@ function quickSort(key) {
   if (existing) { existing.dir = existing.dir * -1; }
   else { sortKeys = [{key, dir:-1}]; }
   // チェックボックスUIを同期
-  ['appDate','name','jobType','dept','media','status'].forEach(k=>{
+  ['appDate','name','jobType','dept','media','status','updatedAt'].forEach(k=>{
     const el=document.getElementById('sck_'+k); if(el) el.checked=(k===key);
   });
   const descEl=document.getElementById('sDirDesc');
   const ascEl=document.getElementById('sDirAsc');
   if(descEl&&ascEl){ const d=sortKeys[0].dir===-1; descEl.checked=d; ascEl.checked=!d; }
   const lbl=document.getElementById('sortLabel');
-  const labels={appDate:'応募日',name:'名前',jobType:'職種',dept:'部署',media:'媒体',status:'ステータス'};
+  const labels={appDate:'応募日',name:'名前',jobType:'職種',dept:'部署',media:'媒体',status:'ステータス',updatedAt:'更新日'};
   if(lbl) lbl.textContent=(labels[key]||key)+(sortKeys[0]&&sortKeys[0].dir===-1?'↓':'↑');
   // ヘッダーのスパン更新
-  ['appDate','name','jobType','dept'].forEach(k=>{
+  ['appDate','name','jobType','dept','updatedAt'].forEach(k=>{
     const sp=document.getElementById('sort_'+k); if(sp) sp.textContent='';
   });
   const sp=document.getElementById('sort_'+key);
@@ -1605,7 +1634,7 @@ function renderList() {
       });
     tb.innerHTML = sortedGroups.map(g => {
       const headerRow = `<tr class="client-group-header">
-        <td colspan="12" style="padding:10px 12px;background:linear-gradient(90deg,#f0faf6,#fafcfb);border-top:2px solid #5aaa8e;border-bottom:1px solid #c8d6d2;font-size:12px;font-weight:700;color:#2a4a3e;">
+        <td colspan="13" style="padding:10px 12px;background:linear-gradient(90deg,#f0faf6,#fafcfb);border-top:2px solid #5aaa8e;border-bottom:1px solid #c8d6d2;font-size:12px;font-weight:700;color:#2a4a3e;">
           🏢 ${escapeOwnerHtml(g.name)}　<span style="font-size:11px;color:#888;font-weight:500;">（${g.items.length}件）</span>
         </td>
       </tr>`;
@@ -1642,14 +1671,78 @@ function buildAppRowHTML(a) {
   const jobNameCell = a.jobName
     ? `<span class="list-col-job-name" title="${esc(a.jobName)}">${esc(a.jobName)}</span>`
     : `<span class="list-col-empty">-</span>`;
+
+  // Phase C-1：コアステータスバッジ
+  const coreColor = getCoreStatusColor(coreId);
+  const coreName = getCoreStatusName(coreId);
+  const coreBadge = `<span class="core-badge" style="background:${coreColor}1f;color:${coreColor};border:1px solid ${coreColor}40;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:600;white-space:nowrap;">${coreName}</span>`;
+
+  // Phase C-1：詳細ステータス（テキスト）
+  const detailText = a.status ? esc(a.status) : '<span class="list-col-empty">-</span>';
+
+  // Phase C-1：面接日（1次/2次のうち最新の確定日のみ表示）
+  let interviewCell = '<span class="list-col-empty">-</span>';
+  const dates = [];
+  if (a.int1Date) dates.push({ d: a.int1Date, label: '1次' });
+  if (a.int2Date) dates.push({ d: a.int2Date, label: '2次' });
+  if (dates.length) {
+    // 最新（日付が新しい方）を選ぶ
+    dates.sort((x, y) => String(y.d).localeCompare(String(x.d)));
+    const top = dates[0];
+    const m = String(top.d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const dispDate = m ? `${m[2]}/${m[3]}` : top.d;
+    interviewCell = `<span style="font-weight:500;">${dispDate}</span><span style="color:#aaa;font-size:10px;margin-left:3px;">${top.label}</span>`;
+  }
+
+  // Phase C-1：担当者バッジ（人数バッジ形式）
+  let staffCell = '<span class="list-col-empty" style="font-size:10.5px;">未割当</span>';
+  if (a.staffIds && a.staffIds.length) {
+    const staffNames = a.staffIds.map(sid => {
+      const s = staffList.find(x => String(x.id) === String(sid));
+      return s ? s.name : null;
+    }).filter(Boolean);
+    if (staffNames.length === 1) {
+      staffCell = `<span style="font-size:11px;">${esc(staffNames[0])}</span>`;
+    } else if (staffNames.length > 1) {
+      const tip = staffNames.join('、');
+      staffCell = `<span style="font-size:11px;" title="${esc(tip)}">${esc(staffNames[0])}</span><span style="background:#e8f1fc;color:#185FA5;padding:1px 5px;border-radius:8px;font-size:9.5px;margin-left:2px;" title="${esc(tip)}">+${staffNames.length - 1}</span>`;
+    }
+  }
+
+  // Phase C-1：更新日（MM/DD）
+  let updatedCell = '<span class="list-col-empty">-</span>';
+  if (a.updatedAt) {
+    const m = String(a.updatedAt).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) updatedCell = `<span style="color:#888;">${m[2]}/${m[3]}</span>`;
+  }
+
+  // 名前を青リンク化（クリックで詳細展開、Phase C-2で編集画面へ変更予定）
+  // 名前の右に「30/男」のような年齢/性別の補足を追加（性別で色分け）
+  let ageGenderText = '';
+  if (a.age || a.gender) {
+    // 性別による色分け
+    let agColor = '#888';
+    const g = String(a.gender || '').trim();
+    if (g === '男' || g === '男性' || /^m(ale)?$/i.test(g)) {
+      agColor = '#378ADD'; // 青
+    } else if (g === '女' || g === '女性' || /^f(emale)?$/i.test(g)) {
+      agColor = '#D4537E'; // ピンク
+    }
+    const parts = [];
+    if (a.age) parts.push(a.age);
+    if (a.gender) parts.push(a.gender);
+    ageGenderText = `<span style="color:${agColor};font-size:10.5px;margin-left:6px;font-weight:500;">${esc(parts.join('/'))}</span>`;
+  }
+  const nameLink = `<a href="javascript:void(0)" onclick="event.stopPropagation();openDetail('${a.id}')" style="color:#185FA5;text-decoration:underline;text-underline-offset:2px;font-weight:500;cursor:pointer;">${esc(a.name||'')}</a>${ageGenderText}`;
+
   return `<tr id="row_${a.id}" style="${rowBg}">
       <td style="width:36px;" onclick="event.stopPropagation()">
         <input type="checkbox" class="rowCheck" value="${a.id}" onchange="onCheckChange()" style="cursor:pointer;width:14px;height:14px;">
       </td>
       <td>${a.appDate||''}</td>
+      <td>${nameLink}</td>
       <td>${jobNoCell}</td>
       <td>${jobNameCell}</td>
-      <td style="font-weight:500;">${a.name}</td>
       <td>${a.jobType||''}</td>
       <td onclick="event.stopPropagation()">
         <select onchange="updateDept('${a.id}', this.value)" style="padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;background:#fafafa;color:#1a1a1a;cursor:pointer;" onclick="event.stopPropagation()">
@@ -1658,17 +1751,18 @@ function buildAppRowHTML(a) {
         </select>
       </td>
       <td>${a.media?`<span class="badge bb">${a.media}</span>`:''}</td>
+      <td>${coreBadge}</td>
       <td onclick="event.stopPropagation()">
         <select onchange="updateStatus('${a.id}', this.value)" style="padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;background:#fafafa;color:#1a1a1a;cursor:pointer;max-width:130px;" onclick="event.stopPropagation()">
           <option value="">-</option>
           ${(masters.status||[]).map(s=>`<option value="${s}" ${a.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
-      <td>${fmtIntDate(a.int1Date)}</td>
-      <td>${fmtIntDate(a.int2Date)}</td>
-      <td><button class="btn-sm" onclick="openDetail('${a.id}')">詳細</button></td>
+      <td>${interviewCell}</td>
+      <td>${staffCell}</td>
+      <td>${updatedCell}</td>
     </tr>
-    <tr id="detail_${a.id}" style="display:none;"><td colspan="12" style="padding:0;"></td></tr>`;
+    <tr id="detail_${a.id}" style="display:none;"><td colspan="13" style="padding:0;"></td></tr>`;
 }
 
 function stColor(s) {
