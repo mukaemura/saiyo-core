@@ -1516,12 +1516,218 @@ function renderDocList() {
 // 一覧
 // ========================================
 function clearDateFilter() {
-  document.getElementById('fDateFrom').value = '';
-  document.getElementById('fDateTo').value = '';
+  const a = document.getElementById('fDateFrom'); if (a) a.value = '';
+  const b = document.getElementById('fDateTo');   if (b) b.value = '';
   renderList();
 }
 
+// ========================================
+// Phase E/F：詳細絞り込みパネル
+// ========================================
+// 新方式の絞り込み状態（パネルで決めて適用すると multiFilterState に反映される）
+// 単一値のみ管理する
+let panelFilterState = {
+  coreStatus: '',
+  detailStatus: '',
+  media: '',
+  jobType: '',
+  dept: '',
+  dateFrom: '',
+  dateTo: ''
+};
+
+// パネルを開く
+function openFilterPanel() {
+  // パネル内のセレクトを最新の選択肢で埋める
+  populateFilterPanelSelects();
+  // 現在の状態をパネルに反映
+  document.getElementById('fpCoreStatus').value = panelFilterState.coreStatus || '';
+  document.getElementById('fpDetailStatus').value = panelFilterState.detailStatus || '';
+  document.getElementById('fpMedia').value = panelFilterState.media || '';
+  document.getElementById('fpJobType').value = panelFilterState.jobType || '';
+  document.getElementById('fpDept').value = panelFilterState.dept || '';
+  const df = document.getElementById('fDateFrom'); if (df) df.value = panelFilterState.dateFrom || '';
+  const dt = document.getElementById('fDateTo');   if (dt) dt.value = panelFilterState.dateTo || '';
+  // 表示
+  const overlay = document.getElementById('filterPanelOverlay');
+  if (overlay) overlay.style.display = 'block';
+}
+
+function closeFilterPanel(e) {
+  if (e && e.target.id !== 'filterPanelOverlay') return;
+  const overlay = document.getElementById('filterPanelOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+// パネル内セレクトに選択肢を流し込む
+function populateFilterPanelSelects() {
+  // 詳細ステータス
+  const dsEl = document.getElementById('fpDetailStatus');
+  if (dsEl) {
+    const cur = dsEl.value;
+    const list = (detailStatuses || []).map(s => s.name);
+    dsEl.innerHTML = `<option value="">全て</option>` + list.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+    dsEl.value = cur;
+  }
+  // 媒体
+  fillSelectFromApplicants('fpMedia', 'media');
+  // 職種
+  fillSelectFromApplicants('fpJobType', 'jobType');
+  // 部署
+  fillSelectFromApplicants('fpDept', 'dept');
+}
+
+function fillSelectFromApplicants(elId, fieldName) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const cur = el.value;
+  const set = new Set();
+  applicants.forEach(a => { if (a[fieldName]) set.add(a[fieldName]); });
+  const opts = [...set].sort();
+  el.innerHTML = `<option value="">全て</option>` + opts.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  el.value = cur;
+}
+
+// パネルの「適用」
+function applyFilterPanel() {
+  panelFilterState.coreStatus = document.getElementById('fpCoreStatus').value || '';
+  panelFilterState.detailStatus = document.getElementById('fpDetailStatus').value || '';
+  panelFilterState.media = document.getElementById('fpMedia').value || '';
+  panelFilterState.jobType = document.getElementById('fpJobType').value || '';
+  panelFilterState.dept = document.getElementById('fpDept').value || '';
+  panelFilterState.dateFrom = document.getElementById('fDateFrom').value || '';
+  panelFilterState.dateTo = document.getElementById('fDateTo').value || '';
+  closeFilterPanel({ target: { id: 'filterPanelOverlay' } });
+  renderList();
+}
+
+// パネルの「クリア」 と 全てクリア
+function clearAllFilters() {
+  panelFilterState = { coreStatus:'', detailStatus:'', media:'', jobType:'', dept:'', dateFrom:'', dateTo:'' };
+  // パネルのUIもリセット
+  ['fpCoreStatus','fpDetailStatus','fpMedia','fpJobType','fpDept'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const df = document.getElementById('fDateFrom'); if (df) df.value = '';
+  const dt = document.getElementById('fDateTo');   if (dt) dt.value = '';
+  renderList();
+}
+
+// 個別チップの×でその条件だけ解除
+function removePanelFilter(key) {
+  if (key === 'date') {
+    panelFilterState.dateFrom = '';
+    panelFilterState.dateTo = '';
+    const df = document.getElementById('fDateFrom'); if (df) df.value = '';
+    const dt = document.getElementById('fDateTo');   if (dt) dt.value = '';
+  } else {
+    panelFilterState[key] = '';
+    const el = document.getElementById('fp' + key.charAt(0).toUpperCase() + key.slice(1));
+    if (el) el.value = '';
+  }
+  renderList();
+}
+
+// 並び替えセレクトの変更
+function onSortChange() {
+  const v = document.getElementById('sortSelect').value;
+  if (!v) return;
+  const [key, dir] = v.split(':');
+  sortKeys = [{ key, dir: dir === 'asc' ? 1 : -1 }];
+  renderList();
+}
+
+// アクティブチップを描画
+function renderActiveFilterChips() {
+  const cont = document.getElementById('activeFilterChips');
+  if (!cont) return;
+  const chips = [];
+  const labels = {
+    coreStatus: 'ステータス', detailStatus: '詳細', media: '媒体',
+    jobType: '職種', dept: '部署'
+  };
+  // コアステータスはIDから日本語名へ
+  const coreLabelMap = { applied:'応募', in_progress:'対応中', interview:'面接', hired:'採用', joined:'入社', resigned:'退職', other:'その他' };
+  Object.entries(panelFilterState).forEach(([key, val]) => {
+    if (key === 'dateFrom' || key === 'dateTo') return;
+    if (!val) return;
+    let display = val;
+    if (key === 'coreStatus') display = coreLabelMap[val] || val;
+    chips.push(`<span class="fchip">${labels[key]}：${escapeHtml(display)}<span class="fchip-x" onclick="removePanelFilter('${key}')">×</span></span>`);
+  });
+  if (panelFilterState.dateFrom || panelFilterState.dateTo) {
+    const f = panelFilterState.dateFrom || '...';
+    const t = panelFilterState.dateTo || '...';
+    chips.push(`<span class="fchip">応募日：${f}〜${t}<span class="fchip-x" onclick="removePanelFilter('date')">×</span></span>`);
+  }
+  if (chips.length === 0) {
+    cont.style.display = 'none';
+    cont.innerHTML = '';
+  } else {
+    cont.style.display = 'flex';
+    cont.innerHTML = chips.join('') + `<span class="fchip-clear" onclick="clearAllFilters()">全てクリア</span>`;
+  }
+  // バッジ更新（パネルボタンの数字）
+  const badge = document.getElementById('filterCountBadge');
+  if (badge) {
+    const cnt = chips.length;
+    if (cnt > 0) {
+      badge.style.display = 'inline-block';
+      badge.textContent = String(cnt);
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+}
+
+// 担当者プルダウン（admin用）／自分の担当のみチェックボックス（クライアント用）の表示切替
+function updateStaffFilterUIForListPage() {
+  const selfLabel = document.getElementById('selfFilterLabel');
+  const adminSel  = document.getElementById('staffFilterSelect');
+  if (isAdmin) {
+    if (selfLabel) selfLabel.style.display = 'none';
+    if (adminSel) {
+      adminSel.style.display = '';
+      // 担当者プルダウンに値を流し込む（admin時：staff全件）
+      const cur = adminSel.value;
+      const opts = (staffList || []).filter(s => !s.is_resigned).map(s => s);
+      // クライアント別グループ表示
+      const byClient = {};
+      opts.forEach(s => {
+        const cid = s.client_id || '_';
+        if (!byClient[cid]) byClient[cid] = [];
+        byClient[cid].push(s);
+      });
+      let html = `<option value="">担当者で絞り込み（全て）</option><option value="__none__">未割当のみ</option>`;
+      Object.entries(byClient).forEach(([cid, list]) => {
+        html += `<optgroup label="${escapeHtml(cid)}">`;
+        list.forEach(s => {
+          html += `<option value="${escapeHtml(String(s.id))}">${escapeHtml(s.name)}</option>`;
+        });
+        html += `</optgroup>`;
+      });
+      adminSel.innerHTML = html;
+      adminSel.value = cur;
+    }
+  } else {
+    // クライアント：自分の担当のみチェックボックスを表示
+    if (selfLabel) selfLabel.style.display = 'inline-flex';
+    if (adminSel) adminSel.style.display = 'none';
+    // 担当者選択していなかったらチェックを外す＋無効化
+    const ck = document.getElementById('selfFilterCheck');
+    if (ck && !currentStaffId) {
+      ck.checked = false;
+      ck.disabled = true;
+      if (selfLabel) selfLabel.style.opacity = '0.5';
+    } else if (ck) {
+      ck.disabled = false;
+      if (selfLabel) selfLabel.style.opacity = '';
+    }
+  }
+}
+
 function toggleSortPanel() {
+  // 旧UI互換のため残置（新UIでは未使用）
   const panel = document.getElementById('sortPanel');
   if (!panel) return;
   const isOpen = panel.style.display !== 'none';
@@ -1605,28 +1811,53 @@ function toggleSort(key) {
 function renderList() {
   // adminのクライアント絞り込みプルダウンを毎回更新
   populateAppClientFilter();
+  // Phase E/F：担当者フィルタUIを更新
+  updateStaffFilterUIForListPage();
 
   const q = (document.getElementById('srch').value || '').toLowerCase();
-  const fDateFrom = document.getElementById('fDateFrom') ? document.getElementById('fDateFrom').value : '';
-  const fDateTo = document.getElementById('fDateTo') ? document.getElementById('fDateTo').value : '';
-  // マルチフィルターステートから取得
-  const fsVals = multiFilterState.status || [];
-  const fmVals = multiFilterState.media || [];
-  const fjVals = multiFilterState.jobType || [];
-  const fdVals = multiFilterState.dept || [];
+  // 新方式：パネル状態から取得
+  const fDateFrom = panelFilterState.dateFrom || '';
+  const fDateTo = panelFilterState.dateTo || '';
+  const fpCore = panelFilterState.coreStatus || '';
+  const fpDetail = panelFilterState.detailStatus || '';
+  const fpMedia = panelFilterState.media || '';
+  const fpJobType = panelFilterState.jobType || '';
+  const fpDept = panelFilterState.dept || '';
 
   // adminのクライアント絞り込み値
   const appClientFilter = isAdmin ? (document.getElementById('appClientFilter')?.value || '') : '';
 
+  // Phase F：担当者フィルタ（admin = プルダウン、クライアント = チェックボックス）
+  let staffFilterId = '';
+  let staffFilterMode = ''; // '' | 'self' | 'admin' | 'unassigned'
+  if (isAdmin) {
+    const sv = document.getElementById('staffFilterSelect')?.value || '';
+    if (sv === '__none__') staffFilterMode = 'unassigned';
+    else if (sv) { staffFilterMode = 'admin'; staffFilterId = sv; }
+  } else {
+    const ck = document.getElementById('selfFilterCheck');
+    if (ck && ck.checked && currentStaffId) {
+      staffFilterMode = 'self';
+      staffFilterId = String(currentStaffId);
+    }
+  }
+
   let fil = applicants.filter(a => {
-    if (q && !a.name.toLowerCase().includes(q) && !(a.email||'').toLowerCase().includes(q)) return false;
-    if (fsVals.length && !fsVals.includes(a.status||'')) return false;
-    if (fmVals.length && !fmVals.includes(a.media||'')) return false;
-    if (fjVals.length && !fjVals.includes(a.jobType||'')) return false;
-    if (fdVals.length && !fdVals.includes(a.dept||'')) return false;
+    if (q && !(a.name||'').toLowerCase().includes(q) && !(a.email||'').toLowerCase().includes(q)) return false;
+    if (fpCore && a.coreStatusId !== fpCore) return false;
+    if (fpDetail && a.status !== fpDetail) return false;
+    if (fpMedia && a.media !== fpMedia) return false;
+    if (fpJobType && a.jobType !== fpJobType) return false;
+    if (fpDept && a.dept !== fpDept) return false;
     if (fDateFrom && a.appDate && a.appDate < fDateFrom) return false;
     if (fDateTo && a.appDate && a.appDate > fDateTo) return false;
     if (appClientFilter && a.clientId !== appClientFilter) return false;
+    // Phase F：担当者フィルタ
+    if (staffFilterMode === 'unassigned') {
+      if ((a.staffIds || []).length > 0) return false;
+    } else if (staffFilterMode === 'self' || staffFilterMode === 'admin') {
+      if (!(a.staffIds || []).map(String).includes(staffFilterId)) return false;
+    }
     return true;
   });
   fil.sort((a,b) => {
@@ -1640,6 +1871,8 @@ function renderList() {
   // 表示中のリストを保持（CSV出力で参照）
   window._currentListView = fil;
   document.getElementById('listCnt').textContent = fil.length + '件' + (fil.length !== applicants.length ? ' / 全'+applicants.length+'件' : '');
+  // チップ描画
+  renderActiveFilterChips();
   const tb = document.getElementById('listBody');
   const em = document.getElementById('emptyList');
   if (!fil.length) { tb.innerHTML = ''; em.style.display = 'block'; return; }
@@ -3058,25 +3291,41 @@ function updateDashBubbleInner(total, inProgress, hired, rate, thisMonth) {
   }).length;
   
   let lines = [];
-  let charSrc = 'assets/character.png'; // デフォルト：手振り
-  
+  // 設計通り4種類のコアラを状況に応じて切り替え
+  // 通常=PC、達成系=キラキラ、完了=グッド、注意=考える
+  let charSrc = 'assets/koala-pc.png';
+
+  // 優先度高：注意・対応必要 → 考える顔
   if (overdueTasks > 0) {
     lines.push(`あっ、タスクが<br><strong style="color:#D85A30;">${overdueTasks}件</strong>期限切れだよ〜<br>見てあげて！`);
-    charSrc = 'assets/character.png'; // 考える顔
-  }
-  if (uncontacted > 0) {
+    charSrc = 'assets/koala-think.png';
+  } else if (uncontacted > 0) {
     lines.push(`<strong style="color:#D85A30;">${uncontacted}名</strong>のことが気になるなぁ。<br>連絡してあげて〜！`);
-    charSrc = 'assets/character.png';
+    charSrc = 'assets/koala-think.png';
   }
-  if (pendingTasks > 0 && overdueTasks === 0) {
+  // 優先度中：タスク残り → PC作業中
+  else if (pendingTasks > 0) {
     lines.push(`タスクが<strong>${pendingTasks}件</strong>残ってるよ〜<br>一緒にがんばろ！`);
+    charSrc = 'assets/koala-pc.png';
   }
-  if (thisMonth > 0) {
+  // 嬉しいニュース：採用達成 → キラキラ
+  else if (hired > 0 && total > 0 && (hired / total) >= 0.3) {
+    lines.push(`採用率<strong style="color:#1f8a5e;">${rate}%</strong>！<br>すごい成果だよ〜✨`);
+    charSrc = 'assets/koala-kira.png';
+  }
+  else if (thisMonth >= 5) {
     lines.push(`今月は<strong>${thisMonth}名</strong>も<br>応募が来たね〜！すごい！`);
+    charSrc = 'assets/koala-kira.png';
   }
+  // 何もない＝完了状態 → グッド
+  else if (pendingTasks === 0 && uncontacted === 0 && overdueTasks === 0) {
+    lines.push(`今日のやることは全部済んでるね、<br>お疲れさま〜👍`);
+    charSrc = 'assets/koala-good.png';
+  }
+  // フォールバック：通常 → PC
   if (lines.length === 0) {
     lines.push(`今日もみんな元気だよ〜！<br>採用率<strong>${rate}%</strong>、<br>総応募<strong>${total}名</strong>！`);
-    charSrc = 'assets/character.png'; // 喜ぶ顔
+    charSrc = 'assets/koala-pc.png';
   }
   
   // 複数メッセージはランダムに1つ表示
@@ -4439,7 +4688,7 @@ function renderMinutes() {
   });
 
   if (!fil.length) {
-    el.innerHTML = '<div style="text-align:center;padding:2rem;"><img src="assets/character-small.png" style="width:70px;opacity:.8;"><div style="font-size:12px;color:#aaa;margin-top:8px;">議事録がまだありません。右上の「＋ 新規議事録」から追加してください。</div></div>';
+    el.innerHTML = '<div style="text-align:center;padding:2rem;"><img src="assets/koala-kira-small.png" style="width:70px;opacity:.8;"><div style="font-size:12px;color:#aaa;margin-top:8px;">議事録がまだありません。右上の「＋ 新規議事録」から追加してください。</div></div>';
     return;
   }
 
@@ -4635,7 +4884,7 @@ function renderTasks() {
 
   const el = document.getElementById('taskList');
   if (!filtered.length) {
-    el.innerHTML = '<div style="text-align:center;padding:2rem;"><img src="assets/character-small.png" style="width:70px;opacity:.8;"><div style="font-size:12px;color:#aaa;margin-top:8px;">タスクはありません 🎉</div></div>';
+    el.innerHTML = '<div style="text-align:center;padding:2rem;"><img src="assets/koala-kira-small.png" style="width:70px;opacity:.8;"><div style="font-size:12px;color:#aaa;margin-top:8px;">タスクはありません 🎉</div></div>';
     return;
   }
 

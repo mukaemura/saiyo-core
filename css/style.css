@@ -1008,3 +1008,38 @@ input.row-check {
   font-weight: 500;
   margin-left: 3px;
 }
+
+/* ========================================
+   Phase E/F：詳細絞り込みパネル スライドイン
+   ======================================== */
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+/* アクティブフィルタチップ */
+.fchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 3px 9px;
+  background: #EEEDFE;
+  color: #3C3489;
+  border-radius: 11px;
+  font-weight: 500;
+}
+.fchip-x {
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 2px;
+  user-select: none;
+}
+.fchip-clear {
+  font-size: 11px;
+  color: #888;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 3px 6px;
+}
