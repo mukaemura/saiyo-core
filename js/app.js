@@ -949,7 +949,30 @@ async function loadApplicants() {
   });
   // Phase C-1：応募者⇔担当者の紐付けを読み込む
   await loadApplicantStaff();
+  // Phase D-2：応募者ごとの面接情報を読み込む（一覧表示の面接日列で使用）
+  await loadApplicantInterviews();
   setStatus('');
+}
+
+// Phase D-2：応募者の面接情報を一括取得（一覧の面接日列で使用）
+async function loadApplicantInterviews() {
+  if (!applicants.length) return;
+  const ids = applicants.map(a => a.id);
+  const { data, error } = await sb.from('interviews')
+    .select('applicant_id, scheduled_at, result, interview_type, type_other')
+    .in('applicant_id', ids)
+    .order('scheduled_at', { ascending: false, nullsFirst: false });
+  if (error) {
+    console.warn('[loadApplicantInterviews] エラー（無視）', error);
+    return;
+  }
+  // 応募者IDごとにグループ化
+  const map = {};
+  (data || []).forEach(r => {
+    if (!map[r.applicant_id]) map[r.applicant_id] = [];
+    map[r.applicant_id].push(r);
+  });
+  applicants.forEach(a => { a.interviews = map[a.id] || []; });
 }
 
 // Phase C-1：応募者と担当者の紐付け（applicant_staff）を取得
@@ -1682,18 +1705,33 @@ function buildAppRowHTML(a) {
   // Phase C-1：詳細ステータス（テキスト）
   const detailText = a.status ? esc(a.status) : '<span class="list-col-empty">-</span>';
 
-  // Phase C-1：面接日（1次/2次のうち最新の確定日のみ表示）
+  // Phase C-1（D-2修正）：面接日（interviewsテーブルから「予定」あるいは「最新」を表示）
   let interviewCell = '<span class="list-col-empty">-</span>';
-  const dates = [];
-  if (a.int1Date) dates.push({ d: a.int1Date, label: '1次' });
-  if (a.int2Date) dates.push({ d: a.int2Date, label: '2次' });
-  if (dates.length) {
-    // 最新（日付が新しい方）を選ぶ
-    dates.sort((x, y) => String(y.d).localeCompare(String(x.d)));
-    const top = dates[0];
-    const m = String(top.d).match(/^(\d{4})-(\d{2})-(\d{2})/);
-    const dispDate = m ? `${m[2]}/${m[3]}` : top.d;
-    interviewCell = `<span style="font-weight:500;">${dispDate}</span><span style="color:#aaa;font-size:10px;margin-left:3px;">${top.label}</span>`;
+  const ivList = a.interviews || [];
+  if (ivList.length) {
+    // 優先順位：
+    //   1) 結果=未実施 かつ 日程あり の中で日付が一番新しいもの（次の予定）
+    //   2) 結果に関わらず 日程あり で一番新しいもの
+    let pick = null;
+    const futureUnscheduled = ivList.filter(iv => iv.scheduled_at && iv.result === 'pending');
+    if (futureUnscheduled.length) {
+      futureUnscheduled.sort((x, y) => String(y.scheduled_at).localeCompare(String(x.scheduled_at)));
+      pick = futureUnscheduled[0];
+    } else {
+      const withDate = ivList.filter(iv => iv.scheduled_at);
+      if (withDate.length) {
+        withDate.sort((x, y) => String(y.scheduled_at).localeCompare(String(x.scheduled_at)));
+        pick = withDate[0];
+      }
+    }
+    if (pick && pick.scheduled_at) {
+      const m = String(pick.scheduled_at).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      const dispDate = m ? `${m[2]}/${m[3]}` : pick.scheduled_at;
+      const typeShort = (pick.interview_type === 'その他' ? (pick.type_other || 'その他') : (pick.interview_type || ''));
+      // 短縮表示（例：「1次面接」→「1次」、「最終面接」→「最終」）
+      const shortLabel = typeShort.replace('面接', '').replace('面談', '');
+      interviewCell = `<span style="font-weight:500;">${dispDate}</span><span style="color:#aaa;font-size:10px;margin-left:3px;">${esc(shortLabel)}</span>`;
+    }
   }
 
   // Phase C-1：担当者バッジ（人数バッジ形式）
@@ -1856,7 +1894,7 @@ async function openApplicantEdit(id) {
   // 担当者リストを最新化（admin時は読み込まれていない可能性もある）
   try { await loadStaff(); } catch(e) { console.warn('[openApplicantEdit] loadStaff失敗', e); }
   // フォームに値をロード（既存editApp相当）
-  const map = {fAD:'appDate',fJT:'jobType',fJobNo:'jobNo',fJobName:'jobName',fLoc:'location',fNm:'name',fKn:'kana',fEm:'email',fTel:'tel',fGe:'gender',fAg:'age',fMed:'media',fAg2:'agency',fSt2:'status',fCD:'contactDate',fI1D:'int1Date',fI1R:'int1Res',fI2D:'int2Date',fI2R:'int2Res',fRD:'resignDate',fMemo:'memo',fDept2:'dept',fHire2:'hireStatus'};
+  const map = {fAD:'appDate',fJT:'jobType',fJobNo:'jobNo',fJobName:'jobName',fLoc:'location',fNm:'name',fKn:'kana',fEm:'email',fTel:'tel',fGe:'gender',fAg:'age',fMed:'media',fAg2:'agency',fSt2:'status',fCD:'contactDate',fRD:'resignDate',fMemo:'memo',fDept2:'dept',fHire2:'hireStatus'};
   Object.entries(map).forEach(([fid,key])=>{
     const el=document.getElementById(fid);
     if(el) el.value = (a[key] != null ? a[key] : '');
@@ -1872,6 +1910,8 @@ async function openApplicantEdit(id) {
   // 担当者チェックボックス描画
   editSelectedStaffIds = [...(a.staffIds || [])];
   renderStaffCheckboxes();
+  // Phase D-2：既存の int1_date / int2_date を interviews テーブルに自動移行
+  try { await migrateLegacyInterviewsForApplicant(a); } catch(e) { console.warn('[migrateLegacy] エラー', e); }
   // Phase D-1：タイムラインのバッジカウントだけ先に取得（タブ切替前にバッジを出す）
   try {
     const { count } = await sb.from('events')
@@ -2142,8 +2182,8 @@ async function delApp() {
 // ========================================
 function resetForm() {
   editId = null; tempDocs = [];
-  ['fAD','fJT','fJobNo','fJobName','fLoc','fNm','fKn','fEm','fTel','fAg','fCD','fI1D','fI2D','fRD','fMemo','fBY'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  ['fGe','fMed','fAg2','fSt2','fBM','fBD','fI1R','fI2R','fDept2','fHire2'].forEach(id=>{const e=document.getElementById(id);if(e)e.selectedIndex=0;});
+  ['fAD','fJT','fJobNo','fJobName','fLoc','fNm','fKn','fEm','fTel','fAg','fCD','fRD','fMemo','fBY'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['fGe','fMed','fAg2','fSt2','fBM','fBD','fDept2','fHire2'].forEach(id=>{const e=document.getElementById(id);if(e)e.selectedIndex=0;});
   document.getElementById('fAD').value = new Date().toISOString().split('T')[0];
   document.getElementById('docList').innerHTML='';
   document.getElementById('docName').value=''; document.getElementById('docUrl').value='';
@@ -2182,10 +2222,6 @@ async function saveApp() {
     agency: document.getElementById('fAg2').value,
     status: document.getElementById('fSt2').value,
     contact_date: document.getElementById('fCD').value || null,
-    int1_date: document.getElementById('fI1D').value || null,
-    int1_result: document.getElementById('fI1R').value,
-    int2_date: document.getElementById('fI2D').value || null,
-    int2_result: document.getElementById('fI2R').value,
     resign_date: document.getElementById('fRD').value || null,
     memo: document.getElementById('fMemo').value,
     birth_year: by || null, birth_month: bm || null, birth_day: bd || null,
@@ -2245,10 +2281,6 @@ async function saveApp() {
       const trackFields = [
         { key: 'status', oldVal: oldData.status, newVal: row.status, label: 'ステータス' },
         { key: 'memo', oldVal: oldData.memo, newVal: row.memo, label: 'メモ' },
-        { key: 'int1_date', oldVal: oldData.int1Date, newVal: row.int1_date, label: '1次面接日' },
-        { key: 'int1_result', oldVal: oldData.int1Res, newVal: row.int1_result, label: '1次面接結果' },
-        { key: 'int2_date', oldVal: oldData.int2Date, newVal: row.int2_date, label: '2次面接日' },
-        { key: 'int2_result', oldVal: oldData.int2Res, newVal: row.int2_result, label: '2次面接結果' },
         { key: 'name', oldVal: oldData.name, newVal: row.name, label: '名前' },
         { key: 'email', oldVal: oldData.email, newVal: row.email, label: 'メール' },
         { key: 'tel', oldVal: oldData.tel, newVal: row.tel, label: '電話' },
@@ -6092,6 +6124,71 @@ const INTERVIEW_RESULTS = [
   { id: 'no_show',   name: '不来場', color: '#0C447C', bg: '#B5D4F4' },
   { id: 'on_hold',   name: '保留',   color: '#26215C', bg: '#CECBF6' },
 ];
+
+// 旧 result 値（合格/不合格/辞退）を新 result に変換
+function mapLegacyInterviewResult(s) {
+  if (!s) return 'pending';
+  const m = {
+    '合格': 'passed',
+    '通過': 'passed',
+    '不合格': 'failed',
+    '不通過': 'failed',
+    '辞退': 'declined',
+    '不来場': 'no_show',
+    '保留': 'on_hold',
+  };
+  return m[s] || 'pending';
+}
+
+// 既存応募者の int1_date / int2_date を interviews テーブルに移行
+async function migrateLegacyInterviewsForApplicant(a) {
+  if (!a) return;
+  // 既に interviews が1件でもあるなら移行済み（スキップ）
+  const { data: existing } = await sb.from('interviews')
+    .select('id')
+    .eq('applicant_id', a.id)
+    .limit(1);
+  if (existing && existing.length > 0) return;
+  // 旧データがあるなら移行
+  const cid = a.clientId || currentClientId;
+  const rows = [];
+  if (a.int1Date || a.int1Res) {
+    rows.push({
+      applicant_id: a.id,
+      client_id: cid,
+      interview_type: '1次面接',
+      type_other: null,
+      scheduled_at: a.int1Date || null,
+      format: null,
+      location: null,
+      memo: null,
+      result: mapLegacyInterviewResult(a.int1Res)
+    });
+  }
+  if (a.int2Date || a.int2Res) {
+    rows.push({
+      applicant_id: a.id,
+      client_id: cid,
+      interview_type: '2次面接',
+      type_other: null,
+      scheduled_at: a.int2Date || null,
+      format: null,
+      location: null,
+      memo: null,
+      result: mapLegacyInterviewResult(a.int2Res)
+    });
+  }
+  if (rows.length) {
+    const { error } = await sb.from('interviews').insert(rows);
+    if (error) {
+      console.warn('[migrateLegacyInterviews] 失敗', error);
+    } else {
+      console.log(`[migrateLegacyInterviews] ${a.name}の旧面接データを${rows.length}件移行`);
+      // 一覧の面接日列を即時更新するため、a.interviewsにも反映
+      a.interviews = (a.interviews || []).concat(rows);
+    }
+  }
+}
 
 // 面接形式の選択肢
 const INTERVIEW_FORMATS = [

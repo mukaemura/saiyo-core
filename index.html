@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260503g">
+<link rel="stylesheet" href="css/style.css?v=20260503h">
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
   if (location.protocol === 'file:') {
@@ -620,19 +620,16 @@
           <div class="afsec" id="af-screening">
             <div class="afsec-head"><span class="afsec-marker"></span><h2>選考情報</h2></div>
             <div class="afsec-body">
-              <div class="afrow">
-                <div class="afrow-label"><span class="afreq-spacer"></span>1次面接日時</div>
-                <div class="afrow-input">
-                  <input type="datetime-local" class="afw-md" id="fI1D">
-                  <select id="fI1R" class="afw-md"><option value="">結果：未定</option><option>合格</option><option>不合格</option><option>辞退</option></select>
+              <!-- Phase D-2：1次/2次面接は「面接履歴」タブで管理 -->
+              <div style="margin-bottom:14px;padding:11px 14px;background:#f0faf6;border:1px dashed #9fd9c2;border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <div style="font-size:18px;">📅</div>
+                  <div>
+                    <div style="font-size:12px;font-weight:600;color:#1a1a1a;">面接情報は「面接履歴」タブで管理</div>
+                    <div style="font-size:10.5px;color:#888;margin-top:1px;">日時、結果、メモを面接ごとに記録できます</div>
+                  </div>
                 </div>
-              </div>
-              <div class="afrow">
-                <div class="afrow-label"><span class="afreq-spacer"></span>2次面接日時</div>
-                <div class="afrow-input">
-                  <input type="datetime-local" class="afw-md" id="fI2D">
-                  <select id="fI2R" class="afw-md"><option value="">結果：未定</option><option>合格</option><option>不合格</option><option>辞退</option></select>
-                </div>
+                <button type="button" onclick="switchEditTab('interviews')" style="background:#5aaa8e;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">面接履歴へ →</button>
               </div>
               <div class="afrow">
                 <div class="afrow-label"><span class="afreq-spacer"></span>退職日</div>
@@ -1312,6 +1309,6 @@
   </div>
 </div>
 
-<script src="js/app.js?v=20260503g"></script>
+<script src="js/app.js?v=20260503h"></script>
 </body>
 </html>
