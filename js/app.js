@@ -1444,8 +1444,17 @@ function showSec(s) {
   const charEl = document.getElementById('char_' + 'sec-' + s);
   if (charEl && s !== 'dashboard') charEl.style.display = 'block';
   document.getElementById('sec-' + s).classList.add('active');
-  const navMap = { dashboard: 0, list: 1, add: 2, import: 3, analytics: 4, minutes: 5, tasks: 6, budget: 7, master: 8, staff: 9 };
-  if (navMap[s] !== undefined) document.querySelectorAll('.nb')[navMap[s]].classList.add('active');
+  // navMapはサイドバーボタンの位置インデックス。Phase D-3で「新規登録」「一括取り込み」を
+  // サイドバーから削除したので、それらは含めず（addとimportはサイドバーのactiveを動かさない）
+  const navMap = { dashboard: 0, list: 1, analytics: 2, minutes: 3, tasks: 4, budget: 5, master: 6, staff: 7 };
+  if (navMap[s] !== undefined) {
+    const navBtns = document.querySelectorAll('.nb');
+    if (navBtns[navMap[s]]) navBtns[navMap[s]].classList.add('active');
+  } else if (s === 'add' || s === 'import') {
+    // サイドバーには無いので、応募者一覧をアクティブ表示にする
+    const navBtns = document.querySelectorAll('.nb');
+    if (navBtns[1]) navBtns[1].classList.add('active');
+  }
   // Phase C-2：addセクション以外に切り替えるときは編集ヘッダーを必ず隠す
   if (s !== 'add' && typeof hideEditModeHeader === 'function') hideEditModeHeader();
   if (s === 'dashboard') renderDashboard();
@@ -1493,6 +1502,7 @@ function addDoc() {
 function removeDoc(id) { tempDocs = tempDocs.filter(d => d.id !== id); renderDocList(); }
 function renderDocList() {
   const el = document.getElementById('docList');
+  if (!el) return;  // Phase D-3：書類管理セクションは削除済み
   el.innerHTML = tempDocs.map(d => `
     <div class="doc-item">
       <span class="badge bb">${d.type}</span>
@@ -1942,6 +1952,23 @@ async function openApplicantEdit(id) {
       }
     }
   } catch(e) {}
+  // Phase D-3：ファイルのバッジカウントも先に取得（event_type='file' & deleted!=true）
+  try {
+    const { data: fileEvs, error: feErr } = await sb.from('events')
+      .select('id, metadata')
+      .eq('applicant_id', editId)
+      .eq('event_type', 'file');
+    const fBadge = document.getElementById('emtBadgeFiles');
+    if (fBadge) {
+      const validCount = (fileEvs || []).filter(e => !(e.metadata && e.metadata.deleted)).length;
+      if (validCount > 0) {
+        fBadge.style.display = 'inline-block';
+        fBadge.textContent = String(validCount);
+      } else {
+        fBadge.style.display = 'none';
+      }
+    }
+  } catch(e) {}
   showSec('add');
 }
 
@@ -2058,6 +2085,16 @@ function switchEditTab(tabName) {
         await loadAndRenderInterviews();
       } catch(e) {
         console.warn('[switchEditTab] 面接履歴処理エラー', e);
+      }
+    })();
+  }
+  // Phase D-3：ファイルタブが選ばれたらロード
+  if (tabName === 'files') {
+    (async () => {
+      try {
+        await loadAndRenderFiles();
+      } catch(e) {
+        console.warn('[switchEditTab] ファイル処理エラー', e);
       }
     })();
   }
@@ -2185,8 +2222,11 @@ function resetForm() {
   ['fAD','fJT','fJobNo','fJobName','fLoc','fNm','fKn','fEm','fTel','fAg','fCD','fRD','fMemo','fBY'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   ['fGe','fMed','fAg2','fSt2','fBM','fBD','fDept2','fHire2'].forEach(id=>{const e=document.getElementById(id);if(e)e.selectedIndex=0;});
   document.getElementById('fAD').value = new Date().toISOString().split('T')[0];
-  document.getElementById('docList').innerHTML='';
-  document.getElementById('docName').value=''; document.getElementById('docUrl').value='';
+  // Phase D-3：書類管理セクションは削除済み。docList/docName/docUrlも削除済みなので
+  //   要素が存在する場合のみ操作する（後方互換）
+  const _dl = document.getElementById('docList'); if (_dl) _dl.innerHTML = '';
+  const _dn = document.getElementById('docName'); if (_dn) _dn.value = '';
+  const _du = document.getElementById('docUrl'); if (_du) _du.value = '';
   // 自動年齢計算の状態をリセット
   if (typeof window._ageAutoOverride !== 'undefined') window._ageAutoOverride = false;
   const ageAuto = document.getElementById('fAgAuto'); if (ageAuto) ageAuto.style.display = 'none';
@@ -2204,7 +2244,26 @@ async function saveApp() {
     if (!document.getElementById(id).value) { alert(`「${lbl}」は必須項目です`); document.getElementById(id).focus(); return; }
   }
   const by=document.getElementById('fBY').value, bm=document.getElementById('fBM').value, bd=document.getElementById('fBD').value;
-  const cid = isAdmin ? (editId ? applicants.find(x=>x.id===editId)?.clientId || 'admin' : 'admin') : currentClientId;
+  // admin の場合：編集中なら応募者のclientIdを継承、新規登録ならクライアント選択必須
+  let cid;
+  if (isAdmin) {
+    if (editId) {
+      // 編集モード：その応募者の所属クライアントをそのまま使う
+      const editingApp = applicants.find(x => x.id === editId);
+      cid = editingApp?.clientId;
+      if (!cid || cid === 'admin') {
+        alert('この応募者には所属クライアントが正しく設定されていません。\n本来は管理者がクライアントとして応募者を新規登録することはできません。');
+        return;
+      }
+    } else {
+      // 新規登録モード：管理者がクライアントを選んで登録するUIはまだないので、
+      // とりあえず警告して保存を中止する
+      alert('管理者は応募者を新規登録できません。\nクライアントアカウントでログインして登録してください。');
+      return;
+    }
+  } else {
+    cid = currentClientId;
+  }
   const row = {
     client_id: cid,
     app_date: document.getElementById('fAD').value,
@@ -2655,6 +2714,25 @@ function exportPDF() {
   const mR=Object.entries(mc).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td align="right">${v}件</td><td align="right">${total?Math.round(v/total*100):0}%</td></tr>`).join('');
   const jR=Object.entries(jc).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td align="right">${v}件</td></tr>`).join('');
   const sR=Object.entries(sc).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td align="right">${v}件</td></tr>`).join('');
+  // 月別集計を生成（応募月ベース、コアステータスで内訳）
+  const monthly = {};
+  data.forEach(a => {
+    const ym = (a.appDate || '').slice(0, 7);
+    if (!ym) return;
+    if (!monthly[ym]) monthly[ym] = { applied:0, int1:0, int2:0, hired:0, fail:0 };
+    monthly[ym].applied++;
+    if (a.int1Date) monthly[ym].int1++;
+    if (a.int2Date) monthly[ym].int2++;
+    const cs = a.coreStatusId;
+    if (cs === 'hired' || cs === 'joined') monthly[ym].hired++;
+    if (cs === 'other' || cs === 'resigned') monthly[ym].fail++;
+  });
+  const monthR = Object.keys(monthly).sort().reverse().map(ym => {
+    const m = monthly[ym];
+    const ir = m.applied ? Math.round(m.int1 / m.applied * 100) : 0;
+    const hr = m.applied ? Math.round(m.hired / m.applied * 100) : 0;
+    return `<tr><td>${ym}</td><td align="right">${m.applied}</td><td align="right">${m.int1}</td><td align="right">${m.int2}</td><td align="right">${m.hired}</td><td align="right">${m.fail}</td><td align="right">${ir}%</td><td align="right">${hr}%</td></tr>`;
+  }).join('');
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>採用コア レポート</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#1a1a1a;margin:0;padding:32px;}h1{font-size:20px;font-weight:700;margin-bottom:4px;color:#185FA5;}.sub{font-size:11px;color:#888;margin-bottom:24px;}h2{font-size:13px;font-weight:600;margin:20px 0 8px;padding-bottom:5px;border-bottom:1.5px solid #e0e0e0;}.mg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}.mc{background:#f5f5f5;border-radius:6px;padding:12px;}.ml{font-size:10px;color:#888;margin-bottom:3px;}.mv{font-size:20px;font-weight:700;color:#185FA5;}table{width:100%;border-collapse:collapse;font-size:11px;}th{background:#f5f5f5;text-align:left;padding:7px 9px;font-weight:600;}td{padding:6px 9px;border-bottom:1px solid #f0f0f0;}.footer{margin-top:28px;font-size:10px;color:#aaa;text-align:right;}@media print{body{padding:20px;}}</style></head><body><h1>採用コア｜採用レポート</h1><div class="sub">クライアント：${currentClientName}　期間：${from}〜${to}　出力：${new Date().toLocaleDateString('ja-JP')}</div><h2>サマリー</h2><div class="mg"><div class="mc"><div class="ml">総応募数</div><div class="mv">${total}</div></div><div class="mc"><div class="ml">内定・入社</div><div class="mv">${hired}</div></div><div class="mc"><div class="ml">採用率</div><div class="mv">${rate}%</div></div><div class="mc"><div class="ml">媒体数</div><div class="mv">${Object.keys(mc).length}</div></div></div><h2>月別集計</h2><table><thead><tr><th>月</th><th align="right">応募数</th><th align="right">1次面接</th><th align="right">2次面接</th><th align="right">採用</th><th align="right">不採用</th><th align="right">面接率</th><th align="right">採用率</th></tr></thead><tbody>${monthR||'<tr><td colspan="8" style="color:#aaa">データなし</td></tr>'}</tbody></table><h2>媒体別応募状況</h2><table><thead><tr><th>媒体名</th><th align="right">応募数</th><th align="right">構成比</th></tr></thead><tbody>${mR||'<tr><td colspan="3" style="color:#aaa">データなし</td></tr>'}</tbody></table><h2>職種別応募状況</h2><table><thead><tr><th>職種</th><th align="right">応募数</th></tr></thead><tbody>${jR||'<tr><td colspan="2" style="color:#aaa">データなし</td></tr>'}</tbody></table><h2>ステータス別進捗</h2><table><thead><tr><th>ステータス</th><th align="right">人数</th></tr></thead><tbody>${sR||'<tr><td colspan="2" style="color:#aaa">データなし</td></tr>'}</tbody></table><div class="footer">採用コア · ${new Date().toLocaleString('ja-JP')}</div><script>window.onload=function(){window.print();}<\/script></body></html>`;
   window.open(URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'})),'_blank');
 }
@@ -5820,6 +5898,11 @@ async function recordEvent(applicantId, eventType, title, description, metadata)
   // 応募者からclient_idを取得
   const a = applicants.find(x => x.id === applicantId);
   const cid = a ? a.clientId : currentClientId;
+  // 安全装置：cidが 'admin' や空文字／nullの場合はイベント記録しない（外部キー制約違反防止）
+  if (!cid || cid === 'admin') {
+    console.warn('[recordEvent] client_idが不正のため記録をスキップ', { applicantId, cid });
+    return;
+  }
   // adminならstaff_idはnull、それ以外は現在の担当者
   const staffId = isAdmin ? null : (currentStaffId || null);
   const row = {
@@ -6555,6 +6638,396 @@ async function deleteInterview(ivId) {
 }
 
 // ========================================
+// Phase D-3：ファイル添付機能
+// ========================================
+
+// 設定値
+const FILE_BUCKET = 'applicant-files';
+const FILE_MAX_SIZE = 10 * 1024 * 1024;  // 10MB
+const FILE_ALLOWED_MIME = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/zip',
+  'application/x-zip-compressed',
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic',
+  'text/plain', 'text/csv'
+];
+
+// 現在編集中の応募者のファイル一覧
+let currentFiles = [];
+
+// MIME → アイコン
+function getFileIcon(mime, name) {
+  const m = (mime || '').toLowerCase();
+  const n = (name || '').toLowerCase();
+  if (m.includes('pdf')) return '📕';
+  if (m.includes('word') || n.endsWith('.doc') || n.endsWith('.docx')) return '📘';
+  if (m.includes('sheet') || m.includes('excel') || n.endsWith('.xls') || n.endsWith('.xlsx') || n.endsWith('.csv')) return '📗';
+  if (m.includes('presentation') || n.endsWith('.ppt') || n.endsWith('.pptx')) return '📙';
+  if (m.includes('zip')) return '🗜️';
+  if (m.startsWith('image/')) return '🖼️';
+  if (m.startsWith('text/')) return '📄';
+  return '📎';
+}
+
+// バイト → 読みやすい文字列
+function formatFileSize(bytes) {
+  if (!bytes && bytes !== 0) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// ファイル一覧をロード→描画
+async function loadAndRenderFiles() {
+  if (!editId) {
+    currentFiles = [];
+    renderFilesUI();
+    return;
+  }
+  // events から file イベントを取得（削除されていないもののみ＝metadata.deleted!=true）
+  const { data, error } = await sb.from('events')
+    .select('*')
+    .eq('applicant_id', editId)
+    .eq('event_type', 'file')
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.warn('[loadAndRenderFiles] エラー', error);
+    currentFiles = [];
+  } else {
+    // metadata.deleted=true は除外
+    currentFiles = (data || []).filter(ev => {
+      const m = ev.metadata || {};
+      return !m.deleted;
+    });
+  }
+  renderFilesUI();
+  updateFilesBadge();
+}
+
+// バッジ更新
+function updateFilesBadge() {
+  const badge = document.getElementById('emtBadgeFiles');
+  if (!badge) return;
+  const count = (currentFiles || []).length;
+  if (count > 0) {
+    badge.style.display = 'inline-block';
+    badge.textContent = String(count);
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ファイルタブUI描画
+function renderFilesUI() {
+  const container = document.getElementById('filesContent');
+  if (!container) return;
+  const items = currentFiles || [];
+  const esc = escapeHtml;
+
+  let html = `
+    <!-- アップロードエリア -->
+    <div id="fileDropZone"
+      onclick="document.getElementById('fileInput').click()"
+      ondragover="onFileDragOver(event)"
+      ondragleave="onFileDragLeave(event)"
+      ondrop="onFileDrop(event)"
+      style="border:1.5px dashed #cee0d8;background:#fafcfb;border-radius:10px;padding:1.5rem;text-align:center;cursor:pointer;margin-bottom:1.25rem;transition:all .15s;">
+      <div style="font-size:32px;margin-bottom:6px;">📎</div>
+      <div style="font-size:13px;color:#5aaa8e;font-weight:600;margin-bottom:4px;">
+        クリック または ファイルをドラッグ＆ドロップ
+      </div>
+      <div style="font-size:11px;color:#aaa;">
+        PDF / Word / Excel / PowerPoint / 画像 / zip など（最大10MB）
+      </div>
+      <input type="file" id="fileInput" style="display:none;"
+        onchange="onFilePicked(this.files)" multiple>
+    </div>
+    <div id="fileUploadProgress" style="display:none;margin-bottom:1rem;"></div>
+  `;
+
+  if (!items.length) {
+    html += `<div style="text-align:center;padding:1.5rem 1rem;color:#aaa;font-size:13px;">
+      まだファイルがありません。
+    </div>`;
+  } else {
+    html += `<div style="display:flex;flex-direction:column;gap:8px;">
+      ${items.map(ev => buildFileItemHTML(ev)).join('')}
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+// 1ファイルアイテムのHTML
+function buildFileItemHTML(ev) {
+  const meta = ev.metadata || {};
+  const fileName = ev.file_name || meta.file_name || 'ファイル';
+  const filePath = ev.file_url || meta.file_path || '';
+  const mime = meta.mime || '';
+  const size = meta.size || 0;
+  const icon = getFileIcon(mime, fileName);
+  const sizeStr = formatFileSize(size);
+  const staffName = getStaffNameById(ev.staff_id);
+  const esc = escapeHtml;
+  // 日時
+  let dt = '';
+  if (ev.created_at) {
+    const d = new Date(ev.created_at);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      dt = `${y}/${m}/${day} ${hh}:${mm}`;
+    }
+  }
+  return `
+    <div class="file-item" data-event-id="${esc(ev.id)}"
+      style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:#fff;border:1px solid #ececea;border-radius:10px;transition:all .15s;">
+      <div style="font-size:28px;line-height:1;flex-shrink:0;">${icon}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;color:#1a1a1a;word-break:break-all;line-height:1.4;margin-bottom:3px;">
+          ${esc(fileName)}
+        </div>
+        <div style="font-size:11px;color:#888;display:flex;gap:10px;flex-wrap:wrap;">
+          ${sizeStr ? `<span>${sizeStr}</span>` : ''}
+          <span>${dt}</span>
+          <span>${esc(staffName)}</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <button onclick="downloadFile('${esc(ev.id)}')"
+          style="padding:6px 12px;font-size:12px;background:#5aaa8e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:600;">
+          ダウンロード
+        </button>
+        <button onclick="deleteFile('${esc(ev.id)}')"
+          style="padding:6px 10px;font-size:12px;background:#fff;color:#D85A30;border:1px solid #f0d4c8;border-radius:6px;cursor:pointer;font-family:inherit;">
+          削除
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// ドラッグ&ドロップ ハンドラ
+function onFileDragOver(e) {
+  e.preventDefault();
+  const z = document.getElementById('fileDropZone');
+  if (z) {
+    z.style.background = '#eef7f3';
+    z.style.borderColor = '#5aaa8e';
+  }
+}
+function onFileDragLeave(e) {
+  e.preventDefault();
+  const z = document.getElementById('fileDropZone');
+  if (z) {
+    z.style.background = '#fafcfb';
+    z.style.borderColor = '#cee0d8';
+  }
+}
+function onFileDrop(e) {
+  e.preventDefault();
+  onFileDragLeave(e);
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+    onFilePicked(e.dataTransfer.files);
+  }
+}
+
+// ファイルが選ばれた／ドロップされた
+async function onFilePicked(files) {
+  if (!files || !files.length) return;
+  if (!editId) {
+    alert('応募者を保存してからファイルを添付してください');
+    return;
+  }
+  // 順次アップロード
+  for (let i = 0; i < files.length; i++) {
+    await uploadOneFile(files[i]);
+  }
+  // input をクリア（同名を再度選べるように）
+  const input = document.getElementById('fileInput');
+  if (input) input.value = '';
+  await loadAndRenderFiles();
+}
+
+// 1ファイルをアップロード
+async function uploadOneFile(file) {
+  if (!file) return;
+  // バリデーション
+  if (file.size > FILE_MAX_SIZE) {
+    alert(`「${file.name}」は10MBを超えています（${formatFileSize(file.size)}）`);
+    return;
+  }
+  // MIMEチェック（緩め：空 or 許可リストにあればOK。ブラウザがMIMEを返さないケースもあるので拡張子も許容）
+  const mime = file.type || '';
+  const okByMime = !mime || FILE_ALLOWED_MIME.includes(mime);
+  const okByExt = /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip|jpg|jpeg|png|gif|webp|heic|txt|csv)$/i.test(file.name);
+  if (!okByMime && !okByExt) {
+    alert(`「${file.name}」は許可されていない形式です（${mime || '不明'}）`);
+    return;
+  }
+
+  // パス組立：{client_id}/{applicant_id}/{timestamp}_{ランダム}.{拡張子}
+  // ※ Supabase Storage は ASCII以外のキーを拒否するため、パスには日本語等を含めない。
+  //   元のファイル名は events.file_name / metadata.file_name に保存し、ダウンロード時に復元する。
+  const a = applicants.find(x => x.id === editId);
+  const cid = (a && a.clientId) ? a.clientId : currentClientId;
+  if (!cid) {
+    alert('クライアントIDが取得できませんでした');
+    return;
+  }
+  // 安全装置：cidが 'admin' の応募者にはアップロードできない（外部キー制約違反防止）
+  if (cid === 'admin') {
+    alert('この応募者は所属クライアントが正しく設定されていないため、ファイルをアップロードできません。\n管理者にクライアントの設定を依頼してください。');
+    return;
+  }
+  // client_id 自体も ASCIIに正規化（既存IDは英数だが念のため）
+  const cidSafe = String(cid).replace(/[^A-Za-z0-9_-]/g, '_');
+  // 拡張子を抽出（元ファイル名の最後のドット以降。なければ空）
+  const m = file.name.match(/\.([A-Za-z0-9]{1,8})$/);
+  const ext = m ? '.' + m[1].toLowerCase() : '';
+  // 衝突防止のランダム文字列（タイムスタンプ＋6桁ランダム）
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 8);
+  // Storage上のオブジェクトキー（ASCII限定）
+  const objectPath = `${cidSafe}/${editId}/${ts}_${rand}${ext}`;
+
+  // 進捗UI
+  showFileProgress(`「${file.name}」をアップロード中...`, 'info');
+
+  // Storageへアップロード
+  const { data, error } = await sb.storage.from(FILE_BUCKET).upload(objectPath, file, {
+    cacheControl: '3600',
+    upsert: false,
+    contentType: mime || 'application/octet-stream'
+  });
+  if (error) {
+    showFileProgress(`「${file.name}」アップロード失敗：${error.message}`, 'err');
+    return;
+  }
+
+  // events に記録
+  try {
+    const staffId = isAdmin ? null : (currentStaffId || null);
+    const insertRow = {
+      applicant_id: editId,
+      client_id: cid,
+      event_type: 'file',
+      title: `ファイル添付：${file.name}`,
+      description: null,
+      staff_id: staffId,
+      file_url: objectPath,
+      file_name: file.name,
+      metadata: {
+        file_path: objectPath,
+        file_name: file.name,
+        mime: mime,
+        size: file.size
+      }
+    };
+    const { error: e2 } = await sb.from('events').insert(insertRow);
+    if (e2) {
+      console.warn('[uploadOneFile] events記録失敗', e2);
+      showFileProgress(`「${file.name}」記録に失敗：${e2.message}`, 'err');
+      return;
+    }
+  } catch (e) {
+    console.warn('[uploadOneFile] 例外', e);
+  }
+
+  showFileProgress(`「${file.name}」をアップロードしました`, 'ok');
+}
+
+// 進捗表示
+function showFileProgress(msg, level) {
+  const box = document.getElementById('fileUploadProgress');
+  if (!box) return;
+  const colors = {
+    ok:   { bg:'#f3faf0', fg:'#3B6D11', bd:'#cce8b8' },
+    err:  { bg:'#fdf3ef', fg:'#D85A30', bd:'#f0d4c8' },
+    info: { bg:'#eef7f3', fg:'#3a6b5a', bd:'#cee0d8' }
+  };
+  const c = colors[level] || colors.info;
+  box.style.display = 'block';
+  box.style.background = c.bg;
+  box.style.color = c.fg;
+  box.style.border = `1px solid ${c.bd}`;
+  box.style.borderRadius = '8px';
+  box.style.padding = '8px 12px';
+  box.style.fontSize = '12px';
+  box.textContent = msg;
+  // okなら3秒後に消す
+  if (level === 'ok') {
+    setTimeout(() => { if (box) box.style.display = 'none'; }, 3000);
+  }
+}
+
+// ファイルダウンロード（署名付きURL発行 → 新しいタブで開く）
+async function downloadFile(eventId) {
+  const ev = currentFiles.find(x => String(x.id) === String(eventId));
+  if (!ev) { alert('ファイル情報が見つかりません'); return; }
+  const path = ev.file_url || (ev.metadata && ev.metadata.file_path);
+  if (!path) { alert('ファイルパスが不明です'); return; }
+  // 元のファイル名（日本語OK）
+  const origName = ev.file_name || (ev.metadata && ev.metadata.file_name) || 'download';
+  // 署名付きURL（60秒有効）を発行。download オプションを渡すと
+  // Supabase側で Content-Disposition: attachment; filename を付与してくれる
+  const { data, error } = await sb.storage.from(FILE_BUCKET).createSignedUrl(path, 60, {
+    download: origName
+  });
+  if (error || !data || !data.signedUrl) {
+    alert('ダウンロードURLの取得に失敗しました：' + (error ? error.message : '不明なエラー'));
+    return;
+  }
+  // ダウンロード（aタグ経由で元ファイル名で保存）
+  const link = document.createElement('a');
+  link.href = data.signedUrl;
+  link.download = origName;
+  link.target = '_blank';
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// ファイル削除
+async function deleteFile(eventId) {
+  const ev = currentFiles.find(x => String(x.id) === String(eventId));
+  if (!ev) { alert('ファイル情報が見つかりません'); return; }
+  const fileName = ev.file_name || (ev.metadata && ev.metadata.file_name) || 'ファイル';
+  if (!confirm(`「${fileName}」を削除します。よろしいですか？`)) return;
+
+  const path = ev.file_url || (ev.metadata && ev.metadata.file_path);
+  // Storageから削除
+  if (path) {
+    const { error: e1 } = await sb.storage.from(FILE_BUCKET).remove([path]);
+    if (e1) {
+      console.warn('[deleteFile] Storage削除エラー（続行します）', e1);
+    }
+  }
+  // events から該当レコードを削除
+  const { error: e2 } = await sb.from('events').delete().eq('id', eventId);
+  if (e2) {
+    alert('レコード削除に失敗しました：' + e2.message);
+    return;
+  }
+  // タイムラインに削除イベントを記録（残るのが分かるように）
+  try {
+    await recordEvent(editId, 'memo_delete', `ファイル削除：${fileName}`, null, { deleted_file: fileName });
+  } catch(e) {}
+
+  await loadAndRenderFiles();
+}
+
+
+// ========================================
 // 担当者管理（Phase B-1で追加）
 // ========================================
 
@@ -7198,6 +7671,13 @@ if (typeof window !== 'undefined') {
   window.submitInterview = submitInterview;
   window.editInterview = editInterview;
   window.deleteInterview = deleteInterview;
+  // ファイル添付（Phase D-3で追加）
+  window.onFilePicked = onFilePicked;
+  window.onFileDragOver = onFileDragOver;
+  window.onFileDragLeave = onFileDragLeave;
+  window.onFileDrop = onFileDrop;
+  window.downloadFile = downloadFile;
+  window.deleteFile = deleteFile;
   // 上記以外の関数は function宣言により既にグローバルだが、
   // 万一のミニファイ等に備えて主要関数も明示しておく
 }

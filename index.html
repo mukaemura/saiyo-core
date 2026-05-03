@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260503h">
+<link rel="stylesheet" href="css/style.css?v=20260504e">
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
   if (location.protocol === 'file:') {
@@ -257,9 +257,7 @@
       <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
         <nav class="nav" id="mainNav">
           <button class="nb active" onclick="showSec('dashboard')">ダッシュボード</button>
-          <button class="nb" onclick="showSec('list')">一覧</button>
-          <button class="nb" onclick="goNewApplicantForm()">新規登録</button>
-          <button class="nb" onclick="showSec('import')">一括取り込み</button>
+          <button class="nb" onclick="showSec('list')">応募者一覧</button>
           <button class="nb" onclick="showSec('analytics')">分析</button>
           <button class="nb" onclick="showSec('minutes')">議事録</button>
           <button class="nb" onclick="showSec('tasks')" id="taskNavBtn">タスク</button>
@@ -388,8 +386,10 @@
             </div>
           </div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <span id="listCnt" style="font-size:13px;font-weight:600;color:#1a1a1a;"></span>
+          <button class="btn-exp" onclick="goNewApplicantForm()" style="background:#5aaa8e;color:#fff;border-color:#5aaa8e;">＋ 新規登録</button>
+          <button class="btn-exp" onclick="showSec('import')">📥 応募者一括取り込み</button>
           <button class="btn-exp" onclick="exportCSV()">CSV出力</button>
         </div>
       </div>
@@ -478,11 +478,10 @@
           <div style="text-align:center;padding:2rem;color:#aaa;font-size:13px;">読み込み中...</div>
         </div>
       </div>
-      <div id="editTabContent_files" style="display:none;background:#fff;border-radius:10px;padding:2rem 1.5rem;text-align:center;color:#888;font-size:13px;margin-bottom:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);">
-        <div style="font-size:32px;margin-bottom:8px;">📎</div>
-        <div style="font-weight:600;color:#1a1a1a;margin-bottom:6px;">ファイル</div>
-        <div>添付ファイルがここに表示されます</div>
-        <div style="font-size:11px;color:#aaa;margin-top:6px;">Phase D-3で実装予定</div>
+      <div id="editTabContent_files" style="display:none;background:#fff;border-radius:10px;padding:1.5rem 1.5rem;margin-bottom:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+        <div id="filesContent">
+          <div style="text-align:center;padding:2rem;color:#aaa;font-size:13px;">読み込み中...</div>
+        </div>
       </div>
 
       <!-- ===== 既存の新規登録フォーム本体（基本情報タブで使用） ===== -->
@@ -501,7 +500,6 @@
           <a href="#af-personal" onclick="afJump('af-personal',this);return false;">個人情報</a>
           <a href="#af-apply" onclick="afJump('af-apply',this);return false;">応募情報</a>
           <a href="#af-screening" onclick="afJump('af-screening',this);return false;">選考情報</a>
-          <a href="#af-docs" onclick="afJump('af-docs',this);return false;">書類</a>
           <a href="#af-memo" onclick="afJump('af-memo',this);return false;">メモ</a>
           <a href="#af-staff" onclick="afJump('af-staff',this);return false;">担当者</a>
         </div>
@@ -621,7 +619,7 @@
             <div class="afsec-head"><span class="afsec-marker"></span><h2>選考情報</h2></div>
             <div class="afsec-body">
               <!-- Phase D-2：1次/2次面接は「面接履歴」タブで管理 -->
-              <div style="margin-bottom:14px;padding:11px 14px;background:#f0faf6;border:1px dashed #9fd9c2;border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+              <div style="margin-bottom:10px;padding:11px 14px;background:#f0faf6;border:1px dashed #9fd9c2;border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
                 <div style="display:flex;align-items:center;gap:10px;">
                   <div style="font-size:18px;">📅</div>
                   <div>
@@ -631,35 +629,20 @@
                 </div>
                 <button type="button" onclick="switchEditTab('interviews')" style="background:#5aaa8e;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">面接履歴へ →</button>
               </div>
+              <!-- Phase D-3：書類は「ファイル」タブで管理 -->
+              <div style="margin-bottom:14px;padding:11px 14px;background:#fef7f0;border:1px dashed #f5c89e;border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <div style="font-size:18px;">📎</div>
+                  <div>
+                    <div style="font-size:12px;font-weight:600;color:#1a1a1a;">履歴書・職務経歴書などは「ファイル」タブで管理</div>
+                    <div style="font-size:10.5px;color:#888;margin-top:1px;">PDF/Word/Excel/画像など、最大10MBまで添付できます</div>
+                  </div>
+                </div>
+                <button type="button" onclick="switchEditTab('files')" style="background:#EF9F27;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">ファイルへ →</button>
+              </div>
               <div class="afrow">
                 <div class="afrow-label"><span class="afreq-spacer"></span>退職日</div>
                 <div class="afrow-input"><input type="date" class="afw-md" id="fRD"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- ▼ 書類管理 -->
-          <div class="afsec" id="af-docs">
-            <div class="afsec-head"><span class="afsec-marker"></span><h2>書類管理（GoogleドライブURL）</h2></div>
-            <div class="afsec-body">
-              <div class="afrow">
-                <div class="afrow-label"><span class="afreq-spacer"></span>書類を追加</div>
-                <div class="afrow-input">
-                  <div class="afdoc-area">
-                    <div style="font-size:11px;color:#666;margin-bottom:10px;">種別を選んでURLを登録してください。複数追加できます。</div>
-                    <div id="docList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;"></div>
-                    <div class="afdoc-add-row">
-                      <select id="docType" class="afw-sm">
-                        <option value="履歴書">履歴書</option>
-                        <option value="職務経歴書">職務経歴書</option>
-                        <option value="その他">その他</option>
-                      </select>
-                      <input type="text" id="docName" placeholder="ファイル名（任意）" style="flex:1;min-width:120px;">
-                      <input type="url" id="docUrl" placeholder="https://drive.google.com/..." style="flex:2;min-width:200px;">
-                      <button class="afbtn-add" onclick="addDoc()">＋追加</button>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -714,7 +697,7 @@
         <img src="assets/logo.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
       </div>
       <div style="margin-bottom:1.25rem;">
-        <h2 style="font-size:14px;font-weight:600;margin-bottom:4px;">既存データの一括取り込み</h2>
+        <h2 style="font-size:14px;font-weight:600;margin-bottom:4px;">応募者一括取り込み</h2>
         <p style="font-size:11px;color:#888;">CSVテンプレートをダウンロード → 情報を入力 → アップロードで一括登録できます。</p>
       </div>
       <div style="display:flex;flex-direction:column;gap:1.25rem;">
@@ -1309,6 +1292,6 @@
   </div>
 </div>
 
-<script src="js/app.js?v=20260503h"></script>
+<script src="js/app.js?v=20260504e"></script>
 </body>
 </html>
