@@ -1814,13 +1814,21 @@ async function updateDept(id, val) {
 
 async function updateStatus(id, val) {
   const newCoreId = onDetailStatusChange(val);
+  // 旧値を保持
+  const a = applicants.find(x => x.id === id);
+  const oldStatus = a ? a.status : '';
   let query = sb.from('applicants').update({ status: val, core_status_id: newCoreId }).eq('id', id);
   if (!isAdmin) query = query.eq('client_id', currentClientId);
   const { error } = await query;
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
-  const a = applicants.find(x => x.id === id);
   if (a) a.status = val;
   setStatus('ステータスを更新しました', 'ok');
+  // Phase D-1：ステータス変更イベント記録
+  if (oldStatus !== val) {
+    const oldDisp = oldStatus || '(未設定)';
+    const newDisp = val || '(未設定)';
+    await recordEvent(id, 'status_change', `ステータス変更：${oldDisp} → ${newDisp}`, null, { old: oldStatus, new: val });
+  }
   // 不採用の場合は行色も更新（並び順は変えない）
   const hireNg = val === '不採用' || (a && a.hireStatus === '不採用');
   const rowEl = document.getElementById('row_'+id);
@@ -1864,6 +1872,21 @@ async function openApplicantEdit(id) {
   // 担当者チェックボックス描画
   editSelectedStaffIds = [...(a.staffIds || [])];
   renderStaffCheckboxes();
+  // Phase D-1：タイムラインのバッジカウントだけ先に取得（タブ切替前にバッジを出す）
+  try {
+    const { count } = await sb.from('events')
+      .select('*', { count: 'exact', head: true })
+      .eq('applicant_id', editId);
+    const tlBadge = document.getElementById('emtBadgeTimeline');
+    if (tlBadge && typeof count === 'number') {
+      if (count > 0) {
+        tlBadge.style.display = 'inline-block';
+        tlBadge.textContent = String(count);
+      } else {
+        tlBadge.style.display = 'none';
+      }
+    }
+  } catch(e) {}
   showSec('add');
 }
 
@@ -1917,6 +1940,25 @@ function hideEditModeHeader() {
   // 新規モードのヘッダーを戻す
   const head = document.querySelector('.addform-head');
   if (head) head.style.display = '';
+  // Phase D-1：新規モード時は他のタブコンテンツを必ず閉じて基本情報タブだけ表示
+  const basic = document.getElementById('editTabContent_basic');
+  const timeline = document.getElementById('editTabContent_timeline');
+  const interviews = document.getElementById('editTabContent_interviews');
+  const files = document.getElementById('editTabContent_files');
+  if (basic) basic.style.display = '';
+  if (timeline) timeline.style.display = 'none';
+  if (interviews) interviews.style.display = 'none';
+  if (files) files.style.display = 'none';
+  editCurrentTab = 'basic';
+}
+
+// 左メニュー「新規登録」ボタン専用：editIdをクリアして新規モードへ
+function goNewApplicantForm() {
+  editId = null;
+  editSelectedStaffIds = [];
+  hideEditModeHeader();
+  resetForm();
+  showSec('add');
 }
 
 // タブ切替
@@ -1943,6 +1985,17 @@ function switchEditTab(tabName) {
   if (timeline) timeline.style.display = (tabName === 'timeline') ? 'block' : 'none';
   if (interviews) interviews.style.display = (tabName === 'interviews') ? 'block' : 'none';
   if (files) files.style.display = (tabName === 'files') ? 'block' : 'none';
+  // Phase D-1：タイムラインタブが選ばれたら、過去データの疑似イベントをチェック→ロード
+  if (tabName === 'timeline') {
+    (async () => {
+      try {
+        await ensureTimelineForExistingApplicants();
+        await loadAndRenderTimeline();
+      } catch(e) {
+        console.warn('[switchEditTab] タイムライン処理エラー', e);
+      }
+    })();
+  }
 }
 
 // 一覧へ戻る（編集画面から）
@@ -2118,6 +2171,9 @@ async function saveApp() {
   };
   let error;
   let savedId = editId;
+  // Phase D-1：旧データを保持（差分検知用）
+  const oldData = editId ? applicants.find(x => x.id === editId) : null;
+  const oldStaffIds = oldData ? [...(oldData.staffIds || [])] : [];
   if (editId) {
     let query = sb.from('applicants').update(row).eq('id', editId);
     if (!isAdmin) query = query.eq('client_id', currentClientId);
@@ -2131,8 +2187,6 @@ async function saveApp() {
   // Phase C-2：担当者紐付けを保存
   if (savedId) {
     try {
-      // applicantsを再ロードした後にsaveApplicantStaffで参照したいので、applicantsを更新する前に呼ぶ場合のため
-      // 新規時はclient_idがcurrentClientIdになる
       const tmpA = applicants.find(x => x.id === savedId) || { clientId: currentClientId, id: savedId };
       const cidForStaff = tmpA.clientId || currentClientId;
       // 古い紐付けを削除
@@ -2150,6 +2204,66 @@ async function saveApp() {
     } catch (e) {
       console.warn('[saveApp] 担当者紐付け処理で例外', e);
     }
+  }
+  // Phase D-1：イベント記録
+  try {
+    if (!editId && savedId) {
+      // 新規登録
+      await recordEvent(savedId, 'applicant_created', '応募受付', `${row.name || ''}さんの応募を受け付けました`, null);
+      // 初期ステータスがあれば「ステータス変更」も記録
+      if (row.status) {
+        await recordEvent(savedId, 'status_change', `ステータス：${row.status}`, null, { old: '', new: row.status });
+      }
+    } else if (editId && oldData) {
+      // 更新時の差分検知
+      const diffs = [];
+      const trackFields = [
+        { key: 'status', oldVal: oldData.status, newVal: row.status, label: 'ステータス' },
+        { key: 'memo', oldVal: oldData.memo, newVal: row.memo, label: 'メモ' },
+        { key: 'int1_date', oldVal: oldData.int1Date, newVal: row.int1_date, label: '1次面接日' },
+        { key: 'int1_result', oldVal: oldData.int1Res, newVal: row.int1_result, label: '1次面接結果' },
+        { key: 'int2_date', oldVal: oldData.int2Date, newVal: row.int2_date, label: '2次面接日' },
+        { key: 'int2_result', oldVal: oldData.int2Res, newVal: row.int2_result, label: '2次面接結果' },
+        { key: 'name', oldVal: oldData.name, newVal: row.name, label: '名前' },
+        { key: 'email', oldVal: oldData.email, newVal: row.email, label: 'メール' },
+        { key: 'tel', oldVal: oldData.tel, newVal: row.tel, label: '電話' },
+        { key: 'job_type', oldVal: oldData.jobType, newVal: row.job_type, label: '応募職種' },
+        { key: 'dept', oldVal: oldData.dept, newVal: row.dept, label: '部署' },
+        { key: 'media', oldVal: oldData.media, newVal: row.media, label: '媒体' },
+      ];
+      trackFields.forEach(f => {
+        const o = (f.oldVal == null ? '' : String(f.oldVal));
+        const n = (f.newVal == null ? '' : String(f.newVal));
+        if (o !== n) diffs.push({ ...f, o, n });
+      });
+      // ステータス変更だけは独立イベント（updateStatusと別経路でここに来る）
+      const statusDiff = diffs.find(d => d.key === 'status');
+      if (statusDiff) {
+        await recordEvent(savedId, 'status_change', `ステータス変更：${statusDiff.o || '(未設定)'} → ${statusDiff.n || '(未設定)'}`, null, { old: statusDiff.o, new: statusDiff.n });
+      }
+      // それ以外をまとめて field_change として1件記録
+      const otherDiffs = diffs.filter(d => d.key !== 'status');
+      if (otherDiffs.length) {
+        const titleParts = otherDiffs.map(d => d.label);
+        const descParts = otherDiffs.map(d => `${d.label}：${d.o || '(空)'} → ${d.n || '(空)'}`);
+        await recordEvent(savedId, 'field_change', `情報更新：${titleParts.join('、')}`, descParts.join('\n'), { changes: otherDiffs });
+      }
+      // 担当者の差分
+      const oldSet = new Set(oldStaffIds.map(String));
+      const newSet = new Set(editSelectedStaffIds.map(String));
+      const added = [...newSet].filter(x => !oldSet.has(x));
+      const removed = [...oldSet].filter(x => !newSet.has(x));
+      if (added.length || removed.length) {
+        const addedNames = added.map(getStaffNameById);
+        const removedNames = removed.map(getStaffNameById);
+        const parts = [];
+        if (addedNames.length) parts.push(`追加：${addedNames.join('、')}`);
+        if (removedNames.length) parts.push(`解除：${removedNames.join('、')}`);
+        await recordEvent(savedId, 'staff_change', '担当者変更', parts.join(' / '), { added, removed });
+      }
+    }
+  } catch (e) {
+    console.warn('[saveApp] イベント記録で例外（無視）', e);
   }
   await loadApplicants();
   popSelects(); resetForm(); editId=null;
@@ -5635,6 +5749,309 @@ async function switchActiveStaff(staffId) {
 // escapeHtmlヘルパーは既にこのファイルの後方で定義されているため、ここでは再定義しない
 
 // ========================================
+// タイムライン機能（Phase D-1で追加）
+// ========================================
+
+// イベントを events テーブルに記録するヘルパー関数
+// @param applicantId: 応募者ID
+// @param eventType: 'status_change' / 'staff_change' / 'memo' / 'applicant_created' / 'field_change' / 'memo_edit' / 'memo_delete'
+// @param title: 短いタイトル
+// @param description: 詳細テキスト（任意）
+// @param metadata: jsonb（任意、種別ごとの追加情報）
+async function recordEvent(applicantId, eventType, title, description, metadata) {
+  if (!applicantId) return;
+  // 応募者からclient_idを取得
+  const a = applicants.find(x => x.id === applicantId);
+  const cid = a ? a.clientId : currentClientId;
+  // adminならstaff_idはnull、それ以外は現在の担当者
+  const staffId = isAdmin ? null : (currentStaffId || null);
+  const row = {
+    applicant_id: applicantId,
+    client_id: cid,
+    event_type: eventType,
+    title: title || '',
+    description: description || null,
+    staff_id: staffId,
+    metadata: metadata || null
+  };
+  try {
+    const { error } = await sb.from('events').insert(row);
+    if (error) {
+      console.warn('[recordEvent] イベント記録失敗（無視）', error);
+    }
+  } catch (e) {
+    console.warn('[recordEvent] 例外（無視）', e);
+  }
+}
+
+// 担当者IDから名前を取得するヘルパー
+function getStaffNameById(staffId) {
+  if (!staffId) return '管理者';
+  const s = staffList.find(x => String(x.id) === String(staffId));
+  return s ? s.name : '退職した担当者';
+}
+
+// イベントタイプ別のアイコン・カラー
+const EVENT_TYPE_META = {
+  applicant_created: { icon: '👤', color: '#9B59B6', label: '応募受付' },
+  status_change:     { icon: '🔄', color: '#378ADD', label: 'ステータス変更' },
+  staff_change:      { icon: '👥', color: '#5cb8a8', label: '担当者変更' },
+  field_change:      { icon: '📝', color: '#6ab49a', label: '情報更新' },
+  memo:              { icon: '💬', color: '#EF9F27', label: 'メモ' },
+  memo_edit:         { icon: '✏️', color: '#EF9F27', label: 'メモ編集' },
+  memo_delete:       { icon: '🗑️', color: '#888', label: 'メモ削除' },
+  interview_added:   { icon: '📅', color: '#9B59B6', label: '面接登録' },
+  interview_updated: { icon: '🔁', color: '#9B59B6', label: '面接更新' },
+  file:              { icon: '📎', color: '#5cb8a8', label: 'ファイル' },
+};
+
+function getEventTypeMeta(t) {
+  return EVENT_TYPE_META[t] || { icon: '•', color: '#888', label: t };
+}
+
+// 現在編集中の応募者のイベント一覧をロード→描画
+let currentTimelineEvents = [];
+async function loadAndRenderTimeline() {
+  if (!editId) {
+    currentTimelineEvents = [];
+    renderTimelineUI();
+    return;
+  }
+  let query = sb.from('events')
+    .select('*')
+    .eq('applicant_id', editId)
+    .order('created_at', { ascending: false });
+  const { data, error } = await query;
+  if (error) {
+    console.warn('[loadAndRenderTimeline] エラー', error);
+    currentTimelineEvents = [];
+  } else {
+    currentTimelineEvents = data || [];
+  }
+  renderTimelineUI();
+  updateTabBadges();
+}
+
+// タイムラインタブのUIを描画
+function renderTimelineUI() {
+  const container = document.getElementById('timelineContent');
+  if (!container) return;
+  const events = currentTimelineEvents || [];
+
+  // メモ追加フォーム + イベント一覧
+  let html = `
+    <!-- メモ追加ボタン/フォーム -->
+    <div id="timelineAddMemoBox" style="margin-bottom:1.25rem;">
+      <button id="tlAddMemoBtn" onclick="toggleAddMemoForm(true)"
+        style="border:1.5px dashed #cee0d8;background:#fafcfb;color:#5aaa8e;padding:10px 18px;border-radius:10px;font-size:13px;font-family:inherit;font-weight:600;cursor:pointer;width:100%;transition:all .15s;">
+        ＋ メモを追加
+      </button>
+      <div id="tlAddMemoForm" style="display:none;background:#fff;border:1.5px solid #cee0d8;border-radius:10px;padding:14px;">
+        <textarea id="tlMemoInput" placeholder="気付いたこと、電話メモ、連絡事項などを記入..."
+          style="width:100%;min-height:90px;padding:10px 12px;border:1px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-size:13px;font-family:inherit;line-height:1.6;resize:vertical;"></textarea>
+        <div style="text-align:right;margin-top:8px;display:flex;gap:8px;justify-content:flex-end;">
+          <button onclick="toggleAddMemoForm(false)" style="padding:7px 14px;border:1px solid #ddd;background:#fff;color:#666;border-radius:8px;font-size:12px;font-family:inherit;cursor:pointer;">キャンセル</button>
+          <button onclick="submitMemo()" style="padding:7px 16px;background:#5aaa8e;color:#fff;border:none;border-radius:8px;font-size:12px;font-family:inherit;font-weight:600;cursor:pointer;">記録する</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  if (!events.length) {
+    html += `<div style="text-align:center;padding:2rem 1rem;color:#aaa;font-size:13px;">
+      まだイベントがありません。<br>
+      ステータスや担当者を変更すると自動で記録されます。
+    </div>`;
+  } else {
+    // タイムライン本体
+    html += `<div style="position:relative;padding-left:32px;">
+      <!-- 縦線 -->
+      <div style="position:absolute;left:14px;top:8px;bottom:8px;width:2px;background:#e4e8e7;"></div>
+      ${events.map(ev => buildTimelineItemHTML(ev)).join('')}
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+// 1イベントのHTMLを生成
+function buildTimelineItemHTML(ev) {
+  const meta = getEventTypeMeta(ev.event_type);
+  const staffName = getStaffNameById(ev.staff_id);
+  // 日時フォーマット（YYYY/MM/DD HH:mm）
+  let dt = '';
+  if (ev.created_at) {
+    const d = new Date(ev.created_at);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      dt = `${y}/${m}/${day} ${hh}:${mm}`;
+    }
+  }
+  const esc = escapeHtml;
+  // メモタイプは編集・削除ボタン
+  const isMemo = ev.event_type === 'memo';
+  const actionsHtml = isMemo ? `
+    <div style="margin-top:6px;display:flex;gap:8px;">
+      <button onclick="editMemoEvent('${esc(String(ev.id))}')" style="background:transparent;border:none;color:#888;font-size:11px;cursor:pointer;padding:2px 4px;text-decoration:underline;">編集</button>
+      <button onclick="deleteMemoEvent('${esc(String(ev.id))}')" style="background:transparent;border:none;color:#D85A30;font-size:11px;cursor:pointer;padding:2px 4px;text-decoration:underline;">削除</button>
+    </div>
+  ` : '';
+
+  const description = ev.description ? `<div style="color:#555;font-size:12px;line-height:1.6;margin-top:4px;white-space:pre-wrap;">${esc(ev.description)}</div>` : '';
+  return `
+    <div style="position:relative;margin-bottom:18px;">
+      <!-- 丸アイコン -->
+      <div style="position:absolute;left:-32px;top:0;width:30px;height:30px;border-radius:50%;background:${meta.color}1f;border:2px solid ${meta.color};display:flex;align-items:center;justify-content:center;font-size:14px;">
+        ${meta.icon}
+      </div>
+      <!-- 付箋カード -->
+      <div style="background:#fff;border:1px solid #e4e8e7;border-radius:10px;padding:10px 14px;box-shadow:0 1px 3px rgba(0,0,0,.03);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:2px;">
+          <div style="font-size:13px;font-weight:600;color:#1a1a1a;flex:1;">${esc(ev.title || meta.label)}</div>
+          <div style="font-size:10.5px;color:#aaa;white-space:nowrap;">${dt}</div>
+        </div>
+        ${description}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+          <span style="font-size:10.5px;color:#888;">by ${esc(staffName)}</span>
+          ${actionsHtml}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// メモ追加ボタン/フォームの切替
+function toggleAddMemoForm(show) {
+  const btn = document.getElementById('tlAddMemoBtn');
+  const form = document.getElementById('tlAddMemoForm');
+  if (!btn || !form) return;
+  if (show) {
+    btn.style.display = 'none';
+    form.style.display = 'block';
+    const ta = document.getElementById('tlMemoInput');
+    if (ta) { ta.value = ''; ta.focus(); }
+    // 編集モードのリセット
+    delete form.dataset.editId;
+  } else {
+    btn.style.display = 'block';
+    form.style.display = 'none';
+    delete form.dataset.editId;
+  }
+}
+
+// メモ送信（新規 or 編集）
+async function submitMemo() {
+  const ta = document.getElementById('tlMemoInput');
+  const form = document.getElementById('tlAddMemoForm');
+  if (!ta || !form) return;
+  const text = (ta.value || '').trim();
+  if (!text) {
+    alert('メモを入力してください');
+    return;
+  }
+  if (!editId) return;
+  const editEventId = form.dataset.editId;
+  if (editEventId) {
+    // 編集モード
+    const { error } = await sb.from('events').update({
+      description: text,
+      title: 'メモ（編集済み）'
+    }).eq('id', editEventId);
+    if (error) { alert('メモの更新に失敗しました: ' + error.message); return; }
+  } else {
+    // 新規メモ
+    await recordEvent(editId, 'memo', 'メモ', text, null);
+  }
+  toggleAddMemoForm(false);
+  await loadAndRenderTimeline();
+}
+
+// メモを編集
+function editMemoEvent(eventId) {
+  const ev = currentTimelineEvents.find(x => String(x.id) === String(eventId));
+  if (!ev) return;
+  const form = document.getElementById('tlAddMemoForm');
+  const btn = document.getElementById('tlAddMemoBtn');
+  const ta = document.getElementById('tlMemoInput');
+  if (!form || !btn || !ta) return;
+  btn.style.display = 'none';
+  form.style.display = 'block';
+  form.dataset.editId = eventId;
+  ta.value = ev.description || '';
+  ta.focus();
+  // フォームの位置にスクロール
+  form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// メモを削除
+async function deleteMemoEvent(eventId) {
+  if (!confirm('このメモを削除しますか？')) return;
+  const { error } = await sb.from('events').delete().eq('id', eventId);
+  if (error) { alert('削除に失敗しました: ' + error.message); return; }
+  await loadAndRenderTimeline();
+}
+
+// タブのバッジ件数を更新
+function updateTabBadges() {
+  const tlBadge = document.getElementById('emtBadgeTimeline');
+  if (tlBadge) {
+    const count = (currentTimelineEvents || []).length;
+    if (count > 0) {
+      tlBadge.style.display = 'inline-block';
+      tlBadge.textContent = String(count);
+    } else {
+      tlBadge.style.display = 'none';
+    }
+  }
+}
+
+// 既存応募者にタイムラインがない場合、「応募受付」イベントを疑似生成
+async function ensureTimelineForExistingApplicants() {
+  if (!editId) return;
+  // この応募者のイベントが既に1件以上あるならスキップ
+  const { data: existing, error: e1 } = await sb.from('events')
+    .select('id', { count: 'exact', head: true })
+    .eq('applicant_id', editId);
+  if (e1) {
+    console.warn('[ensureTimeline] 既存チェックエラー', e1);
+    return;
+  }
+  // ↑のheadクエリは件数を取れない場合があるので、確実に1件取ってチェック
+  const { data: probe, error: e2 } = await sb.from('events')
+    .select('id')
+    .eq('applicant_id', editId)
+    .limit(1);
+  if (e2) { console.warn('[ensureTimeline] probe error', e2); return; }
+  if (probe && probe.length > 0) return; // 既にイベントあり
+  // 応募者情報から疑似イベント生成
+  const a = applicants.find(x => x.id === editId);
+  if (!a) return;
+  const cid = a.clientId || currentClientId;
+  // 応募日を created_at に使う
+  let createdAt = null;
+  if (a.appDate) {
+    // YYYY-MM-DD → ISO形式（時刻は09:00で固定）
+    const d = new Date(`${a.appDate}T09:00:00`);
+    if (!isNaN(d.getTime())) createdAt = d.toISOString();
+  }
+  const row = {
+    applicant_id: editId,
+    client_id: cid,
+    event_type: 'applicant_created',
+    title: '応募受付',
+    description: a.appDate ? `${a.appDate}に応募がありました` : '応募がありました',
+    staff_id: null,
+    metadata: { auto_generated: true, source: 'past_data' }
+  };
+  if (createdAt) row.created_at = createdAt;
+  const { error: insErr } = await sb.from('events').insert(row);
+  if (insErr) console.warn('[ensureTimeline] 疑似イベント生成失敗', insErr);
+}
+
+// ========================================
 // 担当者管理（Phase B-1で追加）
 // ========================================
 
@@ -6266,6 +6683,12 @@ if (typeof window !== 'undefined') {
   window.switchEditTab = switchEditTab;
   window.backToList = backToList;
   window.toggleStaffCheckbox = toggleStaffCheckbox;
+  // タイムライン機能（Phase D-1で追加）
+  window.toggleAddMemoForm = toggleAddMemoForm;
+  window.submitMemo = submitMemo;
+  window.editMemoEvent = editMemoEvent;
+  window.deleteMemoEvent = deleteMemoEvent;
+  window.goNewApplicantForm = goNewApplicantForm;
   // 上記以外の関数は function宣言により既にグローバルだが、
   // 万一のミニファイ等に備えて主要関数も明示しておく
 }
