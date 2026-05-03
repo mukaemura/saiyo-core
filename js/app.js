@@ -1444,9 +1444,9 @@ function showSec(s) {
   const charEl = document.getElementById('char_' + 'sec-' + s);
   if (charEl && s !== 'dashboard') charEl.style.display = 'block';
   document.getElementById('sec-' + s).classList.add('active');
-  // navMapはサイドバーボタンの位置インデックス。Phase D-3で「新規登録」「一括取り込み」を
-  // サイドバーから削除したので、それらは含めず（addとimportはサイドバーのactiveを動かさない）
-  const navMap = { dashboard: 0, list: 1, analytics: 2, minutes: 3, tasks: 4, budget: 5, master: 6, staff: 7 };
+  // navMapはサイドバーボタンの位置インデックス。Phase E で「スケジュール」を追加
+  // 順番：ダッシュボード(0) / 応募者一覧(1) / スケジュール(2) / 分析(3) / 議事録(4) / タスク(5) / 予算(6) / マスター(7) / 担当者(8)
+  const navMap = { dashboard: 0, list: 1, schedule: 2, analytics: 3, minutes: 4, tasks: 5, budget: 6, master: 7, staff: 8 };
   if (navMap[s] !== undefined) {
     const navBtns = document.querySelectorAll('.nb');
     if (navBtns[navMap[s]]) navBtns[navMap[s]].classList.add('active');
@@ -1459,6 +1459,7 @@ function showSec(s) {
   if (s !== 'add' && typeof hideEditModeHeader === 'function') hideEditModeHeader();
   if (s === 'dashboard') renderDashboard();
   if (s === 'list') { closeDetail(); renderList(); }
+  if (s === 'schedule') renderSchedule();
   if (s === 'analytics') { setPeriod('all'); }
   if (s === 'master') renderManage();
   if (s === 'admin') renderAdmin();
@@ -1510,6 +1511,448 @@ function renderDocList() {
       <a href="${d.url}" target="_blank" style="font-size:11px;color:#378ADD;">開く</a>
       <button class="btn-del" onclick="removeDoc('${d.id}')">削除</button>
     </div>`).join('');
+}
+
+// ========================================
+// Phase E：スケジュール管理
+// ========================================
+let _schExpanded = { today: true, interview: false, stale: false };
+let _schState = { today: [], interview: [], stale: [] };
+
+// スケジュール画面のメイン描画
+async function renderSchedule() {
+  // 面接データを最新化
+  await buildScheduleInterviewMap();
+
+  // adminクライアント絞り込みプルダウンを更新
+  populateSchClientFilter();
+  // 担当者フィルタUIを更新
+  updateSchStaffFilterUI();
+
+  // 絞り込み条件を取得
+  const clientFilter = isAdmin ? (document.getElementById('schClientFilter')?.value || '') : '';
+  let staffFilterId = '';
+  if (isAdmin) {
+    const sv = document.getElementById('schStaffFilterSelect')?.value || '';
+    if (sv) staffFilterId = sv;
+  } else {
+    const ck = document.getElementById('schSelfFilterCheck');
+    if (ck && ck.checked && currentStaffId) {
+      staffFilterId = String(currentStaffId);
+    }
+  }
+
+  // 対象応募者を絞り込み
+  let pool = applicants.filter(a => {
+    if (clientFilter && a.clientId !== clientFilter) return false;
+    if (staffFilterId) {
+      const sids = (a.staffIds || []).map(String);
+      if (!sids.includes(staffFilterId)) return false;
+    }
+    // 採用/入社/退職/その他は対象外
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || '';
+    if (['hired','joined','resigned','other'].includes(cid)) return false;
+    return true;
+  });
+
+  // 各カテゴリ振り分け
+  const today = computeTodayList(pool);
+  const interview = computeWeekInterviewList(pool);
+  const stale = computeStaleList(pool);
+
+  _schState.today = today;
+  _schState.interview = interview;
+  _schState.stale = stale;
+
+  // KPI数を更新
+  document.getElementById('schKpiTodayN').textContent = today.length;
+  document.getElementById('schKpiInterviewN').textContent = interview.length;
+  document.getElementById('schKpiStaleN').textContent = stale.length;
+
+  // パネル開閉状態を反映＆描画
+  ['today','interview','stale'].forEach(cat => {
+    const panel = document.getElementById('schPanel' + cat.charAt(0).toUpperCase() + cat.slice(1));
+    const card  = document.getElementById('schKpi'   + cat.charAt(0).toUpperCase() + cat.slice(1));
+    if (panel) panel.style.display = _schExpanded[cat] ? 'block' : 'none';
+    if (card) card.style.borderColor = _schExpanded[cat] ? '#1a1a1a' : 'transparent';
+  });
+  renderSchList('today', today);
+  renderSchList('interview', interview);
+  renderSchList('stale', stale);
+
+  // ベル通知も更新
+  refreshBellNotifications();
+}
+
+// admin用クライアント絞り込みプルダウン
+function populateSchClientFilter() {
+  const sel = document.getElementById('schClientFilter');
+  if (!sel) return;
+  if (!isAdmin) {
+    sel.style.display = 'none';
+    return;
+  }
+  sel.style.display = '';
+  const cur = sel.value;
+  const cids = [...new Set(applicants.map(a => a.clientId).filter(Boolean))];
+  sel.innerHTML = `<option value="">全クライアント</option>` + cids.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  sel.value = cur;
+}
+
+// 担当者フィルタUI（クライアント=チェック、admin=プルダウン）
+function updateSchStaffFilterUI() {
+  const selfLabel = document.getElementById('schSelfFilterLabel');
+  const adminSel  = document.getElementById('schStaffFilterSelect');
+  if (isAdmin) {
+    if (selfLabel) selfLabel.style.display = 'none';
+    if (adminSel) {
+      adminSel.style.display = '';
+      const cur = adminSel.value;
+      const opts = (staffList || []).filter(s => !s.is_resigned);
+      const byClient = {};
+      opts.forEach(s => {
+        const cid = s.client_id || '_';
+        if (!byClient[cid]) byClient[cid] = [];
+        byClient[cid].push(s);
+      });
+      let html = `<option value="">担当者で絞り込み（全て）</option>`;
+      Object.entries(byClient).forEach(([cid, list]) => {
+        html += `<optgroup label="${escapeHtml(cid)}">`;
+        list.forEach(s => {
+          html += `<option value="${escapeHtml(String(s.id))}">${escapeHtml(s.name)}</option>`;
+        });
+        html += `</optgroup>`;
+      });
+      adminSel.innerHTML = html;
+      adminSel.value = cur;
+    }
+  } else {
+    if (selfLabel) selfLabel.style.display = 'inline-flex';
+    if (adminSel) adminSel.style.display = 'none';
+    const ck = document.getElementById('schSelfFilterCheck');
+    if (ck && !currentStaffId) {
+      ck.checked = false;
+      ck.disabled = true;
+      if (selfLabel) selfLabel.style.opacity = '0.5';
+    } else if (ck) {
+      ck.disabled = false;
+      if (selfLabel) selfLabel.style.opacity = '';
+    }
+  }
+}
+
+// 「今日対応すべき人」の判定
+// 未選択(NULL)/応募/対応中/面接日程未確定/面接前日・当日・翌日 を抽出
+function computeTodayList(pool) {
+  const result = [];
+  const todayStr = new Date().toISOString().slice(0,10);
+  pool.forEach(a => {
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || null;
+    let reason = '';
+    let highlight = '';
+    if (!a.status || !cid) {
+      reason = 'ステータス未入力';
+      highlight = '対応';
+    } else if (cid === 'applied') {
+      reason = '初回連絡';
+      highlight = '応募';
+    } else if (cid === 'in_progress') {
+      reason = '対応中';
+      highlight = '対応中';
+    } else if (cid === 'interview') {
+      // 面接の日程確認
+      const ivs = (window._scheduleInterviewMap && window._scheduleInterviewMap[a.id]) || [];
+      const pendingIvs = ivs.filter(iv => iv.result === 'pending' || !iv.result);
+      // 日程未確定の面接があれば対象
+      const unsetIv = pendingIvs.find(iv => !iv.scheduled_at);
+      if (unsetIv) {
+        reason = '面接日程未確定';
+        highlight = '日程確定要';
+      } else {
+        // 直近の面接日が前日/当日/翌日なら対象
+        const nearestIv = pendingIvs
+          .filter(iv => iv.scheduled_at)
+          .sort((x,y) => x.scheduled_at.localeCompare(y.scheduled_at))[0];
+        if (nearestIv) {
+          const ivDate = nearestIv.scheduled_at.slice(0,10);
+          const diff = dateDiffDays(todayStr, ivDate); // ivDate - today
+          if (diff >= -1 && diff <= 1) {
+            reason = diff === 0 ? '本日面接' : (diff === 1 ? '明日面接' : '昨日面接');
+            highlight = ivDate;
+          } else if (diff >= 2) {
+            // 翌々日以降は「今日対応」ではないのでスキップ
+            return;
+          }
+        } else {
+          return; // 面接ステータスだが面接予定なし → スキップ
+        }
+      }
+    } else {
+      return;
+    }
+    if (reason) result.push({ applicant: a, reason, highlight });
+  });
+  return result;
+}
+
+// 「今週の面接」リスト
+function computeWeekInterviewList(pool) {
+  const result = [];
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+  // 今週末日（日曜まで）
+  const endDate = new Date(today);
+  endDate.setDate(endDate.getDate() + 6);
+  const endStr = endDate.toISOString().slice(0,10);
+  pool.forEach(a => {
+    const ivs = (window._scheduleInterviewMap && window._scheduleInterviewMap[a.id]) || [];
+    ivs.forEach(iv => {
+      if (!iv.scheduled_at) return;
+      const ivDate = iv.scheduled_at.slice(0,10);
+      if (ivDate >= todayStr && ivDate <= endStr) {
+        if (iv.result === 'pending' || !iv.result) {
+          result.push({ applicant: a, interview: iv });
+        }
+      }
+    });
+  });
+  result.sort((x,y) => x.interview.scheduled_at.localeCompare(y.interview.scheduled_at));
+  return result;
+}
+
+// 「放置警告」リスト
+function computeStaleList(pool) {
+  const result = [];
+  const todayStr = new Date().toISOString().slice(0,10);
+  pool.forEach(a => {
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || null;
+    let threshold = 0; // 何日経過で警告か
+    let baseDate = '';
+    let reason = '';
+
+    if (!a.status || !cid) {
+      threshold = 2;
+      baseDate = a.appDate || a.createdAt || '';
+      reason = 'ステータス未入力';
+    } else if (cid === 'applied') {
+      threshold = 2;
+      baseDate = a.appDate || a.createdAt || '';
+      reason = '応募から動きなし';
+    } else if (cid === 'in_progress') {
+      threshold = 3;
+      baseDate = a.updatedAt || a.appDate || '';
+      reason = '対応中で動きなし';
+    } else if (cid === 'interview') {
+      const ivs = (window._scheduleInterviewMap && window._scheduleInterviewMap[a.id]) || [];
+      const pendingIvs = ivs.filter(iv => iv.result === 'pending' || !iv.result);
+      const unsetIv = pendingIvs.find(iv => !iv.scheduled_at);
+      if (unsetIv) {
+        threshold = 3;
+        baseDate = a.updatedAt || a.appDate || '';
+        reason = '面接日程未確定（3日経過）';
+      } else {
+        const lastIv = pendingIvs
+          .filter(iv => iv.scheduled_at)
+          .sort((x,y) => y.scheduled_at.localeCompare(x.scheduled_at))[0];
+        if (lastIv) {
+          const ivDate = lastIv.scheduled_at.slice(0,10);
+          const diff = dateDiffDays(ivDate, todayStr); // today - ivDate
+          if (diff >= 2) {
+            threshold = 0;
+            baseDate = ivDate;
+            reason = `面接から${diff}日経過`;
+          } else {
+            return;
+          }
+        } else {
+          return;
+        }
+      }
+    } else {
+      return;
+    }
+
+    if (!baseDate) return;
+    const diff = dateDiffDays(baseDate, todayStr);
+    if (diff >= threshold) {
+      result.push({ applicant: a, reason, days: diff });
+    }
+  });
+  return result.sort((x,y) => y.days - x.days);
+}
+
+// 日付差を返す（dateB - dateA、日数）
+function dateDiffDays(dateA, dateB) {
+  if (!dateA || !dateB) return 0;
+  const a = new Date(dateA + 'T00:00:00');
+  const b = new Date(dateB + 'T00:00:00');
+  return Math.round((b - a) / 86400000);
+}
+
+// パネル開閉
+function toggleSchPanel(cat) {
+  _schExpanded[cat] = !_schExpanded[cat];
+  const panel = document.getElementById('schPanel' + cat.charAt(0).toUpperCase() + cat.slice(1));
+  const card  = document.getElementById('schKpi'   + cat.charAt(0).toUpperCase() + cat.slice(1));
+  if (panel) panel.style.display = _schExpanded[cat] ? 'block' : 'none';
+  if (card) card.style.borderColor = _schExpanded[cat] ? '#1a1a1a' : 'transparent';
+}
+
+// リスト描画（カテゴリごと）
+function renderSchList(cat, items) {
+  const cont = document.getElementById('schList' + cat.charAt(0).toUpperCase() + cat.slice(1));
+  if (!cont) return;
+  if (!items.length) {
+    cont.innerHTML = `<div style="padding:14px;font-size:11px;color:#aaa;text-align:center;">該当者はいません 🎉</div>`;
+    return;
+  }
+  cont.innerHTML = items.map(it => {
+    const a = it.applicant;
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
+    const coreName = getCoreStatusName(cid);
+    const coreColor = getCoreStatusColor(cid);
+    let rightHtml = '';
+    if (cat === 'today') {
+      rightHtml = `<span style="font-size:10px;background:#FAFAFA;color:#666;padding:2px 7px;border-radius:9px;border:1px solid #eee;">${escapeHtml(it.reason)}</span>`;
+      if (it.highlight) {
+        rightHtml += ` <span style="font-size:10px;color:#993C1D;font-weight:600;margin-left:4px;">${escapeHtml(it.highlight)}</span>`;
+      }
+    } else if (cat === 'interview') {
+      const iv = it.interview;
+      const dt = iv.scheduled_at ? formatDateTime(iv.scheduled_at) : '日程未定';
+      const typ = iv.interview_type === 'other' ? (iv.type_other || 'その他') : (iv.interview_type || '面接');
+      rightHtml = `<span style="font-size:10px;background:#EEEDFE;color:#3C3489;padding:2px 7px;border-radius:9px;font-weight:600;">${escapeHtml(typ)}</span> <span style="font-size:11px;color:#3C3489;font-weight:600;margin-left:6px;">${escapeHtml(dt)}</span>`;
+    } else if (cat === 'stale') {
+      rightHtml = `<span style="font-size:10px;color:#854F0B;font-weight:600;">${it.days}日経過</span> <span style="font-size:10px;color:#aaa;margin-left:6px;">${escapeHtml(it.reason)}</span>`;
+    }
+    const subInfo = `${escapeHtml(a.jobType||'')} ${escapeHtml(a.media ? '/'+a.media : '')}`;
+    return `<div onclick="openApplicantEdit('${escapeHtml(String(a.id))}')" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#FAFAFA;border-radius:8px;font-size:12px;cursor:pointer;border:1px solid transparent;" onmouseover="this.style.borderColor='#1a1a1a';this.style.background='#fff'" onmouseout="this.style.borderColor='transparent';this.style.background='#FAFAFA'">
+      <div>
+        <span style="font-weight:600;">${escapeHtml(a.name||'(名前なし)')}</span>
+        <span style="color:#aaa;font-size:10px;margin-left:6px;">${subInfo}</span>
+        <span style="font-size:10px;background:${coreColor};color:#fff;padding:2px 7px;border-radius:9px;margin-left:6px;">${escapeHtml(coreName)}</span>
+      </div>
+      <div>${rightHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+// 日時フォーマット（YYYY-MM-DDTHH:MM 形式 → "5/8(月) 14:00"）
+function formatDateTime(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    const wk = ['日','月','火','水','木','金','土'][d.getDay()];
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mm = String(d.getMinutes()).padStart(2,'0');
+    return `${m}/${day}(${wk}) ${hh}:${mm}`;
+  } catch(e) { return iso; }
+}
+
+// スケジュール画面で使う面接マップを構築（applicant_id → interviews配列）
+async function buildScheduleInterviewMap() {
+  try {
+    let q = sb.from('interviews').select('*');
+    if (!isAdmin && currentClientId && currentClientId !== 'admin') {
+      q = q.eq('client_id', currentClientId);
+    }
+    const { data, error } = await q;
+    if (error) { console.warn('interviews fetch error', error); return; }
+    const map = {};
+    (data || []).forEach(iv => {
+      const aid = iv.applicant_id;
+      if (!map[aid]) map[aid] = [];
+      map[aid].push(iv);
+    });
+    window._scheduleInterviewMap = map;
+  } catch(e) { console.warn('buildScheduleInterviewMap error', e); }
+}
+
+// ========================================
+// Phase E：ベル通知
+// ========================================
+function toggleBellPanel() {
+  const panel = document.getElementById('bellPanel');
+  if (!panel) return;
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    // 開く時に最新化
+    refreshBellNotifications();
+    setTimeout(() => {
+      document.addEventListener('click', function closeBP(e) {
+        if (!panel.contains(e.target) && !e.target.closest('#bellBtn')) {
+          panel.style.display = 'none';
+          document.removeEventListener('click', closeBP);
+        }
+      });
+    }, 100);
+  }
+}
+
+// ベル通知の中身を更新
+function refreshBellNotifications() {
+  const list = document.getElementById('bellList');
+  const badge = document.getElementById('bellBadge');
+  if (!list) return;
+  // 通知 = 今日対応・今週の面接（前日/当日のみ）・放置警告
+  const notifications = [];
+  // 今日対応
+  (_schState.today || []).slice(0, 5).forEach(it => {
+    notifications.push({
+      type: 'today',
+      title: it.applicant.name || '(名前なし)',
+      desc: it.reason,
+      applicantId: it.applicant.id,
+      color: '#993C1D'
+    });
+  });
+  // 今週の面接（明日まで）
+  const todayStr = new Date().toISOString().slice(0,10);
+  const tomorrowStr = (() => { const d = new Date(); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); })();
+  (_schState.interview || []).forEach(it => {
+    if (!it.interview.scheduled_at) return;
+    const ivDate = it.interview.scheduled_at.slice(0,10);
+    if (ivDate <= tomorrowStr) {
+      const dt = formatDateTime(it.interview.scheduled_at);
+      notifications.push({
+        type: 'interview',
+        title: it.applicant.name || '(名前なし)',
+        desc: `面接予定 ${dt}`,
+        applicantId: it.applicant.id,
+        color: '#3C3489'
+      });
+    }
+  });
+  // 放置警告
+  (_schState.stale || []).slice(0, 5).forEach(it => {
+    notifications.push({
+      type: 'stale',
+      title: it.applicant.name || '(名前なし)',
+      desc: `${it.days}日経過 / ${it.reason}`,
+      applicantId: it.applicant.id,
+      color: '#854F0B'
+    });
+  });
+  // 描画
+  if (notifications.length === 0) {
+    list.innerHTML = `<div style="padding:14px;font-size:11px;color:#aaa;text-align:center;">通知はありません 🎉</div>`;
+    if (badge) badge.style.display = 'none';
+  } else {
+    list.innerHTML = notifications.map(n => {
+      return `<div onclick="openApplicantEdit('${escapeHtml(String(n.applicantId))}');toggleBellPanel();" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f5f5f3;" onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background='transparent'">
+        <div style="font-size:12px;font-weight:600;color:#1a1a1a;">${escapeHtml(n.title)}</div>
+        <div style="font-size:10px;color:${n.color};margin-top:2px;">${escapeHtml(n.desc)}</div>
+      </div>`;
+    }).join('');
+    if (badge) {
+      badge.style.display = 'inline-block';
+      badge.textContent = String(notifications.length);
+    }
+  }
 }
 
 // ========================================
@@ -1813,6 +2256,8 @@ function renderList() {
   populateAppClientFilter();
   // Phase E/F：担当者フィルタUIを更新
   updateStaffFilterUIForListPage();
+  // Phase G：重複応募者マップを再構築
+  buildDuplicateMap();
 
   const q = (document.getElementById('srch').value || '').toLowerCase();
   // 新方式：パネル状態から取得
@@ -2016,7 +2461,8 @@ function buildAppRowHTML(a) {
     if (a.gender) parts.push(a.gender);
     ageGenderText = `<span style="color:${agColor};font-size:10.5px;margin-left:6px;font-weight:500;">${esc(parts.join('/'))}</span>`;
   }
-  const nameLink = `<a href="javascript:void(0)" onclick="event.stopPropagation();openApplicantEdit('${a.id}')" style="color:#185FA5;text-decoration:underline;text-underline-offset:2px;font-weight:500;cursor:pointer;">${esc(a.name||'')}</a>${ageGenderText}`;
+  const dupBadge = getDuplicateBadge(a.id);
+  const nameLink = `<a href="javascript:void(0)" onclick="event.stopPropagation();openApplicantEdit('${a.id}')" style="color:#185FA5;text-decoration:underline;text-underline-offset:2px;font-weight:500;cursor:pointer;">${esc(a.name||'')}</a>${dupBadge}${ageGenderText}`;
 
   return `<tr id="row_${a.id}" style="${rowBg}">
       <td style="width:36px;" onclick="event.stopPropagation()">
@@ -2224,6 +2670,9 @@ function showEditModeHeader(a) {
       else if (g === '女' || g === '女性') agColor = '#D4537E';
       nameHtml += ` <span style="color:${agColor};font-size:12px;font-weight:500;margin-left:6px;">${escapeHtml(ageGenderParts.join('/'))}</span>`;
     }
+    // 重複バッジ
+    const dupBadge = getDuplicateBadge(a.id);
+    if (dupBadge) nameHtml += ' ' + dupBadge;
     nameEl.innerHTML = nameHtml;
   }
   // 求人情報
@@ -2471,10 +2920,112 @@ function resetForm() {
   renderStaffCheckboxes();
 }
 
+// ========================================
+// 重複応募者検知（Phase G）
+// ========================================
+// メールor電話番号で過去の応募者をチェック
+function findDuplicateApplicant(newEmail, newTel, newName) {
+  for (const a of applicants) {
+    // クライアントが違う場合は重複とみなさない（admin時は別クライアントの応募者は見えてもOK）
+    if (!isAdmin && a.clientId !== currentClientId) continue;
+    const aEmail = (a.email || '').trim().toLowerCase();
+    const aTel = (a.tel || '').replace(/[\s-]/g, '');
+    if (newEmail && aEmail && newEmail === aEmail) {
+      return { applicant: a, matchType: 'email' };
+    }
+    if (newTel && aTel && newTel === aTel) {
+      return { applicant: a, matchType: 'tel' };
+    }
+  }
+  return null;
+}
+
+// 既存の応募者リスト全体に対して、重複IDマップを構築
+// 返り値: { applicantId: { matchType: 'email'|'tel'|'both', count: 重複している件数 } }
+let _duplicateMap = null;
+function buildDuplicateMap() {
+  const map = {};
+  // メールアドレス→応募者ID配列
+  const byEmail = {};
+  const byTel = {};
+  applicants.forEach(a => {
+    // クライアントごとに重複を見るが、admin時は全件を比較対象とせず同じclientId内のみ
+    const cid = a.clientId || '';
+    const email = (a.email || '').trim().toLowerCase();
+    const tel = (a.tel || '').replace(/[\s-]/g, '');
+    if (email) {
+      const key = `${cid}::${email}`;
+      if (!byEmail[key]) byEmail[key] = [];
+      byEmail[key].push(a.id);
+    }
+    if (tel) {
+      const key = `${cid}::${tel}`;
+      if (!byTel[key]) byTel[key] = [];
+      byTel[key].push(a.id);
+    }
+  });
+  // 2件以上ある同一キーの全IDをマップに登録
+  Object.values(byEmail).forEach(ids => {
+    if (ids.length >= 2) {
+      ids.forEach(id => {
+        if (!map[id]) map[id] = { matchType: 'email', count: ids.length };
+        else { map[id].matchType = map[id].matchType === 'tel' ? 'both' : map[id].matchType; }
+      });
+    }
+  });
+  Object.values(byTel).forEach(ids => {
+    if (ids.length >= 2) {
+      ids.forEach(id => {
+        if (!map[id]) map[id] = { matchType: 'tel', count: ids.length };
+        else if (map[id].matchType === 'email') map[id].matchType = 'both';
+      });
+    }
+  });
+  _duplicateMap = map;
+  return map;
+}
+
+// 名前の右に出す重複バッジHTML
+function getDuplicateBadge(applicantId) {
+  if (!_duplicateMap) buildDuplicateMap();
+  const info = _duplicateMap[applicantId];
+  if (!info) return '';
+  const tip = info.matchType === 'email' ? 'メールアドレスが重複' : info.matchType === 'tel' ? '電話番号が重複' : 'メール・電話どちらも重複';
+  return `<span title="${tip}（${info.count}名で重複）" style="display:inline-block;font-size:9px;background:#FAECE7;color:#993C1D;padding:1px 6px;border-radius:9px;margin-left:6px;font-weight:600;border:1px solid #F0997B;cursor:help;">🔁 重複</span>`;
+}
+
+// 警告ダイアログを表示し、続行するかどうかを返す
+function showDuplicateWarning(dup, newName) {
+  return new Promise(resolve => {
+    const a = dup.applicant;
+    const matchLabel = dup.matchType === 'email' ? 'メールアドレス' : '電話番号';
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || '';
+    const coreName = getCoreStatusName(cid);
+    const existingDate = a.appDate || '不明';
+    const msg = `🚨 重複応募者の可能性\n\n${matchLabel}が一致する応募者が既に登録されています。\n\n` +
+      `【既存】\n  名前：${a.name}\n  応募日：${existingDate}\n  ステータス：${coreName}\n  職種：${a.jobType || '-'}\n\n` +
+      `【新規入力】\n  名前：${newName}\n\nこのまま登録を続けますか？\n` +
+      `（OK = 重複承知で登録 / キャンセル = 中止して既存を確認）`;
+    const ok = confirm(msg);
+    resolve(ok);
+  });
+}
+
 async function saveApp() {
   const req = {fAD:'応募日',fJT:'応募職種',fNm:'名前',fKn:'ふりがな',fEm:'メールアドレス',fTel:'電話番号',fGe:'性別',fMed:'媒体名',fSt2:'ステータス'};
   for (const [id,lbl] of Object.entries(req)) {
     if (!document.getElementById(id).value) { alert(`「${lbl}」は必須項目です`); document.getElementById(id).focus(); return; }
+  }
+  // 重複応募者チェック（新規登録時のみ）
+  if (!editId) {
+    const newEmail = (document.getElementById('fEm').value || '').trim().toLowerCase();
+    const newTel = (document.getElementById('fTel').value || '').replace(/[\s-]/g, '');
+    const newName = (document.getElementById('fNm').value || '').trim();
+    const dup = findDuplicateApplicant(newEmail, newTel, newName);
+    if (dup) {
+      const proceed = await showDuplicateWarning(dup, newName);
+      if (!proceed) return;
+    }
   }
   const by=document.getElementById('fBY').value, bm=document.getElementById('fBM').value, bd=document.getElementById('fBD').value;
   // admin の場合：編集中なら応募者のclientIdを継承、新規登録ならクライアント選択必須
@@ -2936,6 +3487,154 @@ function exportCSV() {
 // ========================================
 // PDF出力
 // ========================================
+// ========================================
+// 月次レポート（Phase G）
+// ========================================
+function openMonthlyReportDialog() {
+  // 月選択ダイアログを表示
+  const today = new Date();
+  const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const defYm = lastMonth.toISOString().slice(0, 7);
+  const ym = prompt('月次レポートを出力する対象月を入力してください（YYYY-MM形式）：', defYm);
+  if (!ym) return;
+  if (!/^\d{4}-\d{2}$/.test(ym)) {
+    alert('YYYY-MM形式で入力してください（例：2026-04）');
+    return;
+  }
+  generateMonthlyReport(ym);
+}
+
+function generateMonthlyReport(ym) {
+  // 対象月の応募者を抽出（応募日が ym で始まるもの）
+  let pool = applicants.filter(a => (a.appDate || '').startsWith(ym));
+  // admin時はクライアント絞り込みを尊重
+  if (isAdmin) {
+    const cf = document.getElementById('anClient')?.value || '';
+    if (cf) pool = pool.filter(a => a.clientId === cf);
+  }
+  if (pool.length === 0) {
+    alert(`${ym} の応募データがありません。`);
+    return;
+  }
+  const total = pool.length;
+
+  // 集計
+  const coreCounts = {};
+  CORE_STATUS.forEach(cs => coreCounts[cs.id] = 0);
+  pool.forEach(a => {
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
+    if (coreCounts[cid] !== undefined) coreCounts[cid]++;
+  });
+  const hired = (coreCounts.hired || 0) + (coreCounts.joined || 0);
+  const dropped = (coreCounts.resigned || 0) + (coreCounts.other || 0);
+  const inProgress = total - hired - dropped;
+  const hireRate = total > 0 ? (hired / total * 100) : 0;
+
+  // 媒体別
+  const mediaCounts = {};
+  pool.forEach(a => {
+    const m = a.media || '(媒体未入力)';
+    mediaCounts[m] = (mediaCounts[m] || 0) + 1;
+  });
+  const mediaRows = Object.entries(mediaCounts).sort((a,b) => b[1]-a[1])
+    .map(([k,v]) => `<tr><td>${escapeHtml(k)}</td><td align="right">${v}件</td><td align="right">${Math.round(v/total*100)}%</td></tr>`).join('');
+
+  // 職種別
+  const jobCounts = {};
+  pool.forEach(a => { if (a.jobType) jobCounts[a.jobType] = (jobCounts[a.jobType] || 0) + 1; });
+  const jobRows = Object.entries(jobCounts).sort((a,b) => b[1]-a[1])
+    .map(([k,v]) => `<tr><td>${escapeHtml(k)}</td><td align="right">${v}件</td></tr>`).join('');
+
+  // 部署別
+  const deptCounts = {};
+  pool.forEach(a => { if (a.dept) deptCounts[a.dept] = (deptCounts[a.dept] || 0) + 1; });
+  const deptRows = Object.entries(deptCounts).sort((a,b) => b[1]-a[1])
+    .map(([k,v]) => `<tr><td>${escapeHtml(k)}</td><td align="right">${v}件</td></tr>`).join('');
+
+  // コアラコーチの提案（同じロジック）
+  const advices = analyzeAndAdvise(pool);
+  const adviceHtml = advices.length === 0
+    ? '<div style="padding:14px;background:#E1F5EE;border-radius:6px;color:#0F6E56;font-size:12px;">特筆すべき改善ポイントはありませんでした。良好な状態です。</div>'
+    : advices.map((adv, i) => {
+        const sevLabel = { high:'要対応', mid:'要注意', low:'参考' }[adv.severity];
+        const sevColor = { high:'#D85A30', mid:'#BA7517', low:'#1D9E75' }[adv.severity];
+        return `<div style="margin-bottom:10px;padding:10px 12px;border-left:3px solid ${sevColor};background:#fafafa;border-radius:4px;">
+          <div style="font-size:11px;color:${sevColor};font-weight:600;margin-bottom:4px;">[${sevLabel}] ${escapeHtml(adv.title)}</div>
+          <div style="font-size:11px;color:#555;margin-bottom:5px;">${escapeHtml(adv.observation)}</div>
+          <div style="font-size:11px;color:#1a1a1a;"><strong>改善案：</strong></div>
+          <ol style="margin:3px 0 0 18px;padding:0;font-size:11px;color:#1a1a1a;">${adv.suggestions.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ol>
+        </div>`;
+      }).join('');
+
+  // 月次の主要指標カード
+  const ymLabel = ym.replace(/^(\d{4})-(\d{2})$/, '$1年$2月');
+  const todayStr = new Date().toLocaleDateString('ja-JP');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${ymLabel} 月次採用レポート</title><style>
+body{font-family:'Helvetica Neue','Hiragino Kaku Gothic ProN',Arial,sans-serif;font-size:12px;color:#1a1a1a;margin:0;padding:32px;background:#fff;}
+.cover{padding-bottom:24px;border-bottom:2px solid #1D9E75;margin-bottom:24px;}
+h1{font-size:24px;font-weight:700;margin:0 0 6px;color:#0F6E56;}
+.sub{font-size:11px;color:#888;}
+h2{font-size:14px;font-weight:600;margin:24px 0 10px;padding-bottom:6px;border-bottom:1.5px solid #e0e0e0;color:#1D9E75;}
+.mg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+.mc{background:#f5f9f7;border-radius:6px;padding:14px;}
+.ml{font-size:10px;color:#888;margin-bottom:3px;}
+.mv{font-size:24px;font-weight:700;color:#0F6E56;}
+table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px;}
+th{background:#f5f5f5;text-align:left;padding:7px 9px;font-weight:600;border-bottom:2px solid #ddd;}
+td{padding:6px 9px;border-bottom:1px solid #f0f0f0;}
+.footer{margin-top:28px;padding-top:14px;border-top:1px solid #ddd;font-size:10px;color:#aaa;text-align:right;}
+@media print{body{padding:20px;}}
+</style></head><body>
+<div class="cover">
+  <h1>📊 ${ymLabel} 月次採用レポート</h1>
+  <div class="sub">クライアント：${escapeHtml(currentClientName || '-')}　／　出力日：${todayStr}</div>
+</div>
+
+<h2>📌 主要指標サマリー</h2>
+<div class="mg">
+  <div class="mc"><div class="ml">総応募数</div><div class="mv">${total}</div></div>
+  <div class="mc"><div class="ml">採用・入社</div><div class="mv">${hired}</div></div>
+  <div class="mc"><div class="ml">選考中</div><div class="mv">${inProgress}</div></div>
+  <div class="mc"><div class="ml">採用率</div><div class="mv">${hireRate.toFixed(1)}%</div></div>
+</div>
+
+<h2>📈 ステータス別内訳</h2>
+<table>
+  <thead><tr><th>ステータス</th><th align="right">人数</th><th align="right">構成比</th></tr></thead>
+  <tbody>
+    ${CORE_STATUS.map(cs => `<tr><td>${cs.name}</td><td align="right">${coreCounts[cs.id] || 0}件</td><td align="right">${total ? Math.round((coreCounts[cs.id]||0)/total*100) : 0}%</td></tr>`).join('')}
+  </tbody>
+</table>
+
+<h2>📰 媒体別応募状況</h2>
+<table>
+  <thead><tr><th>媒体名</th><th align="right">応募数</th><th align="right">構成比</th></tr></thead>
+  <tbody>${mediaRows || '<tr><td colspan="3" style="color:#aaa">データなし</td></tr>'}</tbody>
+</table>
+
+<h2>👔 職種別応募状況</h2>
+<table>
+  <thead><tr><th>職種</th><th align="right">応募数</th></tr></thead>
+  <tbody>${jobRows || '<tr><td colspan="2" style="color:#aaa">データなし</td></tr>'}</tbody>
+</table>
+
+${deptRows ? `<h2>🏢 部署別応募状況</h2>
+<table>
+  <thead><tr><th>部署</th><th align="right">応募数</th></tr></thead>
+  <tbody>${deptRows}</tbody>
+</table>` : ''}
+
+<h2>🐨 コアラからの改善提案</h2>
+${adviceHtml}
+
+<div class="footer">採用コア｜${ymLabel} 月次レポート　・　生成日時：${new Date().toLocaleString('ja-JP')}</div>
+<script>window.onload=function(){setTimeout(()=>window.print(),300);}<\/script>
+</body></html>`;
+
+  window.open(URL.createObjectURL(new Blob([html], {type:'text/html;charset=utf-8'})), '_blank');
+}
+
 function exportPDF() {
   const data=getAnData(), total=data.length;
   const hired=data.filter(a=>['内定','内定承諾','採用'].includes(a.hireStatus)).length;
@@ -3638,7 +4337,238 @@ function renderAn() {
   const monthlyEl = document.getElementById('anMonthlyFixed');
   if (monthlyEl) monthlyEl.innerHTML = renderMonthTable(buildMonthStats(data), '');
 
+  // コアラコーチ：データから改善案を生成
+  renderKoalaCoach(data);
+
   renderAnContent(data);
+}
+
+// ========================================
+// コアラコーチ（分析データからの改善提案）
+// ========================================
+function renderKoalaCoach(data) {
+  const box = document.getElementById('koalaCoachBox');
+  const introEl = document.getElementById('koalaCoachIntro');
+  const advicesEl = document.getElementById('koalaCoachAdvices');
+  if (!box || !introEl || !advicesEl) return;
+
+  // データが0件なら非表示
+  if (!data || data.length === 0) {
+    box.style.display = 'none';
+    return;
+  }
+
+  const advices = analyzeAndAdvise(data);
+  box.style.display = 'block';
+  const charImg = box.querySelector('img');
+
+  if (advices.length === 0) {
+    // 全部順調なときは褒める
+    box.style.background = 'linear-gradient(135deg,#E1F5EE 0%,#EAF3DE 100%)';
+    box.style.border = '1px solid #5DCAA5';
+    if (charImg) charImg.src = 'assets/koala-kira.png';
+    introEl.textContent = 'すべて順調みたい！この調子で頑張って〜✨';
+    advicesEl.innerHTML = '';
+    return;
+  }
+
+  box.style.background = 'linear-gradient(135deg,#E1F5EE 0%,#FAEEDA 100%)';
+  box.style.border = '1px solid #5DCAA5';
+  if (charImg) charImg.src = 'assets/koala-think.png';
+  introEl.innerHTML = `データを分析したよ。気になるポイントが<strong>${advices.length}つ</strong>あったから、改善案を提案するね！`;
+
+  advicesEl.innerHTML = advices.map((adv, idx) => {
+    const colorMap = { high:'#D85A30', mid:'#BA7517', low:'#1D9E75' };
+    const bgMap = { high:'#FAECE7', mid:'#FAEEDA', low:'#E1F5EE' };
+    const labelMap = { high:'要対応', mid:'要注意', low:'参考' };
+    const c = colorMap[adv.severity] || '#666';
+    const bg = bgMap[adv.severity] || '#fafafa';
+    return `<div style="background:#fff;border-left:3px solid ${c};border-radius:6px;padding:10px 12px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span style="font-size:10px;background:${bg};color:${c};padding:2px 7px;border-radius:9px;font-weight:600;">${labelMap[adv.severity]}</span>
+        <span style="font-size:12px;font-weight:600;color:#1a1a1a;">${escapeHtml(adv.title)}</span>
+      </div>
+      <div style="font-size:11px;color:#666;margin-bottom:6px;">${escapeHtml(adv.observation)}</div>
+      <div style="font-size:11px;color:#1a1a1a;line-height:1.6;">
+        <strong style="color:${c};">改善案：</strong>
+        <ol style="margin:4px 0 0 18px;padding:0;">
+          ${adv.suggestions.map(s => `<li>${escapeHtml(s)}</li>`).join('')}
+        </ol>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// 分析→改善案を生成するロジック
+function analyzeAndAdvise(data) {
+  const advices = [];
+  const total = data.length;
+  if (total === 0) return advices;
+
+  // ============= ステータス未入力（データ件数によらずチェック） =============
+  const noStatus = data.filter(a => !a.status || !a.coreStatusId).length;
+  if (noStatus > 0) {
+    advices.push({
+      severity: noStatus / total >= 0.3 ? 'high' : 'mid',
+      title: 'ステータス未入力の応募者がいるよ',
+      observation: `${total}件中${noStatus}件（${Math.round(noStatus/total*100)}%）でステータスが入力されてないよ。状況が見えないと改善も難しいよね。`,
+      suggestions: [
+        '応募者一覧でフィルタして未入力者を一覧化',
+        '担当者と週1で進捗確認のミーティングを設定',
+        'ステータス変更をルーチンワークに組み込み（毎日5分）'
+      ]
+    });
+  }
+
+  // ============= 担当者未割当（データ件数によらずチェック） =============
+  const noStaff = data.filter(a => !(a.staffIds || []).length).length;
+  // 進行中の応募者で担当未割当がある場合のみ警告
+  const activeNoStaff = data.filter(a => {
+    if ((a.staffIds || []).length > 0) return false;
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || '';
+    return ['applied','in_progress','interview'].includes(cid);
+  }).length;
+  if (activeNoStaff > 0) {
+    advices.push({
+      severity: activeNoStaff >= 3 || (activeNoStaff / total) > 0.3 ? 'high' : 'mid',
+      title: '担当者が決まってない応募者がいるよ',
+      observation: `選考中の応募者${activeNoStaff}名に担当者が紐付いてないよ。誰が見るかが曖昧だと取りこぼしの原因に。`,
+      suggestions: [
+        '応募者編集画面で担当者を割り当て',
+        '応募者一覧の絞り込みで「担当者未割当のみ」フィルタを使って一括対応',
+        '新規登録時に担当者を必須項目化（運用ルール）'
+      ]
+    });
+  }
+
+  // ============= 媒体未入力（データ件数によらずチェック） =============
+  const noMedia = data.filter(a => !a.media).length;
+  if (noMedia > 0 && (noMedia / total) > 0.2) {
+    advices.push({
+      severity: 'mid',
+      title: '応募経路が記録されてないよ',
+      observation: `応募${total}件中、媒体未入力が${noMedia}件（${Math.round(noMedia/total*100)}%）。どこから来たか分からないと改善できないよ。`,
+      suggestions: [
+        '新規登録時に「媒体」を必須項目にする運用ルール化',
+        '過去データを担当者ヒアリングで埋め直し',
+        '一括取り込み時に媒体カラムを必ず入れる'
+      ]
+    });
+  }
+
+  // ============= 採用率（採用/応募）チェック（5件以上で発動） =============
+  const hired = data.filter(a => {
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || '';
+    return cid === 'hired' || cid === 'joined';
+  }).length;
+  const hireRate = total > 0 ? (hired / total * 100) : 0;
+  if (total >= 5 && hireRate < 10 && hired === 0) {
+    advices.push({
+      severity: 'high',
+      title: '採用率が低めだよ',
+      observation: `応募${total}件のうち採用は${hired}件（${hireRate.toFixed(1)}%）。母集団は十分だけどマッチが少ない状態。`,
+      suggestions: [
+        '求人票の必須要件を見直して、応募ハードルが適切か確認',
+        '面接で何が原因で見送りになってるかタイムラインを振り返り',
+        '書類選考の通過基準が厳しすぎないかチェック'
+      ]
+    });
+  }
+
+  // ============= 媒体偏り（5件以上で発動） =============
+  if (total >= 5) {
+    const mediaCounts = {};
+    data.forEach(a => {
+      if (!a.media) return;
+      mediaCounts[a.media] = (mediaCounts[a.media] || 0) + 1;
+    });
+    const mediaList = Object.entries(mediaCounts).sort((a,b) => b[1]-a[1]);
+    if (mediaList.length > 0) {
+      const top = mediaList[0];
+      const totalWithMedia = data.filter(a => a.media).length;
+      if (totalWithMedia > 0 && (top[1] / totalWithMedia) > 0.7) {
+        advices.push({
+          severity: 'mid',
+          title: `「${top[0]}」に頼りすぎてるかも`,
+          observation: `媒体記録のある応募${totalWithMedia}件中、${top[1]}件（${Math.round(top[1]/totalWithMedia*100)}%）が${top[0]}経由。1媒体依存はリスク高め。`,
+          suggestions: [
+            '他の媒体（リファラル・SNS・他求人サイト）への出稿を検討',
+            'リファラル制度を立ち上げて社員紹介を活性化',
+            '直近採用者にどこで知ったか聞いて、効果のある経路を特定'
+          ]
+        });
+      }
+    }
+  }
+
+  // ============= 退職・辞退率（3件以上で発動） =============
+  const resigned = data.filter(a => {
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || '';
+    return cid === 'resigned';
+  }).length;
+  const other = data.filter(a => {
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || '';
+    return cid === 'other';
+  }).length;
+  const dropRate = total > 0 ? ((resigned + other) / total * 100) : 0;
+  if (total >= 3 && dropRate >= 30) {
+    advices.push({
+      severity: 'high',
+      title: '辞退・退職が多いね',
+      observation: `応募${total}件中、退職・辞退・その他で${resigned + other}件（${dropRate.toFixed(1)}%）。歩留まり改善の余地あり。`,
+      suggestions: [
+        '退職した人のタイムラインを振り返ってミスマッチ要因を特定',
+        '面接時に求人票と実態の乖離がないか説明を強化',
+        '入社後フォロー（30日・90日チェックイン）を設定'
+      ]
+    });
+  }
+
+  // ============= 対応スピード（応募→対応中）=============
+  const todayStr = new Date().toISOString().slice(0,10);
+  const slowResponse = data.filter(a => {
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || '';
+    if (cid !== 'applied') return false;
+    if (!a.appDate) return false;
+    const diff = Math.round((new Date(todayStr) - new Date(a.appDate)) / 86400000);
+    return diff >= 3;
+  }).length;
+  if (slowResponse >= 1) {
+    advices.push({
+      severity: slowResponse >= 3 ? 'high' : 'mid',
+      title: '初動対応が遅れてる人がいるよ',
+      observation: `応募から3日以上経過してるのに「応募」ステータスのままの人が${slowResponse}名。初動が遅いと辞退率が上がるよ。`,
+      suggestions: [
+        '応募当日〜翌営業日に初回連絡する運用ルールを設定',
+        'スケジュール画面の「今日対応すべき人」を毎朝チェック',
+        '担当者間で対応漏れを共有するフローを作る'
+      ]
+    });
+  }
+
+  // ============= 面接通過率（3件以上で発動） =============
+  const inInterview = data.filter(a => {
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || '';
+    return cid === 'interview';
+  }).length;
+  if (total >= 3 && inInterview >= 3 && hired === 0) {
+    advices.push({
+      severity: 'mid',
+      title: '面接で止まってる人が多いね',
+      observation: `面接ステータスの人が${inInterview}名いるけど、まだ採用に至ってない。意思決定が遅れてる可能性あり。`,
+      suggestions: [
+        '各面接の結果を早めに記録してパイプラインを進める',
+        '面接官の評価基準を統一し意思決定をスピード化',
+        '面接終了後24時間以内に合否を出すルール化'
+      ]
+    });
+  }
+
+  // 重要度順にソート（high → mid → low）
+  const sevOrder = { high: 0, mid: 1, low: 2 };
+  advices.sort((a, b) => sevOrder[a.severity] - sevOrder[b.severity]);
+  // 最大3つまで
+  return advices.slice(0, 3);
 }
 
 
