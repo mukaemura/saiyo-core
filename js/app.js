@@ -1423,6 +1423,8 @@ function showSec(s) {
   document.getElementById('sec-' + s).classList.add('active');
   const navMap = { dashboard: 0, list: 1, add: 2, import: 3, analytics: 4, minutes: 5, tasks: 6, budget: 7, master: 8, staff: 9 };
   if (navMap[s] !== undefined) document.querySelectorAll('.nb')[navMap[s]].classList.add('active');
+  // Phase C-2：addセクション以外に切り替えるときは編集ヘッダーを必ず隠す
+  if (s !== 'add' && typeof hideEditModeHeader === 'function') hideEditModeHeader();
   if (s === 'dashboard') renderDashboard();
   if (s === 'list') { closeDetail(); renderList(); }
   if (s === 'analytics') { setPeriod('all'); }
@@ -1733,7 +1735,7 @@ function buildAppRowHTML(a) {
     if (a.gender) parts.push(a.gender);
     ageGenderText = `<span style="color:${agColor};font-size:10.5px;margin-left:6px;font-weight:500;">${esc(parts.join('/'))}</span>`;
   }
-  const nameLink = `<a href="javascript:void(0)" onclick="event.stopPropagation();openDetail('${a.id}')" style="color:#185FA5;text-decoration:underline;text-underline-offset:2px;font-weight:500;cursor:pointer;">${esc(a.name||'')}</a>${ageGenderText}`;
+  const nameLink = `<a href="javascript:void(0)" onclick="event.stopPropagation();openApplicantEdit('${a.id}')" style="color:#185FA5;text-decoration:underline;text-underline-offset:2px;font-weight:500;cursor:pointer;">${esc(a.name||'')}</a>${ageGenderText}`;
 
   return `<tr id="row_${a.id}" style="${rowBg}">
       <td style="width:36px;" onclick="event.stopPropagation()">
@@ -1830,48 +1832,205 @@ async function updateStatus(id, val) {
 }
 
 // ========================================
-// 詳細パネル
+// 応募者編集画面（Phase C-2：タブUI、担当者選択）
+// ========================================
+
+// 編集する応募者の現在のtabをグローバルで保持
+let editCurrentTab = 'basic';
+// 編集中の選択担当者ID配列
+let editSelectedStaffIds = [];
+
+// 一覧から名前リンクをクリックしたときに呼ばれる：編集画面を開く
+async function openApplicantEdit(id) {
+  const a = applicants.find(x => x.id === id);
+  if (!a) return;
+  editId = a.id;
+  // 担当者リストを最新化（admin時は読み込まれていない可能性もある）
+  try { await loadStaff(); } catch(e) { console.warn('[openApplicantEdit] loadStaff失敗', e); }
+  // フォームに値をロード（既存editApp相当）
+  const map = {fAD:'appDate',fJT:'jobType',fJobNo:'jobNo',fJobName:'jobName',fLoc:'location',fNm:'name',fKn:'kana',fEm:'email',fTel:'tel',fGe:'gender',fAg:'age',fMed:'media',fAg2:'agency',fSt2:'status',fCD:'contactDate',fI1D:'int1Date',fI1R:'int1Res',fI2D:'int2Date',fI2R:'int2Res',fRD:'resignDate',fMemo:'memo',fDept2:'dept',fHire2:'hireStatus'};
+  Object.entries(map).forEach(([fid,key])=>{
+    const el=document.getElementById(fid);
+    if(el) el.value = (a[key] != null ? a[key] : '');
+  });
+  if(a.birthYear) document.getElementById('fBY').value=a.birthYear;
+  if(a.birthMonth) document.getElementById('fBM').value=a.birthMonth;
+  if(a.birthDay) document.getElementById('fBD').value=a.birthDay;
+  tempDocs = [...(a.docs||[])];
+  renderDocList();
+  // 編集モードヘッダー表示・タブ初期化
+  showEditModeHeader(a);
+  switchEditTab('basic');
+  // 担当者チェックボックス描画
+  editSelectedStaffIds = [...(a.staffIds || [])];
+  renderStaffCheckboxes();
+  showSec('add');
+}
+
+// 編集モードのヘッダーを表示
+function showEditModeHeader(a) {
+  const h = document.getElementById('editModeHeader');
+  if (!h) return;
+  h.style.display = 'block';
+  // 名前
+  const nameEl = document.getElementById('editModeName');
+  if (nameEl) {
+    let nameHtml = escapeHtml(a.name || '');
+    const ageGenderParts = [];
+    if (a.age) ageGenderParts.push(a.age);
+    if (a.gender) ageGenderParts.push(a.gender);
+    if (ageGenderParts.length) {
+      let agColor = '#888';
+      const g = String(a.gender || '').trim();
+      if (g === '男' || g === '男性') agColor = '#378ADD';
+      else if (g === '女' || g === '女性') agColor = '#D4537E';
+      nameHtml += ` <span style="color:${agColor};font-size:12px;font-weight:500;margin-left:6px;">${escapeHtml(ageGenderParts.join('/'))}</span>`;
+    }
+    nameEl.innerHTML = nameHtml;
+  }
+  // 求人情報
+  const jobEl = document.getElementById('editModeJobInfo');
+  if (jobEl) {
+    const jobParts = [];
+    if (a.jobNo) jobParts.push(a.jobNo);
+    if (a.jobName) jobParts.push(a.jobName);
+    if (a.jobType) jobParts.push(a.jobType);
+    jobEl.textContent = jobParts.length ? jobParts.join(' ／ ') : '（求人情報未設定）';
+  }
+  // コアステータスバッジ
+  const badgeEl = document.getElementById('editModeCoreBadge');
+  if (badgeEl) {
+    const coreId = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
+    const color = getCoreStatusColor(coreId);
+    const name = getCoreStatusName(coreId);
+    badgeEl.innerHTML = `<span style="background:${color}1f;color:${color};border:1px solid ${color}40;padding:4px 12px;border-radius:14px;font-size:12px;font-weight:600;">${escapeHtml(name)}</span>`;
+  }
+  // 新規モードのヘッダーは隠す
+  const head = document.querySelector('.addform-head');
+  if (head) head.style.display = 'none';
+}
+
+// 編集モードヘッダーを隠す（新規モード時など）
+function hideEditModeHeader() {
+  const h = document.getElementById('editModeHeader');
+  if (h) h.style.display = 'none';
+  // 新規モードのヘッダーを戻す
+  const head = document.querySelector('.addform-head');
+  if (head) head.style.display = '';
+}
+
+// タブ切替
+function switchEditTab(tabName) {
+  editCurrentTab = tabName;
+  // タブのactive表示を切替
+  document.querySelectorAll('.emt-tab').forEach(el => {
+    if (el.dataset.tab === tabName) {
+      el.style.borderBottomColor = '#5aaa8e';
+      el.style.color = '#5aaa8e';
+      el.style.fontWeight = '600';
+    } else {
+      el.style.borderBottomColor = 'transparent';
+      el.style.color = '#888';
+      el.style.fontWeight = '500';
+    }
+  });
+  // タブコンテンツの表示切替
+  const basic = document.getElementById('editTabContent_basic');
+  const timeline = document.getElementById('editTabContent_timeline');
+  const interviews = document.getElementById('editTabContent_interviews');
+  const files = document.getElementById('editTabContent_files');
+  if (basic) basic.style.display = (tabName === 'basic') ? '' : 'none';
+  if (timeline) timeline.style.display = (tabName === 'timeline') ? 'block' : 'none';
+  if (interviews) interviews.style.display = (tabName === 'interviews') ? 'block' : 'none';
+  if (files) files.style.display = (tabName === 'files') ? 'block' : 'none';
+}
+
+// 一覧へ戻る（編集画面から）
+function backToList() {
+  hideEditModeHeader();
+  showSec('list');
+}
+
+// 担当者チェックボックスを描画
+function renderStaffCheckboxes() {
+  const container = document.getElementById('staffCheckboxList');
+  if (!container) return;
+  // 編集中の応募者のclient_idに合致する担当者だけを表示（adminは応募者のクライアント基準で絞る）
+  let targetClientId = null;
+  if (editId) {
+    const a = applicants.find(x => x.id === editId);
+    if (a) targetClientId = a.clientId;
+  }
+  if (!targetClientId) targetClientId = currentClientId;
+  // 在籍中・対象クライアントの担当者
+  const candidates = staffList.filter(s => {
+    if (s.is_active === false) return false;
+    if (targetClientId && s.client_id !== targetClientId) return false;
+    return true;
+  });
+  if (!candidates.length) {
+    container.innerHTML = '<span style="font-size:11px;color:#aaa;align-self:center;">在籍中の担当者がいません。「担当者管理」から追加してください。</span>';
+    return;
+  }
+  container.innerHTML = candidates.map(s => {
+    const checked = editSelectedStaffIds.some(sid => String(sid) === String(s.id));
+    return `
+      <label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1.5px solid ${checked ? '#5aaa8e' : '#e4e8e7'};border-radius:8px;background:${checked ? '#f3faf6' : '#fff'};font-size:12px;cursor:pointer;transition:all .15s;">
+        <input type="checkbox" value="${escapeHtml(String(s.id))}" ${checked ? 'checked' : ''} onchange="toggleStaffCheckbox(this)" style="cursor:pointer;width:13px;height:13px;">
+        <span style="color:#1a1a1a;font-weight:500;">${escapeHtml(s.name || '')}</span>
+      </label>
+    `;
+  }).join('');
+}
+
+// 担当者チェックボックスのトグル
+function toggleStaffCheckbox(input) {
+  const sid = input.value;
+  if (input.checked) {
+    if (!editSelectedStaffIds.some(x => String(x) === String(sid))) {
+      editSelectedStaffIds.push(sid);
+    }
+  } else {
+    editSelectedStaffIds = editSelectedStaffIds.filter(x => String(x) !== String(sid));
+  }
+  // ラベルの見た目を更新
+  renderStaffCheckboxes();
+}
+
+// 担当者紐付けを保存（applicant_staff テーブル）
+async function saveApplicantStaff(applicantId) {
+  if (!applicantId) return;
+  // 既存の紐付けを削除
+  let delQ = sb.from('applicant_staff').delete().eq('applicant_id', applicantId);
+  if (!isAdmin) delQ = delQ.eq('client_id', currentClientId);
+  const { error: delErr } = await delQ;
+  if (delErr) {
+    console.warn('[saveApplicantStaff] 旧紐付け削除失敗', delErr);
+  }
+  if (!editSelectedStaffIds.length) return;
+  // 応募者のclient_idを取得
+  const a = applicants.find(x => x.id === applicantId);
+  const cid = a ? a.clientId : currentClientId;
+  // 新しい紐付けを挿入
+  const rows = editSelectedStaffIds.map(sid => ({
+    applicant_id: applicantId,
+    staff_id: sid,
+    client_id: cid
+  }));
+  const { error: insErr } = await sb.from('applicant_staff').insert(rows);
+  if (insErr) {
+    console.warn('[saveApplicantStaff] 新紐付け挿入失敗', insErr);
+  }
+  // ローカルのstaffIdsも更新
+  if (a) a.staffIds = [...editSelectedStaffIds];
+}
+
+// ========================================
+// 詳細パネル（Phase C-2でopenApplicantEditに統合済み、互換のため残置）
 // ========================================
 function openDetail(id) {
-  // 既に開いている場合は閉じる
-  if (curId && curId !== id) {
-    const prev = document.getElementById('detail_'+curId);
-    if (prev) { prev.style.display='none'; prev.querySelector('td').innerHTML=''; }
-  }
-  if (curId === id) { closeDetail(); return; }
-  curId = id;
-  const a = applicants.find(x => x.id === id); if (!a) return;
-  const fields = [
-    ['応募日',a.appDate],['応募職種',a.jobType],['部署',a.dept],['勤務地',a.location],
-    ['メール',a.email],['電話',a.tel],['性別',a.gender],
-    ['生年月日',a.birthdate],['年齢',a.age],['ふりがな',a.kana],
-    ['媒体',a.media],['人材紹介会社',a.agency],['ステータス',a.status],['採用可否',a.hireStatus],
-    ['コンタクト日',a.contactDate],
-    ['1次面接日時',a.int1Date],['1次面接結果',a.int1Res],
-    ['2次面接日時',a.int2Date],['2次面接結果',a.int2Res],
-    ['退職日',a.resignDate],['メモ',a.memo]
-  ].filter(r => r[1]);
-  const docsHtml = (a.docs||[]).length ? `<div style="grid-column:1/-1;"><div style="font-size:10px;color:#aaa;margin-bottom:4px;">書類</div>${(a.docs||[]).map(d=>`<div class="dp-doc-item"><span class="badge bb">${d.type}</span><span style="flex:1;">${d.name}</span><a href="${d.url}" target="_blank" style="color:#378ADD;font-size:11px;">開く →</a></div>`).join('')}</div>` : '';
-  const html = `<div style="background:#fff;border:1px solid #e8e8e6;border-radius:10px;padding:1rem;margin:4px 0 8px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;padding-bottom:.5rem;border-bottom:1px solid #f0f0ee;">
-      <strong style="font-size:14px;">${a.name}${a.kana?' ('+a.kana+')':''}</strong>
-      <div style="display:flex;gap:6px;">
-        <button class="btn-del" onclick="delApp()">削除</button>
-        <button class="btn btn-s" style="padding:4px 10px;font-size:11px;" onclick="closeDetail()">閉じる</button>
-        <button class="btn btn-p" style="padding:4px 10px;font-size:11px;" onclick="editApp()">編集</button>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;">
-      ${fields.map(r=>`<div><div style="font-size:10px;color:#aaa;">${r[0]}</div><div style="font-size:12px;">${r[1]}</div></div>`).join('')}
-      ${docsHtml}
-    </div>
-  </div>`;
-  const detailRow = document.getElementById('detail_'+id);
-  if (detailRow) {
-    detailRow.querySelector('td').innerHTML = html;
-    detailRow.style.display = 'table-row';
-    detailRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
+  // Phase C-2：詳細展開は廃止、新編集画面に統合
+  openApplicantEdit(id);
 }
 
 function closeDetail() {
@@ -1883,16 +2042,10 @@ function closeDetail() {
 }
 
 function editApp() {
-  const a = applicants.find(x => x.id === curId); if (!a) return;
-  closeDetail(); editId = a.id;
-  const map = {fAD:'appDate',fJT:'jobType',fJobNo:'jobNo',fJobName:'jobName',fLoc:'location',fNm:'name',fKn:'kana',fEm:'email',fTel:'tel',fGe:'gender',fAg:'age',fMed:'media',fAg2:'agency',fSt2:'status',fCD:'contactDate',fI1D:'int1Date',fI1R:'int1Res',fI2D:'int2Date',fI2R:'int2Res',fRD:'resignDate',fMemo:'memo',fDept2:'dept',fHire2:'hireStatus'};
-  Object.entries(map).forEach(([fid,key])=>{ const el=document.getElementById(fid); if(el&&a[key]!=null)el.value=a[key]; });
-  if(a.birthYear) document.getElementById('fBY').value=a.birthYear;
-  if(a.birthMonth) document.getElementById('fBM').value=a.birthMonth;
-  if(a.birthDay) document.getElementById('fBD').value=a.birthDay;
-  tempDocs = [...(a.docs||[])];
-  renderDocList();
-  showSec('add');
+  // Phase C-2：既存の詳細展開からの編集も新タブUIに統一
+  if (!curId) return;
+  closeDetail();
+  openApplicantEdit(curId);
 }
 
 async function delApp() {
@@ -1919,6 +2072,12 @@ function resetForm() {
   // 自動年齢計算の状態をリセット
   if (typeof window._ageAutoOverride !== 'undefined') window._ageAutoOverride = false;
   const ageAuto = document.getElementById('fAgAuto'); if (ageAuto) ageAuto.style.display = 'none';
+  // Phase C-2：編集ヘッダーを隠して新規モードに戻す
+  hideEditModeHeader();
+  // 担当者選択もクリア
+  editSelectedStaffIds = [];
+  // 担当者チェックボックスを描画（新規モード時は currentClientId に紐づく担当者を表示）
+  renderStaffCheckboxes();
 }
 
 async function saveApp() {
@@ -1958,14 +2117,40 @@ async function saveApp() {
     hire_status: document.getElementById('fHire2') ? document.getElementById('fHire2').value : ''
   };
   let error;
+  let savedId = editId;
   if (editId) {
     let query = sb.from('applicants').update(row).eq('id', editId);
     if (!isAdmin) query = query.eq('client_id', currentClientId);
     ({ error } = await query);
   } else {
-    ({ error } = await sb.from('applicants').insert(row));
+    const { data: insData, error: insErr } = await sb.from('applicants').insert(row).select('id').single();
+    error = insErr;
+    if (insData && insData.id) savedId = insData.id;
   }
   if (error) { alert('保存に失敗しました: ' + error.message); return; }
+  // Phase C-2：担当者紐付けを保存
+  if (savedId) {
+    try {
+      // applicantsを再ロードした後にsaveApplicantStaffで参照したいので、applicantsを更新する前に呼ぶ場合のため
+      // 新規時はclient_idがcurrentClientIdになる
+      const tmpA = applicants.find(x => x.id === savedId) || { clientId: currentClientId, id: savedId };
+      const cidForStaff = tmpA.clientId || currentClientId;
+      // 古い紐付けを削除
+      await sb.from('applicant_staff').delete().eq('applicant_id', savedId);
+      // 新しい紐付けを挿入
+      if (editSelectedStaffIds.length) {
+        const rows = editSelectedStaffIds.map(sid => ({
+          applicant_id: savedId,
+          staff_id: sid,
+          client_id: cidForStaff
+        }));
+        const { error: staffErr } = await sb.from('applicant_staff').insert(rows);
+        if (staffErr) console.warn('[saveApp] 担当者紐付け失敗（無視）', staffErr);
+      }
+    } catch (e) {
+      console.warn('[saveApp] 担当者紐付け処理で例外', e);
+    }
+  }
   await loadApplicants();
   popSelects(); resetForm(); editId=null;
   setStatus('保存しました', 'ok');
@@ -6076,6 +6261,11 @@ if (typeof window !== 'undefined') {
   window.continueWithoutStaff = continueWithoutStaff;
   window.cancelStaffSelect = cancelStaffSelect;
   window.switchActiveStaff = switchActiveStaff;
+  // 応募者編集画面のタブUI・担当者選択（Phase C-2で追加）
+  window.openApplicantEdit = openApplicantEdit;
+  window.switchEditTab = switchEditTab;
+  window.backToList = backToList;
+  window.toggleStaffCheckbox = toggleStaffCheckbox;
   // 上記以外の関数は function宣言により既にグローバルだが、
   // 万一のミニファイ等に備えて主要関数も明示しておく
 }
