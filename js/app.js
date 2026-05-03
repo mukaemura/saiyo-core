@@ -1887,6 +1887,21 @@ async function openApplicantEdit(id) {
       }
     }
   } catch(e) {}
+  // Phase D-2：面接履歴のバッジカウントも先に取得
+  try {
+    const { count } = await sb.from('interviews')
+      .select('*', { count: 'exact', head: true })
+      .eq('applicant_id', editId);
+    const ivBadge = document.getElementById('emtBadgeInterviews');
+    if (ivBadge && typeof count === 'number') {
+      if (count > 0) {
+        ivBadge.style.display = 'inline-block';
+        ivBadge.textContent = String(count);
+      } else {
+        ivBadge.style.display = 'none';
+      }
+    }
+  } catch(e) {}
   showSec('add');
 }
 
@@ -1993,6 +2008,16 @@ function switchEditTab(tabName) {
         await loadAndRenderTimeline();
       } catch(e) {
         console.warn('[switchEditTab] タイムライン処理エラー', e);
+      }
+    })();
+  }
+  // Phase D-2：面接履歴タブが選ばれたらロード
+  if (tabName === 'interviews') {
+    (async () => {
+      try {
+        await loadAndRenderInterviews();
+      } catch(e) {
+        console.warn('[switchEditTab] 面接履歴処理エラー', e);
       }
     })();
   }
@@ -6052,6 +6077,387 @@ async function ensureTimelineForExistingApplicants() {
 }
 
 // ========================================
+// 面接管理（Phase D-2で追加）
+// ========================================
+
+// 面接種別の選択肢（標準）
+const INTERVIEW_TYPES = ['1次面接', '2次面接', '3次面接', '最終面接', 'カジュアル面談', '役員面接', 'その他'];
+
+// 面接結果の選択肢
+const INTERVIEW_RESULTS = [
+  { id: 'pending',   name: '未実施', color: '#888',    bg: '#f0f0ee' },
+  { id: 'passed',    name: '通過',   color: '#27500A', bg: '#C0DD97' },
+  { id: 'failed',    name: '不通過', color: '#791F1F', bg: '#F09595' },
+  { id: 'declined',  name: '辞退',   color: '#854F0B', bg: '#FAC775' },
+  { id: 'no_show',   name: '不来場', color: '#0C447C', bg: '#B5D4F4' },
+  { id: 'on_hold',   name: '保留',   color: '#26215C', bg: '#CECBF6' },
+];
+
+// 面接形式の選択肢
+const INTERVIEW_FORMATS = [
+  { id: 'online', name: 'オンライン' },
+  { id: 'onsite', name: '対面' },
+];
+
+function getInterviewResultMeta(rid) {
+  return INTERVIEW_RESULTS.find(r => r.id === rid) || INTERVIEW_RESULTS[0];
+}
+
+// 現在編集中の応募者の面接一覧
+let currentInterviews = [];
+// 面接編集中のID（null=新規）
+let currentInterviewEditId = null;
+
+async function loadAndRenderInterviews() {
+  if (!editId) {
+    currentInterviews = [];
+    renderInterviewsUI();
+    return;
+  }
+  const { data, error } = await sb.from('interviews')
+    .select('*')
+    .eq('applicant_id', editId)
+    .order('scheduled_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.warn('[loadAndRenderInterviews] エラー', error);
+    currentInterviews = [];
+  } else {
+    currentInterviews = data || [];
+  }
+  renderInterviewsUI();
+  updateInterviewBadge();
+}
+
+function updateInterviewBadge() {
+  const badge = document.getElementById('emtBadgeInterviews');
+  if (!badge) return;
+  const count = (currentInterviews || []).length;
+  if (count > 0) {
+    badge.style.display = 'inline-block';
+    badge.textContent = String(count);
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function renderInterviewsUI() {
+  const container = document.getElementById('interviewsContent');
+  if (!container) return;
+  const items = currentInterviews || [];
+
+  let html = `
+    <!-- 面接追加ボタン/フォーム -->
+    <div style="margin-bottom:1.25rem;">
+      <button id="ivAddBtn" onclick="toggleInterviewForm(true, null)"
+        style="border:1.5px dashed #cee0d8;background:#fafcfb;color:#5aaa8e;padding:11px 18px;border-radius:10px;font-size:13px;font-family:inherit;font-weight:600;cursor:pointer;width:100%;transition:all .15s;">
+        ＋ 面接を追加
+      </button>
+      <div id="ivForm" style="display:none;background:#fafcfb;border:1.5px solid #cee0d8;border-radius:10px;padding:16px;">
+        <div id="ivFormTitle" style="font-size:13px;font-weight:600;color:#1a1a1a;margin-bottom:12px;">面接を追加</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;">
+          <div>
+            <div style="font-size:11px;color:#666;margin-bottom:4px;">面接種別 <span style="color:#e85a5a;">*</span></div>
+            <select id="ivType" onchange="onIvTypeChange()" style="width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;">
+              ${INTERVIEW_TYPES.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}
+            </select>
+            <input id="ivTypeOther" type="text" placeholder="種別を入力..." style="display:none;width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;margin-top:6px;">
+          </div>
+          <div>
+            <div style="font-size:11px;color:#666;margin-bottom:4px;">日時</div>
+            <input id="ivScheduledAt" type="datetime-local" style="width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;">
+            <div style="font-size:10px;color:#aaa;margin-top:3px;">空欄なら「日程未定」</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#666;margin-bottom:4px;">形式</div>
+            <select id="ivFormat" style="width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;">
+              <option value="">未指定</option>
+              ${INTERVIEW_FORMATS.map(f => `<option value="${f.id}">${f.name}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#666;margin-bottom:4px;">場所 / URL</div>
+            <input id="ivLocation" type="text" placeholder="本社会議室 or Zoom URL" style="width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;">
+          </div>
+          <div>
+            <div style="font-size:11px;color:#666;margin-bottom:4px;">結果</div>
+            <select id="ivResult" style="width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;">
+              ${INTERVIEW_RESULTS.map(r => `<option value="${r.id}">${r.name}</option>`).join('')}
+            </select>
+          </div>
+          <div></div>
+          <div style="grid-column:1/-1;">
+            <div style="font-size:11px;color:#666;margin-bottom:4px;">メモ</div>
+            <textarea id="ivMemo" placeholder="面接の感想や引き継ぎ事項..." style="width:100%;min-height:60px;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;resize:vertical;"></textarea>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+          <button onclick="toggleInterviewForm(false, null)" style="padding:7px 14px;border:1px solid #ddd;background:#fff;color:#666;border-radius:7px;font-size:12px;font-family:inherit;cursor:pointer;">キャンセル</button>
+          <button onclick="submitInterview()" style="padding:7px 16px;background:#5aaa8e;color:#fff;border:none;border-radius:7px;font-size:12px;font-family:inherit;font-weight:600;cursor:pointer;">記録する</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  if (!items.length) {
+    html += `<div style="text-align:center;padding:1.5rem 1rem;color:#aaa;font-size:13px;">
+      まだ面接がありません。<br>
+      上の「＋ 面接を追加」から登録してください。
+    </div>`;
+  } else {
+    html += items.map(iv => buildInterviewCardHTML(iv)).join('');
+  }
+
+  container.innerHTML = html;
+}
+
+function buildInterviewCardHTML(iv) {
+  const esc = escapeHtml;
+  const typeLabel = iv.interview_type === 'その他' ? (iv.type_other || 'その他') : (iv.interview_type || '面接');
+  const result = getInterviewResultMeta(iv.result || 'pending');
+  // 日時
+  let scheduledDisp = '日程未定';
+  let scheduledStyle = 'color:#aaa;font-style:italic;';
+  if (iv.scheduled_at) {
+    const d = new Date(iv.scheduled_at);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      scheduledDisp = `${y}/${m}/${day} ${hh}:${mm}`;
+      scheduledStyle = '';
+    }
+  }
+  // 形式
+  let formatDisp = '';
+  if (iv.format === 'online') formatDisp = 'オンライン';
+  else if (iv.format === 'onsite') formatDisp = '対面';
+  // 「日程未定」の面接は枠線を強調（要対応）
+  const isUnscheduled = !iv.scheduled_at && iv.result === 'pending';
+  const cardBorder = isUnscheduled ? '1.5px solid #FAC775' : '1px solid #e4e8e7';
+
+  // 詳細行（場所・メモなど）
+  const detailRows = [];
+  if (formatDisp) detailRows.push(`<span style="color:#888;">形式</span><span>${esc(formatDisp)}</span>`);
+  if (iv.location) {
+    const isUrl = /^https?:\/\//i.test(iv.location);
+    if (isUrl) {
+      detailRows.push(`<span style="color:#888;">場所</span><span><a href="${esc(iv.location)}" target="_blank" rel="noopener" style="color:#185FA5;text-decoration:underline;">${esc(iv.location)}</a></span>`);
+    } else {
+      detailRows.push(`<span style="color:#888;">場所</span><span>${esc(iv.location)}</span>`);
+    }
+  }
+  if (iv.memo) detailRows.push(`<span style="color:#888;">メモ</span><span style="white-space:pre-wrap;">${esc(iv.memo)}</span>`);
+
+  const detailHtml = detailRows.length ? `
+    <div style="display:grid;grid-template-columns:80px 1fr;gap:4px 12px;font-size:12px;color:#555;margin-top:2px;">
+      ${detailRows.join('')}
+    </div>
+  ` : '';
+
+  return `
+    <div style="background:#fff;border:${cardBorder};border-radius:10px;padding:14px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:10px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="background:#9B59B61f;color:#9B59B6;border:1px solid #9B59B640;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;">${esc(typeLabel)}</span>
+          <span style="font-size:13px;font-weight:600;color:#1a1a1a;${scheduledStyle}">${esc(scheduledDisp)}</span>
+        </div>
+        <span style="background:${result.bg};color:${result.color};padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;">${esc(result.name)}</span>
+      </div>
+      ${detailHtml}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;border-top:1px solid #f0f0ee;padding-top:8px;">
+        <button onclick="editInterview('${esc(String(iv.id))}')" style="background:transparent;border:none;color:#888;font-size:11px;cursor:pointer;text-decoration:underline;padding:2px 4px;font-family:inherit;">編集</button>
+        <button onclick="deleteInterview('${esc(String(iv.id))}')" style="background:transparent;border:none;color:#D85A30;font-size:11px;cursor:pointer;text-decoration:underline;padding:2px 4px;font-family:inherit;">削除</button>
+      </div>
+    </div>
+  `;
+}
+
+// 面接フォームの開閉
+function toggleInterviewForm(show, ivId) {
+  const btn = document.getElementById('ivAddBtn');
+  const form = document.getElementById('ivForm');
+  const titleEl = document.getElementById('ivFormTitle');
+  if (!btn || !form) return;
+  currentInterviewEditId = ivId || null;
+  if (show) {
+    btn.style.display = 'none';
+    form.style.display = 'block';
+    if (titleEl) titleEl.textContent = ivId ? '面接を編集' : '面接を追加';
+    // フォームのリセット or 既存値ロード
+    if (ivId) {
+      const iv = currentInterviews.find(x => String(x.id) === String(ivId));
+      if (iv) {
+        document.getElementById('ivType').value = INTERVIEW_TYPES.includes(iv.interview_type) ? iv.interview_type : 'その他';
+        const ivOther = document.getElementById('ivTypeOther');
+        if (iv.interview_type === 'その他' || !INTERVIEW_TYPES.includes(iv.interview_type)) {
+          ivOther.style.display = '';
+          ivOther.value = iv.type_other || iv.interview_type || '';
+        } else {
+          ivOther.style.display = 'none';
+          ivOther.value = '';
+        }
+        // datetime-local 形式（YYYY-MM-DDTHH:mm）に変換
+        if (iv.scheduled_at) {
+          const d = new Date(iv.scheduled_at);
+          if (!isNaN(d.getTime())) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth()+1).padStart(2,'0');
+            const day = String(d.getDate()).padStart(2,'0');
+            const hh = String(d.getHours()).padStart(2,'0');
+            const mm = String(d.getMinutes()).padStart(2,'0');
+            document.getElementById('ivScheduledAt').value = `${y}-${m}-${day}T${hh}:${mm}`;
+          } else {
+            document.getElementById('ivScheduledAt').value = '';
+          }
+        } else {
+          document.getElementById('ivScheduledAt').value = '';
+        }
+        document.getElementById('ivFormat').value = iv.format || '';
+        document.getElementById('ivLocation').value = iv.location || '';
+        document.getElementById('ivResult').value = iv.result || 'pending';
+        document.getElementById('ivMemo').value = iv.memo || '';
+      }
+    } else {
+      // 新規モード：フォームクリア
+      document.getElementById('ivType').value = '1次面接';
+      const ivOther = document.getElementById('ivTypeOther');
+      ivOther.style.display = 'none';
+      ivOther.value = '';
+      document.getElementById('ivScheduledAt').value = '';
+      document.getElementById('ivFormat').value = '';
+      document.getElementById('ivLocation').value = '';
+      document.getElementById('ivResult').value = 'pending';
+      document.getElementById('ivMemo').value = '';
+    }
+    form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else {
+    btn.style.display = 'block';
+    form.style.display = 'none';
+    currentInterviewEditId = null;
+  }
+}
+
+// 「その他」選択時に自由記述欄を表示
+function onIvTypeChange() {
+  const sel = document.getElementById('ivType');
+  const other = document.getElementById('ivTypeOther');
+  if (!sel || !other) return;
+  if (sel.value === 'その他') {
+    other.style.display = '';
+    other.focus();
+  } else {
+    other.style.display = 'none';
+    other.value = '';
+  }
+}
+
+// 面接を保存（新規 or 編集）
+async function submitInterview() {
+  if (!editId) return;
+  const typeSel = document.getElementById('ivType').value;
+  const typeOther = document.getElementById('ivTypeOther').value.trim();
+  if (typeSel === 'その他' && !typeOther) {
+    alert('「その他」選択時は種別を入力してください');
+    return;
+  }
+  const sched = document.getElementById('ivScheduledAt').value;
+  const format = document.getElementById('ivFormat').value;
+  const location = document.getElementById('ivLocation').value.trim();
+  const result = document.getElementById('ivResult').value;
+  const memo = document.getElementById('ivMemo').value.trim();
+
+  // 応募者のclient_id
+  const a = applicants.find(x => x.id === editId);
+  const cid = a ? a.clientId : currentClientId;
+
+  const row = {
+    applicant_id: editId,
+    client_id: cid,
+    interview_type: typeSel,
+    type_other: (typeSel === 'その他') ? typeOther : null,
+    scheduled_at: sched ? new Date(sched).toISOString() : null,
+    format: format || null,
+    location: location || null,
+    memo: memo || null,
+    result: result || 'pending'
+  };
+
+  let savedRow = null;
+  let oldData = null;
+  if (currentInterviewEditId) {
+    oldData = currentInterviews.find(x => String(x.id) === String(currentInterviewEditId));
+    const { error } = await sb.from('interviews').update(row).eq('id', currentInterviewEditId);
+    if (error) { alert('更新に失敗しました: ' + error.message); return; }
+    savedRow = { ...oldData, ...row, id: currentInterviewEditId };
+  } else {
+    const { data: ins, error } = await sb.from('interviews').insert(row).select().single();
+    if (error) { alert('登録に失敗しました: ' + error.message); return; }
+    savedRow = ins;
+  }
+
+  // タイムラインへイベント記録
+  try {
+    const typeLabel = typeSel === 'その他' ? (typeOther || 'その他') : typeSel;
+    const dateLabel = row.scheduled_at ? new Date(row.scheduled_at).toLocaleString('ja-JP', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '日程未定';
+    if (currentInterviewEditId) {
+      // 編集
+      const resName = getInterviewResultMeta(result).name;
+      const oldRes = oldData ? getInterviewResultMeta(oldData.result || 'pending').name : '';
+      const title = `面接更新：${typeLabel}`;
+      const desc = `日時：${dateLabel}\n結果：${oldRes} → ${resName}`;
+      await recordEvent(editId, 'interview_updated', title, desc, { interview_id: currentInterviewEditId });
+    } else {
+      // 新規
+      const title = `面接登録：${typeLabel}`;
+      const desc = `日時：${dateLabel}`;
+      await recordEvent(editId, 'interview_added', title, desc, { interview_id: savedRow ? savedRow.id : null });
+    }
+  } catch (e) {
+    console.warn('[submitInterview] イベント記録失敗（無視）', e);
+  }
+
+  toggleInterviewForm(false, null);
+  await loadAndRenderInterviews();
+  // タイムラインタブのバッジも更新
+  if (editId) {
+    try {
+      const { count } = await sb.from('events')
+        .select('*', { count: 'exact', head: true })
+        .eq('applicant_id', editId);
+      const tlBadge = document.getElementById('emtBadgeTimeline');
+      if (tlBadge && typeof count === 'number') {
+        if (count > 0) { tlBadge.style.display = 'inline-block'; tlBadge.textContent = String(count); }
+        else { tlBadge.style.display = 'none'; }
+      }
+    } catch(e) {}
+  }
+}
+
+// 面接編集
+function editInterview(ivId) {
+  toggleInterviewForm(true, ivId);
+}
+
+// 面接削除
+async function deleteInterview(ivId) {
+  if (!confirm('この面接を削除しますか？')) return;
+  const target = currentInterviews.find(x => String(x.id) === String(ivId));
+  const { error } = await sb.from('interviews').delete().eq('id', ivId);
+  if (error) { alert('削除に失敗しました: ' + error.message); return; }
+  // タイムラインに記録
+  if (target && editId) {
+    try {
+      const typeLabel = target.interview_type === 'その他' ? (target.type_other || 'その他') : (target.interview_type || '面接');
+      await recordEvent(editId, 'interview_updated', `面接削除：${typeLabel}`, '面接を削除しました', { interview_id: ivId, deleted: true });
+    } catch(e) {}
+  }
+  await loadAndRenderInterviews();
+}
+
+// ========================================
 // 担当者管理（Phase B-1で追加）
 // ========================================
 
@@ -6689,6 +7095,12 @@ if (typeof window !== 'undefined') {
   window.editMemoEvent = editMemoEvent;
   window.deleteMemoEvent = deleteMemoEvent;
   window.goNewApplicantForm = goNewApplicantForm;
+  // 面接管理（Phase D-2で追加）
+  window.toggleInterviewForm = toggleInterviewForm;
+  window.onIvTypeChange = onIvTypeChange;
+  window.submitInterview = submitInterview;
+  window.editInterview = editInterview;
+  window.deleteInterview = deleteInterview;
   // 上記以外の関数は function宣言により既にグローバルだが、
   // 万一のミニファイ等に備えて主要関数も明示しておく
 }
