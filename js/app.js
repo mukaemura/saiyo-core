@@ -2509,14 +2509,9 @@ function buildAppRowHTML(a) {
       <td>${jobNoCell}</td>
       <td>${jobNameCell}</td>
       <td>${a.jobType||''}</td>
-      <td onclick="event.stopPropagation()">
-        <select onchange="updateDept('${a.id}', this.value)" style="padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;background:#fafafa;color:#1a1a1a;cursor:pointer;" onclick="event.stopPropagation()">
-          <option value="">-</option>
-          ${(masters.dept||[]).map(d=>`<option value="${d}" ${a.dept===d?'selected':''}>${d}</option>`).join('')}
-        </select>
-      </td>
+      <td>${a.dept ? esc(a.dept) : '<span class="list-col-empty">-</span>'}</td>
       <td>${a.media?`<span class="badge bb">${a.media}</span>`:''}</td>
-      <td>${coreBadge}</td>
+      <td id="coreBadgeCell_${a.id}">${coreBadge}</td>
       <td onclick="event.stopPropagation()">
         <select onchange="updateStatus('${a.id}', this.value)" style="padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;background:#fafafa;color:#1a1a1a;cursor:pointer;max-width:130px;" onclick="event.stopPropagation()">
           <option value="">-</option>
@@ -2584,8 +2579,18 @@ async function updateStatus(id, val) {
   if (!isAdmin) query = query.eq('client_id', currentClientId);
   const { error } = await query;
   if (error) { alert('更新に失敗しました: ' + error.message); return; }
-  if (a) a.status = val;
+  if (a) {
+    a.status = val;
+    a.coreStatusId = newCoreId;
+  }
   setStatus('ステータスを更新しました', 'ok');
+  // 親ステータスバッジ（左隣の「対応中/面接/採用…」のセル）を即時更新
+  const coreCell = document.getElementById('coreBadgeCell_' + id);
+  if (coreCell && newCoreId) {
+    const coreColor = getCoreStatusColor(newCoreId);
+    const coreName = getCoreStatusName(newCoreId);
+    coreCell.innerHTML = `<span class="core-badge" style="background:${coreColor}1f;color:${coreColor};border:1px solid ${coreColor}40;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:600;white-space:nowrap;">${coreName}</span>`;
+  }
   // Phase D-1：ステータス変更イベント記録
   if (oldStatus !== val) {
     const oldDisp = oldStatus || '(未設定)';
