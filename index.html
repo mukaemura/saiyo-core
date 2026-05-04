@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260505d">
+<link rel="stylesheet" href="css/style.css?v=20260505e">
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
   if (location.protocol === 'file:') {
@@ -579,17 +579,20 @@
       </div>
       <!-- KPIカード3つ -->
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
-        <div id="schKpiToday" onclick="toggleSchPanel('today')" style="background:#FAECE7;border:2px solid transparent;border-radius:12px;padding:14px 16px;cursor:pointer;transition:transform .1s;">
+        <div id="schKpiToday" onclick="toggleSchPanel('today')" style="background:#FAECE7;border:2px solid transparent;border-radius:12px;padding:14px 16px;cursor:pointer;transition:transform .1s;position:relative;">
+          <span class="sch-info-btn" data-tip="今日対応すべき人&#10;・ステータス未入力&#10;・応募／対応中&#10;・面接日が昨日／今日／明日&#10;・面接ステータスで日程未確定" onclick="event.stopPropagation();" style="position:absolute;top:8px;right:8px;width:18px;height:18px;background:rgba(153,60,29,.18);color:#993C1D;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;cursor:help;font-family:inherit;line-height:1;">i</span>
           <div style="font-size:11px;color:#993C1D;font-weight:600;">今日対応すべき人</div>
           <div style="font-size:28px;font-weight:600;color:#712B13;line-height:1.2;margin-top:4px;"><span id="schKpiTodayN">0</span> <span style="font-size:11px;font-weight:400;">名</span></div>
           <div style="font-size:10px;color:#993C1D;margin-top:4px;">クリックで一覧 ▼</div>
         </div>
-        <div id="schKpiInterview" onclick="toggleSchPanel('interview')" style="background:#EEEDFE;border:2px solid transparent;border-radius:12px;padding:14px 16px;cursor:pointer;transition:transform .1s;">
+        <div id="schKpiInterview" onclick="toggleSchPanel('interview')" style="background:#EEEDFE;border:2px solid transparent;border-radius:12px;padding:14px 16px;cursor:pointer;transition:transform .1s;position:relative;">
+          <span class="sch-info-btn" data-tip="今週の面接&#10;・面接日が今日〜6日後の範囲&#10;・面接の結果が「未実施」のもの&#10;（実施済みは除外）" onclick="event.stopPropagation();" style="position:absolute;top:8px;right:8px;width:18px;height:18px;background:rgba(60,52,137,.18);color:#3C3489;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;cursor:help;font-family:inherit;line-height:1;">i</span>
           <div style="font-size:11px;color:#3C3489;font-weight:600;">今週の面接</div>
           <div style="font-size:28px;font-weight:600;color:#26215C;line-height:1.2;margin-top:4px;"><span id="schKpiInterviewN">0</span> <span style="font-size:11px;font-weight:400;">件</span></div>
           <div style="font-size:10px;color:#3C3489;margin-top:4px;">クリックで一覧 ▼</div>
         </div>
-        <div id="schKpiStale" onclick="toggleSchPanel('stale')" style="background:#FAEEDA;border:2px solid transparent;border-radius:12px;padding:14px 16px;cursor:pointer;transition:transform .1s;">
+        <div id="schKpiStale" onclick="toggleSchPanel('stale')" style="background:#FAEEDA;border:2px solid transparent;border-radius:12px;padding:14px 16px;cursor:pointer;transition:transform .1s;position:relative;">
+          <span class="sch-info-btn" data-tip="放置警告（経過日数で判定）&#10;・ステータス未入力／応募 → 2日経過&#10;・対応中 → 3日経過&#10;・面接日程未確定 → 3日経過&#10;・面接実施後 → 2日経過" onclick="event.stopPropagation();" style="position:absolute;top:8px;right:8px;width:18px;height:18px;background:rgba(133,79,11,.18);color:#854F0B;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;cursor:help;font-family:inherit;line-height:1;">i</span>
           <div style="font-size:11px;color:#854F0B;font-weight:600;">放置警告</div>
           <div style="font-size:28px;font-weight:600;color:#633806;line-height:1.2;margin-top:4px;"><span id="schKpiStaleN">0</span> <span style="font-size:11px;font-weight:400;">名</span></div>
           <div style="font-size:10px;color:#854F0B;margin-top:4px;">クリックで一覧 ▼</div>
@@ -597,15 +600,28 @@
       </div>
       <!-- パネル展開エリア -->
       <div id="schPanelToday" style="display:none;background:#fff;border:1px solid #F0997B;border-radius:10px;padding:12px 14px;margin-bottom:10px;">
-        <div style="font-size:13px;font-weight:600;color:#993C1D;margin-bottom:10px;">▼ 今日対応すべき人</div>
+        <div style="font-size:13px;font-weight:600;color:#993C1D;margin-bottom:8px;">▼ 今日対応すべき人</div>
+        <div style="background:#fdf6f3;border:1px dashed #F0997B;border-radius:6px;padding:8px 10px;font-size:11px;line-height:1.7;color:#712B13;margin-bottom:10px;">
+          <strong style="font-weight:700;">判定基準：</strong>ステータス未入力 ／ 応募 ／ 対応中 ／ 面接日が昨日・今日・明日 ／ 面接ステータスで日程未確定
+        </div>
         <div id="schListToday" style="display:flex;flex-direction:column;gap:6px;"></div>
       </div>
       <div id="schPanelInterview" style="display:none;background:#fff;border:1px solid #AFA9EC;border-radius:10px;padding:12px 14px;margin-bottom:10px;">
-        <div style="font-size:13px;font-weight:600;color:#3C3489;margin-bottom:10px;">▼ 今週の面接</div>
+        <div style="font-size:13px;font-weight:600;color:#3C3489;margin-bottom:8px;">▼ 今週の面接</div>
+        <div style="background:#f5f4fd;border:1px dashed #AFA9EC;border-radius:6px;padding:8px 10px;font-size:11px;line-height:1.7;color:#26215C;margin-bottom:10px;">
+          <strong style="font-weight:700;">判定基準：</strong>面接日が今日〜6日後の範囲内、かつ面接の結果が「未実施」のもの（実施済みは除外）
+        </div>
         <div id="schListInterview" style="display:flex;flex-direction:column;gap:6px;"></div>
       </div>
       <div id="schPanelStale" style="display:none;background:#fff;border:1px solid #FAC775;border-radius:10px;padding:12px 14px;margin-bottom:10px;">
-        <div style="font-size:13px;font-weight:600;color:#854F0B;margin-bottom:10px;">▼ 放置警告</div>
+        <div style="font-size:13px;font-weight:600;color:#854F0B;margin-bottom:8px;">▼ 放置警告</div>
+        <div style="background:#fef7e9;border:1px dashed #FAC775;border-radius:6px;padding:8px 10px;font-size:11px;line-height:1.7;color:#633806;margin-bottom:10px;">
+          <strong style="font-weight:700;">判定基準：</strong>
+          <span style="display:inline-block;margin-right:10px;">ステータス未入力／応募 → <strong>2日経過</strong></span>
+          <span style="display:inline-block;margin-right:10px;">対応中 → <strong>3日経過</strong></span>
+          <span style="display:inline-block;margin-right:10px;">面接日程未確定 → <strong>3日経過</strong></span>
+          <span style="display:inline-block;">面接実施後 → <strong>2日経過</strong></span>
+        </div>
         <div id="schListStale" style="display:flex;flex-direction:column;gap:6px;"></div>
       </div>
     </div>
@@ -1487,6 +1503,6 @@
   </div>
 </div>
 
-<script src="js/app.js?v=20260505d"></script>
+<script src="js/app.js?v=20260505e"></script>
 </body>
 </html>
