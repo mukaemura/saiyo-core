@@ -937,6 +937,7 @@ async function executeLogout() {
   currentClientId = null; isAdmin = false;
   currentStaffId = null; currentStaffName = ''; activeStaffList = [];
   applicants = []; masters = { media: [], status: [], agency: [] };
+  _leadTimeMap = null; _leadTimeMapClientKey = null;
   editId = null; curId = null; tempDocs = [];
   if (typeof anChart !== 'undefined' && anChart) { anChart.destroy(); anChart = null; }
   document.getElementById('mainApp').style.display = 'none';
@@ -2583,6 +2584,8 @@ async function updateStatus(id, val) {
     a.status = val;
     a.coreStatusId = newCoreId;
   }
+  // 平均リードタイムのキャッシュをクリア（次の分析画面表示時に再計算）
+  _leadTimeMap = null;
   setStatus('ステータスを更新しました', 'ok');
   // 親ステータスバッジ（左隣の「対応中/面接/採用…」のセル）を即時更新
   const coreCell = document.getElementById('coreBadgeCell_' + id);
@@ -4205,6 +4208,139 @@ function setPeriod(p) {
 }
 
 // ========================================
+// 平均リードタイム（events テーブルから各コアステータスの初到達日を割り出す）
+// ========================================
+
+// クライアント単位でキャッシュするリードタイムマップ
+// 構造: { applicantId: { applied:'YYYY-MM-DD', in_progress:..., interview:..., hired:..., joined:... } }
+let _leadTimeMap = null;
+let _leadTimeMapClientKey = null;
+
+// 詳細ステータス名 → コアステータス（events.metadata.new から逆引き）
+function _detailNameToCore(detailName) {
+  if (!detailName) return null;
+  // 1) 現クライアントの detailStatuses から（DBに登録済みのもの）
+  const ds = (detailStatuses || []).find(d => d.name === detailName);
+  if (ds) return ds.core_status_id;
+  // 2) DEFAULT_DETAIL_STATUS から（フォールバック）
+  const def = DEFAULT_DETAIL_STATUS.find(d => d.name === detailName);
+  if (def) return def.core_status_id;
+  // 3) 旧→新の名称マップ（STATUS_TO_CORE）
+  if (STATUS_TO_CORE[detailName]) return STATUS_TO_CORE[detailName];
+  return null;
+}
+
+// events を読み込んで「応募者ごとのコアステータス初到達日マップ」を構築
+async function buildLeadTimeMap() {
+  // クライアントが切り替わったらキャッシュクリア
+  const ck = (isAdmin ? 'admin' : (currentClientId || '')) + '|' + applicants.length;
+  if (_leadTimeMap && _leadTimeMapClientKey === ck) return _leadTimeMap;
+
+  const map = {};
+  // 全応募者に「応募日 = applied 到達日」を入れる（events に頼らず確定）
+  applicants.forEach(a => {
+    map[a.id] = {};
+    if (a.appDate) map[a.id].applied = String(a.appDate).slice(0, 10);
+  });
+
+  try {
+    let q = sb.from('events')
+      .select('applicant_id, event_type, metadata, created_at')
+      .eq('event_type', 'status_change')
+      .order('created_at', { ascending: true }); // 古い順
+    if (!isAdmin && currentClientId) q = q.eq('client_id', currentClientId);
+    const { data, error } = await q;
+    if (error) { console.warn('[buildLeadTimeMap] events取得失敗', error); _leadTimeMap = map; _leadTimeMapClientKey = ck; return map; }
+
+    (data || []).forEach(ev => {
+      const aid = ev.applicant_id;
+      if (!aid || !map[aid]) return;
+      const newName = ev.metadata && ev.metadata.new;
+      const cid = _detailNameToCore(newName);
+      if (!cid) return;
+      // 初到達のみ記録（古い順なので、すでに値があればスキップ）
+      if (!map[aid][cid]) {
+        map[aid][cid] = String(ev.created_at).slice(0, 10);
+      }
+    });
+  } catch (e) {
+    console.warn('[buildLeadTimeMap] 例外', e);
+  }
+
+  _leadTimeMap = map;
+  _leadTimeMapClientKey = ck;
+  return map;
+}
+
+// 2つの YYYY-MM-DD の差（dateB - dateA、日数）。失敗時は null
+function _diffDays(a, b) {
+  if (!a || !b) return null;
+  const da = new Date(a + 'T00:00:00');
+  const db = new Date(b + 'T00:00:00');
+  if (isNaN(da) || isNaN(db)) return null;
+  return Math.round((db - da) / 86400000);
+}
+
+// data（フィルタ済み応募者配列）から平均リードタイム4種を算出
+function calcLeadTimes(data, ltMap) {
+  const pairs = [
+    { key: 'in_to_int',  fromKey: 'in_progress', toKey: 'interview' },
+    { key: 'int_to_hire', fromKey: 'interview',   toKey: 'hired'     },
+    { key: 'hire_to_join', fromKey: 'hired',      toKey: 'joined'    },
+    { key: 'in_to_join',  fromKey: 'in_progress', toKey: 'joined'    },
+  ];
+  const result = {};
+  pairs.forEach(p => {
+    const diffs = [];
+    data.forEach(a => {
+      const m = ltMap[a.id];
+      if (!m) return;
+      const d = _diffDays(m[p.fromKey], m[p.toKey]);
+      if (d == null) return;        // 片方欠けている → 除外
+      if (d < 0) return;             // 逆順は異常データなので除外
+      diffs.push(d);
+    });
+    if (diffs.length === 0) {
+      result[p.key] = { count: 0, avg: null };
+    } else {
+      const sum = diffs.reduce((s, x) => s + x, 0);
+      result[p.key] = { count: diffs.length, avg: sum / diffs.length };
+    }
+  });
+  return result;
+}
+
+// リードタイム描画（renderAn から呼ばれる）
+async function renderLeadTime(data) {
+  const el = document.getElementById('anLeadTime');
+  if (!el) return;
+  const ltMap = await buildLeadTimeMap();
+  const lt = calcLeadTimes(data, ltMap);
+
+  const cards = [
+    { label: '対応中 → 面接', key: 'in_to_int',   color: '#9B59B6', bg: '#F5F4FD' },
+    { label: '面接 → 採用',   key: 'int_to_hire', color: '#27AE60', bg: '#EAF5EC' },
+    { label: '採用 → 入社',   key: 'hire_to_join',color: '#1D9E75', bg: '#E1F5EE' },
+    { label: '対応中 → 入社', key: 'in_to_join',  color: '#185FA5', bg: '#E6F1FB' },
+  ];
+  el.innerHTML = cards.map(c => {
+    const r = lt[c.key];
+    const valHtml = (r.avg == null)
+      ? `<span style="font-size:24px;font-weight:600;color:#aaa;">-</span>`
+      : `<span style="font-size:26px;font-weight:700;color:#1a1a1a;">${r.avg.toFixed(1)}</span><span style="font-size:11px;color:#888;font-weight:500;margin-left:3px;">日</span>`;
+    const subHtml = (r.count === 0)
+      ? `<span style="color:#aaa;">対象0名</span>`
+      : `対象 ${r.count}名 / 平均`;
+    return `
+      <div style="background:#fff;border:1px solid #e8e8e6;border-radius:10px;padding:12px 14px;border-top:3px solid ${c.color};">
+        <div style="font-size:10.5px;color:#666;font-weight:600;margin-bottom:6px;">${c.label}</div>
+        <div style="line-height:1.1;margin-bottom:4px;">${valHtml}</div>
+        <div style="font-size:10px;color:#888;">${subHtml}</div>
+      </div>`;
+  }).join('');
+}
+
+// ========================================
 // 月別集計のデータ生成と表示
 // ========================================
 function buildMonthStats(data) {
@@ -4311,7 +4447,7 @@ function setAnTab(t,btn){
 }
 function setTab(t,btn){ setAnTab(t,btn); }
 
-function renderAn() {
+async function renderAn() {
   // admin時はクライアント絞り込みプルダウンを生成
   populateAnClientFilter();
   const anDept=document.getElementById('anDept');
@@ -4435,6 +4571,9 @@ function renderAn() {
           </div>`:''}
       </div>`;
   }
+
+  // 平均リードタイム（月別集計の直前に描画）
+  await renderLeadTime(data);
 
   // 月別集計（全体）
   const monthlyEl = document.getElementById('anMonthlyFixed');
