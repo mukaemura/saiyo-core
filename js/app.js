@@ -887,12 +887,48 @@ async function startApp() {
   }
 }
 
+// ログアウト：確認ポップアップを表示する（doLogoutは互換のため残す）
+function confirmLogout() {
+  const modal = document.getElementById('logoutConfirmModal');
+  if (modal) modal.style.display = 'flex';
+}
+// 確認ポップアップを閉じる
+function closeLogoutConfirm() {
+  const modal = document.getElementById('logoutConfirmModal');
+  if (modal) modal.style.display = 'none';
+}
+// 背景をクリックしたらポップアップを閉じる（中の白いカードをクリックしても閉じないよう、子はevent.stopPropagation()済み）
+function onLogoutModalBgClick(e) {
+  if (e && e.target && e.target.id === 'logoutConfirmModal') {
+    closeLogoutConfirm();
+  }
+}
+// ESCキーでポップアップを閉じる（DOMContentLoaded後に1度だけ仕込む）
+if (typeof window !== 'undefined' && !window.__logoutEscBound) {
+  window.__logoutEscBound = true;
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' || e.keyCode === 27) {
+      const modal = document.getElementById('logoutConfirmModal');
+      if (modal && modal.style.display === 'flex') {
+        closeLogoutConfirm();
+      }
+    }
+  });
+}
+// 互換用のラッパー（既存呼び出し点でも動くように、確認画面を経由）
 async function doLogout() {
+  confirmLogout();
+}
+
+// 実際のログアウト処理（ポップアップ「はい」で呼び出される）
+async function executeLogout() {
+  // ポップアップを閉じる
+  closeLogoutConfirm();
   // Supabase Auth のセッションを破棄（localStorageのJWTもクリア）
   try {
     await sb.auth.signOut();
   } catch (e) {
-    console.warn('[doLogout] signOut失敗（続行）', e);
+    console.warn('[executeLogout] signOut失敗（続行）', e);
   }
   // Phase B-2：担当者の保存も削除（ログアウト時はリセット）
   if (currentClientId) {
@@ -3730,6 +3766,31 @@ function renderDashTasks() {
   }
 }
 
+// 期間フィルタの選択状態（モジュール変数）
+let dashPeriod = 'month'; // 'today' | 'week' | 'month' | 'all'
+
+// 期間フィルタの切替
+function setDashPeriod(period) {
+  dashPeriod = period;
+  // タブのアクティブ表示を更新
+  document.querySelectorAll('.dash-period-tab').forEach(btn => {
+    if (btn.dataset.period === period) {
+      btn.classList.add('active');
+      btn.style.background = '#fff';
+      btn.style.color = '#1a1a1a';
+      btn.style.fontWeight = '700';
+      btn.style.boxShadow = '0 1px 3px rgba(0,0,0,.08)';
+    } else {
+      btn.classList.remove('active');
+      btn.style.background = 'transparent';
+      btn.style.color = '#666';
+      btn.style.fontWeight = '600';
+      btn.style.boxShadow = 'none';
+    }
+  });
+  renderDashboard();
+}
+
 function renderDashboard() {
   const now = new Date();
   const toStr = d => d.toISOString().split('T')[0];
@@ -3763,13 +3824,12 @@ function renderDashboard() {
   const rate = total ? Math.round(hired / total * 100) : 0;
   const thisMonth = applicants.filter(a => a.appDate && a.appDate >= monthStart).length;
 
-  // ===== 本日のKPI =====
+  // ===== 1段目：本日のKPI（固定・期間フィルタ非連動）=====
   const todayStr = toStr(now); // YYYY-MM-DD
   // 本日の応募数：応募日が今日と一致
   const todayApps = applicants.filter(a => a.appDate === todayStr).length;
   // 本日の面接数：1次/2次の日時が今日と一致（同日に両方なら2件）
   const todayInterviews = applicants.reduce((cnt, a) => {
-    // int1Date / int2Date は YYYY-MM-DD or YYYY-MM-DDTHH:MM 形式
     const i1 = a.int1Date ? String(a.int1Date).slice(0,10) : '';
     const i2 = a.int2Date ? String(a.int2Date).slice(0,10) : '';
     if (i1 === todayStr) cnt++;
@@ -3777,8 +3837,7 @@ function renderDashboard() {
     return cnt;
   }, 0);
 
-  // 上部 KPI: 本日カード2枚 + 既存5枚
-  document.getElementById('dashKpi').innerHTML = `
+  document.getElementById('dashKpiToday').innerHTML = `
     <div class="mc mc-today" style="border-left:3px solid #EF9F27;">
       <span class="badge-today">TODAY</span>
       <div class="mc-lbl">本日の応募数</div><div class="mc-val">${todayApps}<span style="font-size:14px;color:#888;font-weight:500;">件</span></div><div class="mc-sub">応募日が今日</div>
@@ -3786,24 +3845,63 @@ function renderDashboard() {
     <div class="mc mc-today" style="border-left:3px solid #9B59B6;">
       <span class="badge-today">TODAY</span>
       <div class="mc-lbl">本日の面接数</div><div class="mc-val">${todayInterviews}<span style="font-size:14px;color:#888;font-weight:500;">件</span></div><div class="mc-sub">1次/2次の合算</div>
-    </div>
-    <div class="mc" style="border-left:3px solid #378ADD;">
-      <div class="mc-lbl">総応募数</div><div class="mc-val">${total}</div><div class="mc-sub">累計</div>
-    </div>
-    <div class="mc" style="border-left:3px solid #1D9E75;">
-      <div class="mc-lbl">選考中</div><div class="mc-val">${inProgress}</div><div class="mc-sub">累計</div>
-    </div>
-    <div class="mc" style="border-left:3px solid #639922;">
-      <div class="mc-lbl">内定・採用</div><div class="mc-val">${hired}</div><div class="mc-sub">累計</div>
-    </div>
-    <div class="mc" style="border-left:3px solid #EF9F27;">
-      <div class="mc-lbl">採用率</div><div class="mc-val">${rate}%</div><div class="mc-sub">累計</div>
-    </div>
-    <div class="mc" style="border-left:3px solid #85B7EB;">
-      <div class="mc-lbl">今月の応募</div><div class="mc-val">${thisMonth}</div><div class="mc-sub">件</div>
     </div>`;
 
-  // 下部: 当月ベースの集計
+  // ===== 2段目：期間フィルタ連動KPI =====
+  // 期間範囲を計算
+  let periodStart, periodLabel;
+  if (dashPeriod === 'today') {
+    periodStart = todayStr;
+    periodLabel = '今日';
+  } else if (dashPeriod === 'week') {
+    // 今週の月曜日
+    const d = new Date(now);
+    const day = d.getDay(); // 0=日曜, 1=月曜...
+    const diff = day === 0 ? -6 : 1 - day; // 月曜まで戻す
+    d.setDate(d.getDate() + diff);
+    periodStart = toStr(d);
+    periodLabel = '今週';
+  } else if (dashPeriod === 'month') {
+    periodStart = monthStart;
+    periodLabel = '今月';
+  } else {
+    periodStart = null; // 累計
+    periodLabel = '累計';
+  }
+
+  // 期間内の応募者を絞り込み
+  const periodApplicants = periodStart
+    ? applicants.filter(a => a.appDate && a.appDate >= periodStart)
+    : applicants;
+  const cumPeriod = calcFunnelCumulative(periodApplicants);
+  const pTotal = periodApplicants.length;
+  const pInProgress = cumPeriod['in_progress'] || 0;
+  const pInterview = cumPeriod['interview'] || 0;
+  const pHired = cumPeriod['hired'] || 0;
+  const pJoined = cumPeriod['joined'] || 0;
+  const pRate = pTotal ? Math.round(pHired / pTotal * 100) : 0;
+
+  document.getElementById('dashKpi').innerHTML = `
+    <div class="mc" style="border-left:3px solid #378ADD;">
+      <div class="mc-lbl">${periodLabel}の応募数</div><div class="mc-val">${pTotal}</div><div class="mc-sub">${dashPeriod==='all'?'累計':'期間内'}</div>
+    </div>
+    <div class="mc" style="border-left:3px solid #1D9E75;">
+      <div class="mc-lbl">${periodLabel}の対応中</div><div class="mc-val">${pInProgress}</div><div class="mc-sub">選考中</div>
+    </div>
+    <div class="mc" style="border-left:3px solid #9B59B6;">
+      <div class="mc-lbl">${periodLabel}の面接数</div><div class="mc-val">${pInterview}</div><div class="mc-sub">面接段階</div>
+    </div>
+    <div class="mc" style="border-left:3px solid #639922;">
+      <div class="mc-lbl">${periodLabel}の内定・採用</div><div class="mc-val">${pHired}</div><div class="mc-sub">${dashPeriod==='all'?'累計':'期間内'}</div>
+    </div>
+    <div class="mc" style="border-left:3px solid #1D9E75;">
+      <div class="mc-lbl">${periodLabel}の入社</div><div class="mc-val">${pJoined}</div><div class="mc-sub">${dashPeriod==='all'?'累計':'期間内'}</div>
+    </div>
+    <div class="mc" style="border-left:3px solid #EF9F27;">
+      <div class="mc-lbl">${periodLabel}の採用率</div><div class="mc-val">${pRate}%</div><div class="mc-sub">採用 / 応募</div>
+    </div>`;
+
+  // 下部: 当月ベースの集計（既存のTODOカードは保持）
   const thisMonthApplicants = applicants.filter(a => a.appDate && a.appDate >= monthStart);
   const cumThis = calcFunnelCumulative(thisMonthApplicants);
   const tmTotal = thisMonthApplicants.length;
@@ -6935,7 +7033,6 @@ function renderStaffSelect() {
   }
   list.style.display = 'grid';
   empty.style.display = 'none';
-
   // 名前のイニシャル取得（日本語の場合は最初の文字、英字なら姓名の頭文字）
   function getInitial(name) {
     if (!name) return '?';
@@ -7021,11 +7118,11 @@ function updateHeaderStaffDisplay() {
   populateStaffSwitcher();
 }
 
-// ヘッダープルダウンの中身を生成
+// ヘッダープルダウンの中身を生成（担当者選択肢のみ）
 function populateStaffSwitcher() {
   const sel = document.getElementById('staffSwitcherSelect');
   if (!sel) return;
-  const opts = activeStaffList.map(s => {
+  const opts = (activeStaffList || []).map(s => {
     const selected = (currentStaffId && String(currentStaffId) === String(s.id)) ? 'selected' : '';
     return `<option value="${escapeHtml(String(s.id))}" ${selected}>${escapeHtml(s.name || '')}</option>`;
   }).join('');
@@ -8803,6 +8900,14 @@ window.addEventListener('DOMContentLoaded', function() {
 // ========================================
 if (typeof window !== 'undefined') {
   window.doLogin = doLogin;
+  // ログアウト系（改修：確認ポップアップ経由）
+  window.doLogout = doLogout;
+  window.confirmLogout = confirmLogout;
+  window.closeLogoutConfirm = closeLogoutConfirm;
+  window.onLogoutModalBgClick = onLogoutModalBgClick;
+  window.executeLogout = executeLogout;
+  // ダッシュボード期間フィルタ
+  window.setDashPeriod = setDashPeriod;
   window.addClient = addClient;
   window.deleteClient = deleteClient;
   window.renderTaskCalendar = renderTaskCalendar;

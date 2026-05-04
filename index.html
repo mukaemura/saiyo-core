@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260504l">
+<link rel="stylesheet" href="css/style.css?v=20260505c">
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
   if (location.protocol === 'file:') {
@@ -177,6 +177,31 @@
 
 </div>
 
+<!-- ===== ログアウト確認ポップアップ ===== -->
+<div id="logoutConfirmModal" onclick="onLogoutModalBgClick(event)" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;">
+  <div onclick="event.stopPropagation()" style="background:#fff;border-radius:20px;padding:1.5rem 1.75rem 1.25rem;box-shadow:0 12px 40px rgba(0,0,0,.18);max-width:340px;width:calc(100% - 2rem);text-align:center;animation:logoutModalIn .3s cubic-bezier(.34,1.56,.64,1);">
+    <img src="assets/koala-good.png" alt="またね" style="width:130px;height:130px;object-fit:contain;margin:0 auto 0.5rem;display:block;">
+    <div style="font-size:18px;font-weight:800;color:#1a1a1a;margin-bottom:.4rem;letter-spacing:-.02em;">またね♪</div>
+    <div style="font-size:13px;color:#666;margin-bottom:1.25rem;line-height:1.6;">ログアウトしますか？</div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="closeLogoutConfirm()"
+        style="flex:1;padding:11px 0;background:#f5f5f3;color:#666;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;">
+        いいえ、続ける
+      </button>
+      <button onclick="executeLogout()"
+        style="flex:1;padding:11px 0;background:linear-gradient(135deg,#D85A30,#c44e26);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:0 4px 12px rgba(216,90,48,.25);">
+        はい、ログアウト
+      </button>
+    </div>
+  </div>
+</div>
+<style>
+@keyframes logoutModalIn {
+  0% { opacity: 0; transform: scale(0.85) translateY(20px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+</style>
+
 <!-- ===== 担当者選択画面（Phase B-2） ===== -->
 <div id="staffSelectScreen" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(145deg,#e8f7f3 0%,#f0faf8 40%,#fef9f2 100%);position:relative;overflow:hidden;">
 
@@ -283,7 +308,7 @@
           <button class="nb" onclick="showSec('staff')">担当者管理</button>
         </nav>
         <button id="adminNavBtn" class="nb" style="display:none;border-color:#378ADD;color:#378ADD;" onclick="showSec('admin')">クライアント管理</button>
-        <button class="nb-logout" onclick="doLogout()">ログアウト</button>
+        <button class="nb-logout" onclick="confirmLogout()">ログアウト</button>
       </div>
     </div>
     <div class="status-bar" id="statusBar"></div>
@@ -309,7 +334,21 @@
         </div>
       </div>
 
-      <!-- KPIカード -->
+      <!-- 1段目：本日のKPI（固定） -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:1rem;" id="dashKpiToday"></div>
+
+      <!-- 期間フィルタ（2段目のKPIに連動） -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem;flex-wrap:wrap;">
+        <span style="font-size:11px;color:#888;font-weight:600;">期間：</span>
+        <div id="dashPeriodTabs" style="display:inline-flex;background:#f5f5f3;border-radius:10px;padding:3px;gap:0;">
+          <button class="dash-period-tab" data-period="today" onclick="setDashPeriod('today')" style="padding:6px 14px;border:none;border-radius:8px;background:transparent;font-size:12px;font-family:inherit;cursor:pointer;color:#666;font-weight:600;">今日</button>
+          <button class="dash-period-tab" data-period="week" onclick="setDashPeriod('week')" style="padding:6px 14px;border:none;border-radius:8px;background:transparent;font-size:12px;font-family:inherit;cursor:pointer;color:#666;font-weight:600;">今週</button>
+          <button class="dash-period-tab active" data-period="month" onclick="setDashPeriod('month')" style="padding:6px 14px;border:none;border-radius:8px;background:#fff;font-size:12px;font-family:inherit;cursor:pointer;color:#1a1a1a;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.08);">今月</button>
+          <button class="dash-period-tab" data-period="all" onclick="setDashPeriod('all')" style="padding:6px 14px;border:none;border-radius:8px;background:transparent;font-size:12px;font-family:inherit;cursor:pointer;color:#666;font-weight:600;">累計</button>
+        </div>
+      </div>
+
+      <!-- 2段目：期間フィルタ連動KPIカード -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1.5rem;" id="dashKpi"></div>
 
       <!-- TODOカード（当月ベース） -->
@@ -1448,6 +1487,6 @@
   </div>
 </div>
 
-<script src="js/app.js?v=20260504l"></script>
+<script src="js/app.js?v=20260505c"></script>
 </body>
 </html>
