@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260505f">
+<link rel="stylesheet" href="css/style.css?v=20260505g">
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
   if (location.protocol === 'file:') {
@@ -1262,6 +1262,23 @@
         <div class="metric-grid" id="budgetKpi"></div>
       </div>
 
+      <!-- コアラのコスト診断（提案5） -->
+      <div id="budgetKoalaCoach" style="display:none;background:linear-gradient(135deg,#f0faf6,#fdf8f0);border:1px solid #c8e6c9;border-radius:12px;padding:1rem;margin-bottom:.75rem;">
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <img src="assets/koala-good.png" style="width:56px;height:56px;object-fit:contain;flex-shrink:0;background:#d8eee5;border-radius:50%;padding:4px;">
+          <div style="flex:1;">
+            <div style="font-size:12px;font-weight:600;color:#0F6E56;margin-bottom:4px;">🐨 コアラのコスト診断</div>
+            <div id="budgetKoalaCoachAdvices" style="font-size:11.5px;line-height:1.7;color:#1a1a1a;display:flex;flex-direction:column;gap:4px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 採用ファネル × コスト（提案3） -->
+      <div id="budgetFunnelSection" style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:.75rem;">🎯 採用ファネル × コスト</div>
+        <div id="budgetFunnel"></div>
+      </div>
+
       <!-- 予算入力フォーム（複数行入力対応） -->
       <div id="budgetForm" style="display:none;background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
@@ -1309,22 +1326,45 @@
         <div style="position:relative;height:260px;"><canvas id="budgetTrendChart"></canvas></div>
       </div>
 
-      <!-- 採用シミュレーター -->
+      <!-- 採用シミュレーター（強化版：2モード） -->
       <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
-        <div style="font-size:12px;font-weight:600;margin-bottom:.875rem;">🎯 採用目標から必要予算を逆算</div>
-        <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:.75rem;">
-          <div class="fg"><label style="font-size:10px;font-weight:600;">採用目標人数</label>
-            <input type="number" id="simHireTarget" value="1" min="1" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;width:100px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.875rem;flex-wrap:wrap;gap:8px;">
+          <div style="font-size:12px;font-weight:600;">🎯 シミュレーター</div>
+          <div style="display:flex;border:1px solid #ddd;border-radius:8px;overflow:hidden;font-size:11px;">
+            <button id="simModeBasic" onclick="setSimMode('basic')" style="padding:5px 12px;border:none;background:#1a1a1a;color:#fff;cursor:pointer;font-family:inherit;font-size:11px;">採用人数→必要予算</button>
+            <button id="simModeAlloc" onclick="setSimMode('alloc')" style="padding:5px 12px;border:none;background:#fafafa;color:#666;cursor:pointer;font-family:inherit;font-size:11px;">媒体配分シミュレーション</button>
           </div>
-          <div class="fg"><label style="font-size:10px;font-weight:600;">部署</label>
-            <select id="simDept" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;"><option value="">全部署</option></select>
-          </div>
-          <div class="fg"><label style="font-size:10px;font-weight:600;">職種</label>
-            <select id="simJob" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;"><option value="">全職種</option></select>
-          </div>
-          <button class="btn btn-p" style="padding:7px 16px;font-size:12px;" onclick="runSimulation()">シミュレーション</button>
         </div>
-        <div id="simResult"></div>
+        <!-- モード1：採用目標から必要予算を逆算 -->
+        <div id="simBasicMode">
+          <div style="font-size:11px;color:#888;margin-bottom:.625rem;">採用目標から必要予算を逆算</div>
+          <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:.75rem;">
+            <div class="fg"><label style="font-size:10px;font-weight:600;">採用目標人数</label>
+              <input type="number" id="simHireTarget" value="1" min="1" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;width:100px;">
+            </div>
+            <div class="fg"><label style="font-size:10px;font-weight:600;">部署</label>
+              <select id="simDept" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;"><option value="">全部署</option></select>
+            </div>
+            <div class="fg"><label style="font-size:10px;font-weight:600;">職種</label>
+              <select id="simJob" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;"><option value="">全職種</option></select>
+            </div>
+            <button class="btn btn-p" style="padding:7px 16px;font-size:12px;" onclick="runSimulation()">シミュレーション</button>
+          </div>
+          <div id="simResult"></div>
+        </div>
+        <!-- モード2：媒体配分（What-If） -->
+        <div id="simAllocMode" style="display:none;">
+          <div style="font-size:11px;color:#888;margin-bottom:.625rem;">予算を媒体ごとにどう配分すると採用人数が変わるかを試算</div>
+          <div style="background:#f8f8f7;border-radius:8px;padding:.875rem;margin-bottom:.75rem;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
+              <label style="font-size:11px;color:#666;font-weight:600;">総予算（円）</label>
+              <input type="number" id="simTotalBudget" value="1000000" min="0" step="10000" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;width:140px;" oninput="recalcAllocSim()">
+              <span style="font-size:11px;color:#aaa;">過去実績から各媒体のCPOを算出して試算します</span>
+            </div>
+            <div id="simAllocSliders" style="display:flex;flex-direction:column;gap:10px;margin-top:12px;"></div>
+          </div>
+          <div id="simAllocResult"></div>
+        </div>
       </div>
 
       <!-- 予算データ一覧 -->
@@ -1345,62 +1385,153 @@
       </div>
       <!-- マスター管理（媒体・部署・人材紹介会社のみ編集可能） -->
       <div style="background:#fff8f0;border-radius:8px;padding:.75rem 1rem;margin-bottom:.75rem;font-size:11px;color:#854F0B;border-left:3px solid #EF9F27;">
-        📌 ステータスはシステムで管理されています。媒体・部署・人材紹介会社のマスターデータを編集できます。
+        📌 各マスターは左メニューで切り替え。項目は名前をクリックでリネーム、⋮⋮でドラッグ並べ替え、削除後5秒間「元に戻す」可。
       </div>
-      <div class="mg-grid">
-        <div class="mg-block"><h3>媒体マスター</h3><ul class="mg-list" id="mlMed"></ul><div class="mg-add"><input type="text" id="miMed" placeholder="媒体名を追加"><button onclick="addM('media')">追加</button></div></div>
-        <div class="mg-block"><h3>部署マスター</h3><ul class="mg-list" id="mlDept"></ul><div class="mg-add"><input type="text" id="miDept" placeholder="例: 営業部"><button onclick="addM('dept')">追加</button></div></div>
-        <div class="mg-block"><h3>人材紹介会社マスター</h3><ul class="mg-list" id="mlAg"></ul><div class="mg-add"><input type="text" id="miAg" placeholder="会社名を追加"><button onclick="addM('agency')">追加</button></div></div>
-        <div class="mg-block"><h3>担当者マスター</h3><ul class="mg-list" id="mlAssignee"></ul><div class="mg-add"><input type="text" id="miAssignee" placeholder="例: 橋本"><button onclick="addM('assignee')">追加</button></div></div>
-      </div>
-      <div class="divider"></div>
-      <div style="max-width:420px;">
-        <h3 style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">パスワード変更</h3>
-        <div class="pw-row">
-          <input type="password" id="np1" placeholder="新しいパスワード">
-          <input type="password" id="np2" placeholder="確認">
-          <button class="btn btn-s" onclick="chgPw()">変更</button>
-          <span id="pwOk" style="font-size:11px;color:#3B6D11;display:none;">✓ 変更しました</span>
-        </div>
-      </div>
-    
-      <!-- ステータスマスター管理 -->
-      <div id="statusMasterSection" style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-top:.75rem;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem;">
-          <div>
-            <div style="font-size:13px;font-weight:600;">ステータスマスター管理</div>
-            <div style="font-size:11px;color:#aaa;margin-top:2px;">詳細ステータスと分析用コアステータスの紐づけを管理します</div>
-          </div>
-          <button class="btn btn-p" style="font-size:12px;padding:6px 12px;" onclick="addDetailStatus()">＋ 追加</button>
-        </div>
 
-        <!-- コアステータス凡例 -->
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem;padding:.75rem;background:#f8f8f7;border-radius:8px;">
-          <span style="font-size:10px;color:#666;font-weight:600;width:100%;margin-bottom:4px;">コアステータス（固定・分析に使用）：</span>
-          <span id="coreStatusLegend"></span>
-        </div>
+      <!-- 左タブ式レイアウト -->
+      <div class="mm-shell">
+        <!-- 左サイドナビ -->
+        <aside class="mm-side">
+          <button class="mm-side-btn active" data-mm-tab="media" onclick="switchMmTab('media')">
+            <span class="mm-side-icon">📡</span>
+            <span class="mm-side-label">媒体</span>
+            <span class="mm-side-count" id="mmCountMedia">0</span>
+          </button>
+          <button class="mm-side-btn" data-mm-tab="dept" onclick="switchMmTab('dept')">
+            <span class="mm-side-icon">🏢</span>
+            <span class="mm-side-label">部署</span>
+            <span class="mm-side-count" id="mmCountDept">0</span>
+          </button>
+          <button class="mm-side-btn" data-mm-tab="agency" onclick="switchMmTab('agency')">
+            <span class="mm-side-icon">🏛️</span>
+            <span class="mm-side-label">紹介会社</span>
+            <span class="mm-side-count" id="mmCountAgency">0</span>
+          </button>
+          <button class="mm-side-btn" data-mm-tab="assignee" onclick="switchMmTab('assignee')">
+            <span class="mm-side-icon">👥</span>
+            <span class="mm-side-label">担当者</span>
+            <span class="mm-side-count" id="mmCountAssignee">0</span>
+          </button>
+          <div class="mm-side-divider"></div>
+          <button class="mm-side-btn" data-mm-tab="status" onclick="switchMmTab('status')">
+            <span class="mm-side-icon">📋</span>
+            <span class="mm-side-label">ステータス</span>
+            <span class="mm-side-count" id="mmCountStatus">0</span>
+          </button>
+          <button class="mm-side-btn" data-mm-tab="settings" onclick="switchMmTab('settings')">
+            <span class="mm-side-icon">⚙️</span>
+            <span class="mm-side-label">パスワード</span>
+          </button>
+        </aside>
 
-        <!-- 詳細ステータス一覧（コアステータスでグループ化） -->
-        <div id="detailStatusList"></div>
+        <!-- メインエリア -->
+        <section class="mm-main">
 
-        <!-- 追加フォーム -->
-        <div id="addDetailStatusForm" style="display:none;background:#f0faf6;border-radius:8px;padding:.875rem;margin-top:.75rem;border:1px solid #c8e6c9;">
-          <div style="font-size:12px;font-weight:600;margin-bottom:.75rem;">詳細ステータスを追加</div>
-          <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
-            <div class="fg" style="flex:1;min-width:150px;">
-              <label style="font-size:10px;font-weight:600;">ステータス名<span class="req">*</span></label>
-              <input type="text" id="newDetailStatusName" placeholder="例: 書類審査中" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;">
+          <!-- 媒体・部署・紹介会社・担当者 共通テンプレ -->
+          <div class="mm-pane" id="mmPane-media">
+            <div class="mm-pane-header">
+              <h3>📡 媒体マスター</h3>
+              <input type="text" class="mm-search" placeholder="🔍 絞り込み" oninput="filterMmList('media', this.value)">
             </div>
-            <div class="fg" style="min-width:150px;">
-              <label style="font-size:10px;font-weight:600;">コアステータス<span class="req">*</span></label>
-              <select id="newDetailStatusCore" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;">
-                <option value="">選択してください</option>
-              </select>
+            <ul class="mm-list" id="mlMed"></ul>
+            <div class="mm-add">
+              <input type="text" id="miMed" placeholder="媒体名を追加" onkeydown="if(event.key==='Enter') addM('media')">
+              <button onclick="addM('media')">＋ 追加</button>
             </div>
-            <button class="btn btn-p" style="padding:7px 14px;font-size:12px;" onclick="saveDetailStatus()">保存</button>
-            <button class="btn-sm" onclick="document.getElementById('addDetailStatusForm').style.display='none'">キャンセル</button>
           </div>
-        </div>
+
+          <div class="mm-pane" id="mmPane-dept" style="display:none;">
+            <div class="mm-pane-header">
+              <h3>🏢 部署マスター</h3>
+              <input type="text" class="mm-search" placeholder="🔍 絞り込み" oninput="filterMmList('dept', this.value)">
+            </div>
+            <ul class="mm-list" id="mlDept"></ul>
+            <div class="mm-add">
+              <input type="text" id="miDept" placeholder="例: 営業部" onkeydown="if(event.key==='Enter') addM('dept')">
+              <button onclick="addM('dept')">＋ 追加</button>
+            </div>
+          </div>
+
+          <div class="mm-pane" id="mmPane-agency" style="display:none;">
+            <div class="mm-pane-header">
+              <h3>🏛️ 人材紹介会社マスター</h3>
+              <input type="text" class="mm-search" placeholder="🔍 絞り込み" oninput="filterMmList('agency', this.value)">
+            </div>
+            <ul class="mm-list" id="mlAg"></ul>
+            <div class="mm-add">
+              <input type="text" id="miAg" placeholder="会社名を追加" onkeydown="if(event.key==='Enter') addM('agency')">
+              <button onclick="addM('agency')">＋ 追加</button>
+            </div>
+          </div>
+
+          <div class="mm-pane" id="mmPane-assignee" style="display:none;">
+            <div class="mm-pane-header">
+              <h3>👥 担当者マスター</h3>
+              <input type="text" class="mm-search" placeholder="🔍 絞り込み" oninput="filterMmList('assignee', this.value)">
+            </div>
+            <ul class="mm-list" id="mlAssignee"></ul>
+            <div class="mm-add">
+              <input type="text" id="miAssignee" placeholder="例: 橋本" onkeydown="if(event.key==='Enter') addM('assignee')">
+              <button onclick="addM('assignee')">＋ 追加</button>
+            </div>
+          </div>
+
+          <!-- ステータスマスター（既存維持） -->
+          <div class="mm-pane" id="mmPane-status" style="display:none;">
+            <div id="statusMasterSection">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem;">
+                <div>
+                  <div style="font-size:13px;font-weight:600;">📋 ステータスマスター管理</div>
+                  <div style="font-size:11px;color:#aaa;margin-top:2px;">詳細ステータスと分析用コアステータスの紐づけを管理します</div>
+                </div>
+                <button class="btn btn-p" style="font-size:12px;padding:6px 12px;" onclick="addDetailStatus()">＋ 追加</button>
+              </div>
+              <!-- コアステータス凡例 -->
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem;padding:.75rem;background:#f8f8f7;border-radius:8px;">
+                <span style="font-size:10px;color:#666;font-weight:600;width:100%;margin-bottom:4px;">コアステータス（固定・分析に使用）：</span>
+                <span id="coreStatusLegend"></span>
+              </div>
+              <!-- 詳細ステータス一覧 -->
+              <div id="detailStatusList"></div>
+              <!-- 追加フォーム -->
+              <div id="addDetailStatusForm" style="display:none;background:#f0faf6;border-radius:8px;padding:.875rem;margin-top:.75rem;border:1px solid #c8e6c9;">
+                <div style="font-size:12px;font-weight:600;margin-bottom:.75rem;">詳細ステータスを追加</div>
+                <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
+                  <div class="fg" style="flex:1;min-width:150px;">
+                    <label style="font-size:10px;font-weight:600;">ステータス名<span class="req">*</span></label>
+                    <input type="text" id="newDetailStatusName" placeholder="例: 書類審査中" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;">
+                  </div>
+                  <div class="fg" style="min-width:150px;">
+                    <label style="font-size:10px;font-weight:600;">コアステータス<span class="req">*</span></label>
+                    <select id="newDetailStatusCore" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;">
+                      <option value="">選択してください</option>
+                    </select>
+                  </div>
+                  <button class="btn btn-p" style="padding:7px 14px;font-size:12px;" onclick="saveDetailStatus()">保存</button>
+                  <button class="btn-sm" onclick="document.getElementById('addDetailStatusForm').style.display='none'">キャンセル</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- パスワード（既存維持） -->
+          <div class="mm-pane" id="mmPane-settings" style="display:none;">
+            <h3 style="font-size:13px;font-weight:600;margin-bottom:12px;">⚙️ パスワード変更</h3>
+            <div class="pw-row" style="max-width:520px;">
+              <input type="password" id="np1" placeholder="新しいパスワード">
+              <input type="password" id="np2" placeholder="確認">
+              <button class="btn btn-s" onclick="chgPw()">変更</button>
+              <span id="pwOk" style="font-size:11px;color:#3B6D11;display:none;">✓ 変更しました</span>
+            </div>
+          </div>
+
+        </section>
+      </div>
+
+      <!-- Undoトースト（提案6） -->
+      <div id="mmToast" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;border-radius:8px;padding:10px 14px;align-items:center;gap:12px;font-size:12px;z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,.25);min-width:280px;">
+        <span id="mmToastMsg"></span>
+        <button id="mmToastUndo" onclick="undoMmDelete()" style="background:transparent;border:none;color:#5DCAA5;text-decoration:underline;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;">元に戻す</button>
       </div>
 
 </div>
@@ -1513,6 +1644,6 @@
   </div>
 </div>
 
-<script src="js/app.js?v=20260505f"></script>
+<script src="js/app.js?v=20260505g"></script>
 </body>
 </html>

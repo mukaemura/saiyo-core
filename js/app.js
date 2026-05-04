@@ -6656,14 +6656,93 @@ function renderBudget() {
   const tCPA=tB&&tA?Math.round(tB/tA):0, tCPO=tB&&tH?Math.round(tB/tH):0;
   const hr=tA?Math.round(tH/tA*100):0;
 
+  // 前期間（前月 or 前N月）の数値を計算 → 前月比のために
+  let prevFrom = '', prevTo = '';
+  if (selFrom && selTo) {
+    // 期間長を計算して前期間を取得
+    const fromY = parseInt(selFrom.slice(0,4)), fromM = parseInt(selFrom.slice(5,7));
+    const toY = parseInt(selTo.slice(0,4)), toM = parseInt(selTo.slice(5,7));
+    const monthSpan = (toY - fromY) * 12 + (toM - fromM) + 1;
+    const pf = new Date(fromY, fromM - 1 - monthSpan, 1);
+    const pt = new Date(fromY, fromM - 1 - 1, 1);
+    prevFrom = pf.toISOString().slice(0,7);
+    prevTo = pt.toISOString().slice(0,7);
+  }
+  const afPrev = applicants.filter(a=>{
+    const m=a.appDate?a.appDate.substring(0,7):'';
+    if(prevFrom&&m<prevFrom) return false; if(prevTo&&m>prevTo) return false;
+    if(selDept&&a.dept!==selDept) return false; if(selJob&&a.jobType!==selJob) return false;
+    if(selClient&&a.clientId!==selClient) return false;
+    return true;
+  });
+  const bfPrev = budgetData.filter(d=>{
+    if(prevFrom&&d.month<prevFrom) return false; if(prevTo&&d.month>prevTo) return false;
+    if(selDept&&d.dept&&d.dept!==selDept) return false; if(selJob&&d.job&&d.job!==selJob) return false;
+    if(selClient&&d.clientId!==selClient) return false;
+    return true;
+  });
+  const pA = afPrev.length, pH = afPrev.filter(isHired).length;
+  const pB = bfPrev.reduce((s,d)=>s+d.amount,0);
+  const pCPA = pB && pA ? Math.round(pB/pA) : 0;
+  const pCPO = pB && pH ? Math.round(pB/pH) : 0;
+
+  // 前月比HTML生成ヘルパー（小さい方が良いCPA/CPOは「下がる=良い」）
+  const trendHtml = (cur, prev, smallerIsBetter) => {
+    if (!prev) return '<span style="font-size:9px;color:#aaa;">前期データなし</span>';
+    const diff = cur - prev;
+    const pct = Math.round((diff / prev) * 100);
+    const isUp = diff > 0, isDown = diff < 0;
+    const isGood = smallerIsBetter ? isDown : isUp;
+    const arrow = isUp ? '▲' : (isDown ? '▼' : '→');
+    const color = (diff === 0) ? '#aaa' : (isGood ? '#3B6D11' : '#D85A30');
+    const sign = pct > 0 ? '+' : '';
+    return `<span style="font-size:9px;color:${color};font-weight:500;">${arrow} 前期比 ${sign}${pct}%</span>`;
+  };
+  const ltHtml = (cur, prev, smallerIsBetter) => {
+    if (!prev) return '<span style="font-size:9px;color:#aaa;">前期データなし</span>';
+    const diff = cur - prev;
+    if (diff === 0) return `<span style="font-size:9px;color:#aaa;">→ 前期比 ±0</span>`;
+    const isGood = smallerIsBetter ? diff < 0 : diff > 0;
+    const arrow = diff > 0 ? '▲' : '▼';
+    const color = isGood ? '#3B6D11' : '#D85A30';
+    const sign = diff > 0 ? '+' : '';
+    return `<span style="font-size:9px;color:${color};font-weight:500;">${arrow} 前期比 ${sign}${diff.toLocaleString()}</span>`;
+  };
+
+  // ROI = 採用人数 / 広告費（万円） 簡易表現
+  const roi = tB ? (tH * 1000000 / tB).toFixed(2) : 0; // 100万円あたりの採用数
+  const pRoi = pB ? (pH * 1000000 / pB).toFixed(2) : 0;
+
   const kpi=document.getElementById('budgetKpi');
   if(kpi) kpi.innerHTML=[
-    '<div class="mc" style="border-left:3px solid #378ADD;"><div class="mc-lbl">総広告費</div><div class="mc-val">'+tB.toLocaleString()+'円</div></div>',
+    // ヒーローKPI 4枚（提案1）
+    `<div class="mc bk-hero" style="border-left:3px solid #D85A30;background:#fdf3ef;">
+      <div class="mc-lbl" style="color:#993C1D;">総広告費</div>
+      <div class="mc-val">${tB.toLocaleString()}<span style="font-size:11px;color:#888;font-weight:500;">円</span></div>
+      <div class="mc-sub">${trendHtml(tB, pB, false)}</div>
+      <canvas class="bk-spark" data-kpi="totalCost" width="100" height="22" style="margin-top:6px;width:100%;height:22px;"></canvas>
+    </div>`,
+    `<div class="mc bk-hero" style="border-left:3px solid #639922;background:#eaf3de;">
+      <div class="mc-lbl" style="color:#3B6D11;">採用1人あたり</div>
+      <div class="mc-val">${tCPO?tCPO.toLocaleString():'-'}<span style="font-size:11px;color:#888;font-weight:500;">${tCPO?'円':''}</span></div>
+      <div class="mc-sub">${trendHtml(tCPO, pCPO, true)}</div>
+      <canvas class="bk-spark" data-kpi="cpo" width="100" height="22" style="margin-top:6px;width:100%;height:22px;"></canvas>
+    </div>`,
+    `<div class="mc bk-hero" style="border-left:3px solid #185FA5;background:#e6f1fb;">
+      <div class="mc-lbl" style="color:#185FA5;">CPA（応募単価）</div>
+      <div class="mc-val">${tCPA?tCPA.toLocaleString():'-'}<span style="font-size:11px;color:#888;font-weight:500;">${tCPA?'円':''}</span></div>
+      <div class="mc-sub">${trendHtml(tCPA, pCPA, true)}</div>
+      <canvas class="bk-spark" data-kpi="cpa" width="100" height="22" style="margin-top:6px;width:100%;height:22px;"></canvas>
+    </div>`,
+    `<div class="mc bk-hero" style="border-left:3px solid #534AB7;background:#f5f4fd;">
+      <div class="mc-lbl" style="color:#3C3489;">採用率 / 投資効率</div>
+      <div class="mc-val">${hr}<span style="font-size:11px;color:#888;font-weight:500;">%</span></div>
+      <div class="mc-sub" style="font-size:9.5px;color:#3C3489;">${tH}名採用 / ${tA}名応募</div>
+      <canvas class="bk-spark" data-kpi="hireRate" width="100" height="22" style="margin-top:6px;width:100%;height:22px;"></canvas>
+    </div>`,
+    // 補助KPI 2枚（既存維持）
     '<div class="mc" style="border-left:3px solid #85B7EB;"><div class="mc-lbl">応募数</div><div class="mc-val">'+tA+'</div></div>',
-    '<div class="mc" style="border-left:3px solid #639922;"><div class="mc-lbl">採用数</div><div class="mc-val">'+tH+'</div></div>',
-    '<div class="mc" style="border-left:3px solid #EF9F27;"><div class="mc-lbl">CPA（応募単価）</div><div class="mc-val">'+(tCPA?tCPA.toLocaleString()+'円':'-')+'</div></div>',
-    '<div class="mc" style="border-left:3px solid #D85A30;"><div class="mc-lbl">CPO（採用単価）</div><div class="mc-val">'+(tCPO?tCPO.toLocaleString()+'円':'-')+'</div></div>',
-    '<div class="mc" style="border-left:3px solid #1D9E75;"><div class="mc-lbl">採用率</div><div class="mc-val">'+hr+'%</div></div>'
+    '<div class="mc" style="border-left:3px solid #1D9E75;"><div class="mc-lbl">採用数</div><div class="mc-val">'+tH+'</div></div>'
   ].join('');
 
   // 月別テーブル
@@ -6705,6 +6784,13 @@ function renderBudget() {
 
   renderBudgetTrend(months);
 
+  // 提案3：採用ファネル × コスト
+  renderBudgetFunnel({ af, bf, tA, tH, tB, tCPA, tCPO, isHired });
+  // 提案5：コアラのコスト診断
+  renderBudgetKoalaCoach({ ms, tA, tH, tB, tCPA, tCPO, hr, pCPO, pCPA, pH, months });
+  // 提案4：スパークライン描画（ヒーローKPIカード内）
+  renderBudgetSparklines(months, isHired, af);
+
   const dlEl=document.getElementById('budgetDataList');
   if(dlEl) {
     const sd=[...budgetData].filter(d=>{if(selFrom&&d.month<selFrom)return false;if(selTo&&d.month>selTo)return false;if(selClient&&d.clientId!==selClient)return false;return true;}).sort((a,b)=>b.month>a.month?1:-1);
@@ -6728,6 +6814,379 @@ function renderBudget() {
       dlEl.innerHTML = '<div class="empty">予算データがありません</div>';
     }
   }
+}
+
+// ========================================
+// 予算管理：採用ファネル × コスト（提案3）
+// ========================================
+function renderBudgetFunnel({ af, bf, tA, tH, tB, tCPA, tCPO, isHired }) {
+  const el = document.getElementById('budgetFunnel');
+  if (!el) return;
+  if (tA === 0 && tB === 0) {
+    el.innerHTML = '<div style="text-align:center;color:#aaa;font-size:11px;padding:1rem;">データがありません</div>';
+    return;
+  }
+  // 各段階に到達した応募者数（累積）
+  const interviewN = af.filter(a => {
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
+    return ['interview','hired','joined'].includes(cid);
+  }).length;
+  const joinedN = af.filter(a => {
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
+    return cid === 'joined';
+  }).length;
+  // 各段階の単価（広告費 ÷ 各段階の人数）
+  const cpa = tA ? Math.round(tB / tA) : 0;
+  const cpInterview = interviewN ? Math.round(tB / interviewN) : 0;
+  const cpHired = tH ? Math.round(tB / tH) : 0;
+  const cpJoined = joinedN ? Math.round(tB / joinedN) : 0;
+
+  const stages = [
+    { key:'apply',    label:'応募',     count:tA,         unit:cpa,        color:'#185FA5', bg:'#e6f1fb' },
+    { key:'iv',       label:'面接',     count:interviewN, unit:cpInterview,color:'#3C3489', bg:'#f5f4fd' },
+    { key:'hired',    label:'採用',     count:tH,         unit:cpHired,    color:'#3B6D11', bg:'#eaf3de' },
+    { key:'joined',   label:'入社',     count:joinedN,    unit:cpJoined,   color:'#0F6E56', bg:'#e1f5ee' },
+  ];
+  let html = '<div style="display:flex;flex-direction:column;gap:4px;">';
+  stages.forEach((s, i) => {
+    const through = i > 0 && stages[i-1].count > 0 ? Math.round(s.count / stages[i-1].count * 100) : null;
+    const unitText = s.unit ? `${s.unit.toLocaleString()}円/人` : '-';
+    html += `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:${s.bg};border-radius:8px;">
+        <span style="font-size:11px;font-weight:700;color:${s.color};width:50px;">${s.label}</span>
+        <span style="font-size:18px;font-weight:600;color:#1a1a1a;flex:1;">${s.count}<span style="font-size:11px;color:#888;font-weight:400;">名</span></span>
+        ${through !== null ? `<span style="font-size:10px;color:${through<50?'#D85A30':'#888'};white-space:nowrap;">通過率 ${through}%</span>` : ''}
+        <span style="font-size:11px;color:${s.color};font-weight:600;white-space:nowrap;min-width:90px;text-align:right;">${unitText}</span>
+      </div>`;
+    if (i < stages.length - 1) {
+      html += `<div style="text-align:left;padding-left:24px;color:#ddd;font-size:14px;line-height:.6;">↓</div>`;
+    }
+  });
+  html += '</div>';
+  if (tB > 0) {
+    html += `<div style="margin-top:10px;padding:8px 10px;background:#fafafa;border-radius:6px;font-size:11px;color:#666;line-height:1.6;">💡 「○円/人」は、総広告費 ${tB.toLocaleString()}円 をその段階の人数で割った値。下に行くほど単価が上がるが、最終段階の単価が「採用1人にかかった実コスト」を示します。</div>`;
+  }
+  el.innerHTML = html;
+}
+
+// ========================================
+// 予算管理：コアラのコスト診断（提案5）
+// ========================================
+function renderBudgetKoalaCoach({ ms, tA, tH, tB, tCPA, tCPO, hr, pCPO, pCPA, pH, months }) {
+  const box = document.getElementById('budgetKoalaCoach');
+  const ulEl = document.getElementById('budgetKoalaCoachAdvices');
+  if (!box || !ulEl) return;
+
+  const advices = [];
+
+  // 0) データ不足
+  if (tB === 0 && tA === 0) {
+    box.style.display = 'none';
+    return;
+  }
+  if (tB === 0) {
+    advices.push(`💰 まずは <strong>「+ 予算入力」</strong> から広告費を登録すると、CPA/CPOや費用対効果が見えるよ！`);
+  }
+
+  // 1) 媒体別効率：CPOが小さい媒体を最優秀として推奨
+  const mediaCpo = Object.entries(ms || {})
+    .filter(([_, v]) => v.budget > 0 && v.hires > 0)
+    .map(([k, v]) => ({ name: k, cpo: v.budget / v.hires, hires: v.hires, budget: v.budget }))
+    .sort((a, b) => a.cpo - b.cpo);
+  if (mediaCpo.length >= 2) {
+    const best = mediaCpo[0];
+    const worst = mediaCpo[mediaCpo.length - 1];
+    const ratio = (worst.cpo / best.cpo).toFixed(1);
+    advices.push(`🥇 <strong>${best.name}</strong>が一番費用対効果いいよ！採用単価<strong>${Math.round(best.cpo).toLocaleString()}円</strong>で、最も高い<strong>${worst.name}（${Math.round(worst.cpo).toLocaleString()}円）</strong>の<strong>1/${ratio}</strong>。`);
+  } else if (mediaCpo.length === 1) {
+    const only = mediaCpo[0];
+    advices.push(`📊 <strong>${only.name}</strong>から${only.hires}名採用。採用単価は<strong>${Math.round(only.cpo).toLocaleString()}円</strong>。他媒体も試して比較しよう！`);
+  }
+
+  // 2) 前期比：CPOが下がっていれば褒める
+  if (pCPO && tCPO && tCPO < pCPO) {
+    const dropPct = Math.round((pCPO - tCPO) / pCPO * 100);
+    advices.push(`📈 採用単価が前期比<strong>${dropPct}%改善</strong>！この調子！`);
+  } else if (pCPO && tCPO && tCPO > pCPO * 1.2) {
+    const upPct = Math.round((tCPO - pCPO) / pCPO * 100);
+    advices.push(`⚠️ 採用単価が前期比<strong>+${upPct}%</strong>に上昇。媒体の見直しを検討してみて！`);
+  }
+
+  // 3) 採用率
+  if (tA >= 10 && hr < 5) {
+    advices.push(`🤔 応募${tA}名に対して採用は${tH}名（${hr}%）。応募者の質や面接プロセスを見直すタイミングかも！`);
+  } else if (hr >= 20) {
+    advices.push(`✨ 採用率<strong>${hr}%</strong>は優秀！マッチング精度が高いね！`);
+  }
+
+  // 4) 月別推移：今月の広告費が突出していたら警告
+  const sortedMonths = Object.keys(months || {}).sort();
+  if (sortedMonths.length >= 2) {
+    const lastM = sortedMonths[sortedMonths.length - 1];
+    const prevM = sortedMonths[sortedMonths.length - 2];
+    const lastB = months[lastM]?.budget || 0;
+    const prevB = months[prevM]?.budget || 0;
+    if (prevB > 0 && lastB > prevB * 1.5) {
+      advices.push(`📅 <strong>${lastM}</strong>の広告費が前月の<strong>${(lastB/prevB).toFixed(1)}倍</strong>。意図した増額？コスト管理に注意！`);
+    }
+  }
+
+  if (advices.length === 0) {
+    advices.push(`📊 もう少しデータが集まると、コアラがアドバイスできるよ〜🐨`);
+  }
+
+  ulEl.innerHTML = advices.map(a => `<div>${a}</div>`).join('');
+  box.style.display = 'block';
+}
+
+// ========================================
+// 予算管理：スパークライン（提案4）
+// ========================================
+function renderBudgetSparklines(months, isHired, af) {
+  // 直近12ヶ月のデータポイントを生成
+  const sm = Object.keys(months || {}).sort();
+  if (sm.length < 2) return; // 最低2点はないと描画しない
+
+  const points = sm.map(m => {
+    const d = months[m];
+    return {
+      month: m,
+      totalCost: d.budget,
+      apps: d.apps,
+      hires: d.hires,
+      cpa: d.budget && d.apps ? Math.round(d.budget / d.apps) : 0,
+      cpo: d.budget && d.hires ? Math.round(d.budget / d.hires) : 0,
+      hireRate: d.apps ? d.hires / d.apps * 100 : 0,
+    };
+  });
+  const dataMap = {
+    totalCost: points.map(p => p.totalCost),
+    cpa:       points.map(p => p.cpa),
+    cpo:       points.map(p => p.cpo),
+    hireRate:  points.map(p => p.hireRate),
+  };
+  const colorMap = {
+    totalCost: '#D85A30',
+    cpa:       '#185FA5',
+    cpo:       '#639922',
+    hireRate:  '#534AB7',
+  };
+
+  document.querySelectorAll('canvas.bk-spark').forEach(cv => {
+    const kpi = cv.dataset.kpi;
+    const data = dataMap[kpi];
+    if (!data || data.length < 2) return;
+    drawSparkline(cv, data, colorMap[kpi]);
+  });
+}
+
+function drawSparkline(canvas, data, color) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width = canvas.offsetWidth || 100;
+  const H = canvas.height = canvas.offsetHeight || 22;
+  ctx.clearRect(0, 0, W, H);
+  if (!data || data.length < 2) return;
+  const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 1;
+  const padX = 2, padY = 3;
+  const innerW = W - padX * 2, innerH = H - padY * 2;
+  const xStep = innerW / (data.length - 1);
+  // 塗り
+  ctx.beginPath();
+  ctx.moveTo(padX, H - padY);
+  data.forEach((v, i) => {
+    const x = padX + i * xStep;
+    const y = padY + innerH - ((v - min) / range) * innerH;
+    if (i === 0) ctx.lineTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.lineTo(padX + (data.length - 1) * xStep, H - padY);
+  ctx.closePath();
+  ctx.fillStyle = color + '20';
+  ctx.fill();
+  // 線
+  ctx.beginPath();
+  data.forEach((v, i) => {
+    const x = padX + i * xStep;
+    const y = padY + innerH - ((v - min) / range) * innerH;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // 終点に丸
+  const lastX = padX + (data.length - 1) * xStep;
+  const lastY = padY + innerH - ((data[data.length-1] - min) / range) * innerH;
+  ctx.beginPath();
+  ctx.arc(lastX, lastY, 2.5, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+// ========================================
+// 予算管理：シミュレーターモード切替（提案6）
+// ========================================
+let _simMode = 'basic';
+function setSimMode(mode) {
+  _simMode = mode;
+  const b1 = document.getElementById('simModeBasic');
+  const b2 = document.getElementById('simModeAlloc');
+  const m1 = document.getElementById('simBasicMode');
+  const m2 = document.getElementById('simAllocMode');
+  if (mode === 'basic') {
+    if (b1) { b1.style.background = '#1a1a1a'; b1.style.color = '#fff'; }
+    if (b2) { b2.style.background = '#fafafa'; b2.style.color = '#666'; }
+    if (m1) m1.style.display = 'block';
+    if (m2) m2.style.display = 'none';
+  } else {
+    if (b1) { b1.style.background = '#fafafa'; b1.style.color = '#666'; }
+    if (b2) { b2.style.background = '#1a1a1a'; b2.style.color = '#fff'; }
+    if (m1) m1.style.display = 'none';
+    if (m2) m2.style.display = 'block';
+    // 媒体配分スライダーUIを構築
+    buildAllocSliders();
+  }
+}
+
+// 媒体配分シミュレーション：媒体一覧を取得（過去の応募者から実績がある媒体）
+function _getMediaForSim() {
+  const mediaSet = new Set();
+  applicants.forEach(a => { if (a.media) mediaSet.add(a.media); });
+  return [...mediaSet].sort();
+}
+
+// 配分スライダー構築（媒体ごとの%）
+let _simAlloc = {}; // { 媒体名: 配分% }
+function buildAllocSliders() {
+  const container = document.getElementById('simAllocSliders');
+  if (!container) return;
+  const medias = _getMediaForSim();
+  if (medias.length === 0) {
+    container.innerHTML = '<div style="font-size:11px;color:#aaa;padding:10px;">媒体マスターか応募者データの媒体が登録されていません</div>';
+    document.getElementById('simAllocResult').innerHTML = '';
+    return;
+  }
+  // 初期値：均等配分
+  if (Object.keys(_simAlloc).length === 0 || medias.some(m => _simAlloc[m] === undefined)) {
+    const eq = Math.round(100 / medias.length);
+    _simAlloc = {};
+    medias.forEach((m, i) => { _simAlloc[m] = (i === medias.length - 1) ? 100 - eq * (medias.length - 1) : eq; });
+  }
+  let html = '';
+  medias.forEach(m => {
+    const v = _simAlloc[m] || 0;
+    html += `
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:11px;font-weight:600;width:90px;color:#1a1a1a;">${escapeHtml(m)}</span>
+        <input type="range" min="0" max="100" value="${v}" data-media="${escapeHtml(m)}" oninput="onAllocSliderChange(this)" style="flex:1;">
+        <span data-media-pct="${escapeHtml(m)}" style="font-size:11px;font-weight:600;width:36px;text-align:right;">${v}%</span>
+      </div>`;
+  });
+  container.innerHTML = html;
+  recalcAllocSim();
+}
+
+function onAllocSliderChange(input) {
+  const m = input.dataset.media;
+  const v = parseInt(input.value);
+  _simAlloc[m] = v;
+  const lbl = document.querySelector(`[data-media-pct="${m.replace(/"/g,'\\"')}"]`);
+  if (lbl) lbl.textContent = v + '%';
+  recalcAllocSim();
+}
+
+function recalcAllocSim() {
+  const totalEl = document.getElementById('simTotalBudget');
+  const total = parseInt(totalEl?.value || '0') || 0;
+  const resultEl = document.getElementById('simAllocResult');
+  if (!resultEl) return;
+  const medias = _getMediaForSim();
+  if (medias.length === 0 || total <= 0) {
+    resultEl.innerHTML = '';
+    return;
+  }
+  // 各媒体の過去CPOを算出
+  const isHired = a => {
+    const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
+    return cid === 'hired' || cid === 'joined' || ['内定','内定承諾','採用'].includes(a.hireStatus);
+  };
+  // 媒体ごとの応募数・採用数・予算実績
+  const stats = {};
+  medias.forEach(m => stats[m] = { apps:0, hires:0, budget:0 });
+  applicants.forEach(a => {
+    if (a.media && stats[a.media]) {
+      stats[a.media].apps++;
+      if (isHired(a)) stats[a.media].hires++;
+    }
+  });
+  budgetData.forEach(d => {
+    if (d.media && stats[d.media]) stats[d.media].budget += d.amount;
+  });
+  // 全体平均CPO（実績がない媒体に使うフォールバック）
+  const allBudget = Object.values(stats).reduce((s, x) => s + x.budget, 0);
+  const allHires = Object.values(stats).reduce((s, x) => s + x.hires, 0);
+  const fallbackCpo = allBudget && allHires ? allBudget / allHires : 0;
+
+  // 配分の合計が100%になるよう正規化
+  const sum = medias.reduce((s, m) => s + (_simAlloc[m] || 0), 0);
+  if (sum === 0) {
+    resultEl.innerHTML = '<div style="background:#fff8f0;border-radius:8px;padding:.75rem;color:#854F0B;font-size:11px;">配分の合計が0%です</div>';
+    return;
+  }
+
+  let totalEstHires = 0;
+  let rows = '';
+  medias.forEach(m => {
+    const pct = _simAlloc[m] || 0;
+    const allotted = Math.round(total * pct / sum);
+    const s = stats[m];
+    const cpo = (s.budget && s.hires) ? s.budget / s.hires : fallbackCpo;
+    const estHires = cpo > 0 ? (allotted / cpo) : 0;
+    totalEstHires += estHires;
+    const cpoText = (s.budget && s.hires)
+      ? `<span style="color:#3B6D11;">実績 ${Math.round(cpo).toLocaleString()}円/人</span>`
+      : `<span style="color:#aaa;">参考 ${Math.round(fallbackCpo).toLocaleString()}円/人</span>`;
+    rows += `<tr>
+      <td style="padding:6px 8px;font-size:11px;">${escapeHtml(m)}</td>
+      <td style="padding:6px 8px;font-size:11px;text-align:right;">${pct}%</td>
+      <td style="padding:6px 8px;font-size:11px;text-align:right;">${allotted.toLocaleString()}円</td>
+      <td style="padding:6px 8px;font-size:10.5px;text-align:right;">${cpoText}</td>
+      <td style="padding:6px 8px;font-size:11px;text-align:right;font-weight:600;color:#185FA5;">${estHires.toFixed(1)}名</td>
+    </tr>`;
+  });
+
+  // 全体均等配分の場合との比較
+  const eqAlloc = Math.round(total / medias.length);
+  let eqHires = 0;
+  medias.forEach(m => {
+    const s = stats[m];
+    const cpo = (s.budget && s.hires) ? s.budget / s.hires : fallbackCpo;
+    if (cpo > 0) eqHires += eqAlloc / cpo;
+  });
+  const diffHires = totalEstHires - eqHires;
+  const diffSign = diffHires >= 0 ? '+' : '';
+  const diffColor = diffHires >= 0 ? '#3B6D11' : '#D85A30';
+
+  resultEl.innerHTML = `
+    <div style="background:#fff;border:1px solid #e8e8e6;border-radius:8px;overflow:hidden;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="background:#f8f8f7;">
+          <th style="padding:7px 8px;text-align:left;font-size:10.5px;font-weight:600;color:#666;">媒体</th>
+          <th style="padding:7px 8px;text-align:right;font-size:10.5px;font-weight:600;color:#666;">配分</th>
+          <th style="padding:7px 8px;text-align:right;font-size:10.5px;font-weight:600;color:#666;">予算</th>
+          <th style="padding:7px 8px;text-align:right;font-size:10.5px;font-weight:600;color:#666;">CPO</th>
+          <th style="padding:7px 8px;text-align:right;font-size:10.5px;font-weight:600;color:#666;">予測採用数</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr style="background:#fafafa;font-weight:600;border-top:2px solid #e0e0de;">
+          <td style="padding:8px;font-size:11px;" colspan="4">合計予測採用数</td>
+          <td style="padding:8px;font-size:14px;text-align:right;color:#185FA5;">${totalEstHires.toFixed(1)}名</td>
+        </tr></tfoot>
+      </table>
+    </div>
+    <div style="margin-top:.625rem;padding:8px 10px;background:#f5f8fa;border-left:3px solid #6ab49a;border-radius:6px;font-size:10.5px;color:#444;line-height:1.6;">
+      💡 均等配分なら <strong>${eqHires.toFixed(1)}名</strong> → この配分なら <strong style="color:${diffColor};">${diffSign}${diffHires.toFixed(1)}名</strong> の差。<br>
+      ⚠ 過去実績ベースの試算です。媒体ごとの応募の質・市場変動は加味されません。
+    </div>`;
 }
 
 function renderBudgetTrend(months) {
@@ -8692,14 +9151,48 @@ async function deleteStaff(rowId) {
 }
 
 // ========================================
-// マスター管理UI（媒体・部署・人材紹介会社）
+// マスター管理UI（媒体・部署・人材紹介会社・担当者）
+// 左タブ式 + 検索 + インライン編集 + ドラッグ並べ替え + Undoトースト
 // ========================================
+let _mmCurrentTab = 'media';
+let _mmFilter = { media:'', dept:'', agency:'', assignee:'' };
+let _mmDeleted = null; // {type, value, index, timer}
+
+function switchMmTab(tab) {
+  _mmCurrentTab = tab;
+  document.querySelectorAll('.mm-side-btn').forEach(b => b.classList.toggle('active', b.dataset.mmTab === tab));
+  document.querySelectorAll('.mm-pane').forEach(p => p.style.display = 'none');
+  const pane = document.getElementById('mmPane-' + tab);
+  if (pane) pane.style.display = 'block';
+  // ステータスタブを開いたときは描画更新
+  if (tab === 'status') {
+    if (typeof renderStatusMaster === 'function') renderStatusMaster();
+  }
+}
+
+// 各タイプの使用件数を計算
+function getMmUsageCount(type, value) {
+  if (type === 'media') return applicants.filter(a => a.media === value).length;
+  if (type === 'dept') return applicants.filter(a => a.dept === value).length;
+  if (type === 'agency') return applicants.filter(a => a.agency === value).length;
+  if (type === 'assignee') return 0; // 担当者マスターは別系統で使われる
+  return 0;
+}
+
 function renderManage() {
   // 既存のマスター項目を表示
   renderMasterList('media', 'mlMed');
   renderMasterList('dept', 'mlDept');
   renderMasterList('agency', 'mlAg');
   renderMasterList('assignee', 'mlAssignee');
+  // 件数バッジ更新
+  const cnt = (t) => (masters[t] || []).length;
+  const ce = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  ce('mmCountMedia', cnt('media'));
+  ce('mmCountDept', cnt('dept'));
+  ce('mmCountAgency', cnt('agency'));
+  ce('mmCountAssignee', cnt('assignee'));
+  ce('mmCountStatus', (detailStatuses || []).length);
   // ステータスマスターも更新
   renderStatusMaster();
 }
@@ -8708,23 +9201,187 @@ function renderMasterList(type, listId) {
   const ul = document.getElementById(listId);
   if (!ul) return;
   const items = masters[type] || [];
-  if (!items.length) {
-    ul.innerHTML = '<li style="color:#aaa;font-size:11px;padding:8px 6px;font-style:italic;justify-content:flex-start;background:transparent;">登録なし</li>';
+  const filter = (_mmFilter[type] || '').toLowerCase();
+  const filtered = filter
+    ? items.map((v, i) => ({ v, i })).filter(x => x.v.toLowerCase().includes(filter))
+    : items.map((v, i) => ({ v, i }));
+
+  if (!filtered.length) {
+    ul.innerHTML = `<li class="mm-empty">${filter ? '一致する項目なし' : '登録なし'}</li>`;
     return;
   }
-  // 既存CSS .mg-list li のスタイル(背景色・パディング)を活かしつつ削除ボタンを追加
-  ul.innerHTML = items.map((v, i) => `
-    <li>
-      <span style="color:#1a1a1a;">${escapeHtml(v)}</span>
-      <button onclick="deleteM('${type}', ${i})" title="削除"
-        style="background:transparent;border:none;color:#D85A30;cursor:pointer;font-size:13px;padding:0 4px;line-height:1;opacity:.5;transition:opacity .15s;"
-        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.5'">✕</button>
-    </li>
-  `).join('');
+  ul.innerHTML = filtered.map(x => {
+    const usage = getMmUsageCount(type, x.v);
+    const usageClass = usage > 0 ? 'mm-usage has' : 'mm-usage zero';
+    const usageText = usage > 0 ? `${usage}件使用中` : '未使用';
+    return `<li class="mm-item" draggable="true" data-type="${type}" data-index="${x.i}"
+        ondragstart="onMmDragStart(event)" ondragend="onMmDragEnd(event)"
+        ondragover="onMmDragOver(event)" ondrop="onMmDrop(event)" ondragleave="onMmDragLeave(event)">
+      <span class="mm-handle" title="ドラッグで並べ替え">⋮⋮</span>
+      <span class="mm-name" onclick="startMmRename(this, '${type}', ${x.i})" title="クリックでリネーム">${escapeHtml(x.v)}</span>
+      <span class="${usageClass}">${usageText}</span>
+      <button class="mm-del" onclick="deleteM('${type}', ${x.i})" title="削除">✕</button>
+    </li>`;
+  }).join('');
 }
 
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// 検索フィルタ
+function filterMmList(type, value) {
+  _mmFilter[type] = value || '';
+  const listId = { media:'mlMed', dept:'mlDept', agency:'mlAg', assignee:'mlAssignee' }[type];
+  if (listId) renderMasterList(type, listId);
+}
+
+// インライン編集（リネーム）
+function startMmRename(spanEl, type, index) {
+  const oldVal = (masters[type] || [])[index];
+  if (oldVal === undefined) return;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'mm-name-input';
+  input.value = oldVal;
+  input.dataset.type = type;
+  input.dataset.index = index;
+  input.dataset.oldVal = oldVal;
+  input.onblur = () => commitMmRename(input);
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') { input.value = oldVal; input.blur(); }
+  };
+  spanEl.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+async function commitMmRename(input) {
+  const type = input.dataset.type;
+  const index = parseInt(input.dataset.index);
+  const oldVal = input.dataset.oldVal;
+  const newVal = input.value.trim();
+  // キャンセル系：空 or 同値ならそのまま戻す
+  if (!newVal || newVal === oldVal) {
+    renderManage();
+    return;
+  }
+  // 重複チェック
+  if ((masters[type] || []).includes(newVal)) {
+    showMmToast(`「${newVal}」は既に登録されています`, false);
+    renderManage();
+    return;
+  }
+  // Supabase更新（旧値→新値）
+  const cid = isAdmin ? 'admin' : currentClientId;
+  const { error } = await sb.from('masters')
+    .update({ value: newVal })
+    .eq('client_id', cid).eq('type', type).eq('value', oldVal);
+  if (error) {
+    showMmToast('リネームに失敗：' + error.message, false);
+    renderManage();
+    return;
+  }
+  // 既存応募者で参照しているレコードも更新（部署・媒体・紹介会社）
+  if (['media','dept','agency'].includes(type)) {
+    const fieldMap = { media:'media', dept:'dept', agency:'agency' };
+    const f = fieldMap[type];
+    let q = sb.from('applicants').update({ [f]: newVal }).eq(f, oldVal);
+    if (!isAdmin) q = q.eq('client_id', currentClientId);
+    const { error: e2 } = await q;
+    if (e2) console.warn('[mm rename] 応募者の参照更新失敗（無視）', e2);
+    // ローカルapplicantsにも反映
+    applicants.forEach(a => { if (a[f] === oldVal) a[f] = newVal; });
+  }
+  // ローカルのmasters更新
+  masters[type][index] = newVal;
+  showMmToast(`「${oldVal}」を「${newVal}」に変更しました`, true);
+  renderManage();
+  popSelects();
+}
+
+// ===== ドラッグ並べ替え =====
+let _mmDragSrc = null;
+function onMmDragStart(e) {
+  const li = e.currentTarget;
+  _mmDragSrc = { type: li.dataset.type, index: parseInt(li.dataset.index) };
+  li.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  // Firefox 対応：何かsetDataしないとドラッグが起きない
+  try { e.dataTransfer.setData('text/plain', '_'); } catch(_) {}
+}
+function onMmDragEnd(e) {
+  e.currentTarget.classList.remove('dragging');
+  document.querySelectorAll('.mm-item.drop-target').forEach(el => el.classList.remove('drop-target'));
+  _mmDragSrc = null;
+}
+function onMmDragOver(e) {
+  if (!_mmDragSrc) return;
+  const li = e.currentTarget;
+  if (li.dataset.type !== _mmDragSrc.type) return;
+  e.preventDefault();
+  document.querySelectorAll('.mm-item.drop-target').forEach(el => el.classList.remove('drop-target'));
+  li.classList.add('drop-target');
+}
+function onMmDragLeave(e) {
+  e.currentTarget.classList.remove('drop-target');
+}
+async function onMmDrop(e) {
+  if (!_mmDragSrc) return;
+  e.preventDefault();
+  const li = e.currentTarget;
+  const dstType = li.dataset.type;
+  const dstIndex = parseInt(li.dataset.index);
+  if (dstType !== _mmDragSrc.type || dstIndex === _mmDragSrc.index) return;
+  // 並べ替え（ローカル）
+  const arr = masters[dstType] || [];
+  const [moved] = arr.splice(_mmDragSrc.index, 1);
+  arr.splice(dstIndex, 0, moved);
+  // Supabase 側：単純な並び順保持カラムが masters テーブルにない場合があるので、
+  // 「順番ごとに更新」は重い操作になる。今のスキーマでは ord カラムがあるか確認。
+  // 無ければローカル順序のみ反映（リロードで初期化される可能性あり）
+  // ord 更新を試みる（テーブルにordカラムが無ければ静かに失敗するだけ）
+  const cid = isAdmin ? 'admin' : currentClientId;
+  for (let i = 0; i < arr.length; i++) {
+    try {
+      await sb.from('masters').update({ ord: i }).eq('client_id', cid).eq('type', dstType).eq('value', arr[i]);
+    } catch(_) {} // ord列が無い場合などは無視
+  }
+  showMmToast('並び順を変更しました', true);
+  renderManage();
+  popSelects();
+}
+
+// ===== Undoトースト =====
+function showMmToast(msg, undoable) {
+  const t = document.getElementById('mmToast');
+  const m = document.getElementById('mmToastMsg');
+  const u = document.getElementById('mmToastUndo');
+  if (!t || !m || !u) return;
+  m.textContent = msg;
+  // undoableは削除時のみ true、それ以外（リネーム成功通知等）は false
+  u.style.display = (undoable && _mmDeleted) ? 'inline-block' : 'none';
+  t.style.display = 'flex';
+  clearTimeout(t._hideTimer);
+  t._hideTimer = setTimeout(() => { t.style.display = 'none'; }, 5000);
+}
+
+async function undoMmDelete() {
+  if (!_mmDeleted) return;
+  const { type, value, index } = _mmDeleted;
+  // Supabaseに復活
+  const cid = isAdmin ? 'admin' : currentClientId;
+  const insertRow = { client_id: cid, type, value };
+  const { error } = await sb.from('masters').insert(insertRow);
+  if (error) {
+    showMmToast('元に戻すのに失敗：' + error.message, false);
+    return;
+  }
+  // ローカルにも復活
+  if (!masters[type]) masters[type] = [];
+  masters[type].splice(index, 0, value);
+  _mmDeleted = null;
+  document.getElementById('mmToast').style.display = 'none';
+  showMmToast(`「${value}」を復元しました`, false);
+  renderManage();
+  popSelects();
 }
 
 async function addM(type) {
@@ -8748,7 +9405,7 @@ async function addM(type) {
   if (!masters[type]) masters[type] = [];
   masters[type].push(value);
   input.value = '';
-  setStatus('追加しました', 'ok');
+  showMmToast(`「${value}」を追加しました`, false);
   // 関連UIをリフレッシュ
   renderManage();
   popSelects();
@@ -8766,11 +9423,18 @@ async function deleteM(type, index) {
     alert('削除に失敗しました: ' + error.message);
     return;
   }
-  // ローカルから削除
+  // Undo用にバックアップしてローカル削除
+  _mmDeleted = { type, value, index };
   masters[type].splice(index, 1);
-  setStatus('削除しました', 'ok');
+  showMmToast(`「${value}」を削除しました`, true);
+  // 5秒後にUndo情報を破棄
+  setTimeout(() => { _mmDeleted = null; }, 5000);
   renderManage();
   popSelects();
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 // パスワード変更
