@@ -975,6 +975,7 @@ async function loadApplicants() {
       docs: r.docs || [],
       dept: r.dept || '',
       hireStatus: r.hire_status || '',
+      address: r.address || '',
       clientId: r.client_id,
       updatedAt: r.updated_at || r.created_at || null,
       // 新ステータスからcoreStatusIdを再計算（旧データもこれで正しくマッピングされる）
@@ -3115,7 +3116,8 @@ async function saveApp() {
     birthdate: by&&bm&&bd ? `${by}年${bm}月${bd}日` : null,
     docs: tempDocs,
     dept: document.getElementById('fDept2') ? document.getElementById('fDept2').value : '',
-    hire_status: document.getElementById('fHire2') ? document.getElementById('fHire2').value : ''
+    hire_status: document.getElementById('fHire2') ? document.getElementById('fHire2').value : '',
+    address: document.getElementById('fAddr') ? document.getElementById('fAddr').value : ''
   };
   let error;
   let savedId = editId;

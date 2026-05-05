@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260505g">
+<link rel="stylesheet" href="css/style.css?v=20260505i">
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
   if (location.protocol === 'file:') {
@@ -443,7 +443,7 @@
         <!-- 3段目：件数 + アクションボタン -->
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <span id="listCnt" style="font-size:13px;font-weight:600;color:#1a1a1a;"></span>
-          <button class="btn-exp" onclick="goNewApplicantForm()" style="background:#5aaa8e;color:#fff;border-color:#5aaa8e;">＋ 新規登録</button>
+          <button class="btn-exp" onclick="goAddChoice()" style="background:#5aaa8e;color:#fff;border-color:#5aaa8e;">＋ 新規登録</button>
           <button class="btn-exp" onclick="showSec('import')">📥 応募者一括取り込み</button>
           <button class="btn-exp" onclick="exportCSV()">CSV出力</button>
         </div>
@@ -626,6 +626,189 @@
       </div>
     </div>
 
+    <!-- ===== 登録方法選択画面（新規追加） ===== -->
+    <div id="sec-add-choice" class="sec">
+      <div style="position:fixed;bottom:20px;right:20px;z-index:50;display:none;" id="char_sec-add-choice">
+        <div style="text-align:right;margin-bottom:4px;">
+          <div style="display:inline-block;background:#1a1a1a;color:#fff;border-radius:10px 10px 2px 10px;padding:5px 9px;font-size:10px;font-weight:500;margin-bottom:4px;">どっちで登録する？</div>
+        </div>
+        <img src="assets/koala-think-small.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
+      </div>
+
+      <div style="background:#fff;border-radius:12px;padding:1.75rem 2rem;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+        <div style="text-align:center;margin-bottom:1.5rem;">
+          <h1 style="font-size:18px;font-weight:600;margin-bottom:6px;"><span style="color:#5aaa8e;">＋</span> 新規登録</h1>
+          <div style="font-size:12px;color:#888;">どの方法で登録しますか？</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:720px;margin:0 auto;">
+          <!-- AIペースト -->
+          <div onclick="goPasteRegister()" style="background:linear-gradient(135deg,#EEEDFE 0%,#fff 100%);border:1.5px solid #AFA9EC;border-radius:12px;padding:24px;cursor:pointer;text-align:center;position:relative;transition:transform .15s ease,box-shadow .15s ease;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(83,74,183,0.15)';" onmouseout="this.style.transform='';this.style.boxShadow='';">
+            <div style="position:absolute;top:10px;right:10px;background:#534AB7;color:#fff;font-size:9px;padding:2px 6px;border-radius:3px;font-weight:600;">NEW</div>
+            <img src="assets/koala-kira-small.png" style="width:64px;height:64px;object-fit:contain;margin-bottom:12px;">
+            <div style="font-size:14px;font-weight:600;margin-bottom:6px;color:#3C3489;">🐨 AIペースト</div>
+            <div style="font-size:11px;color:#666;line-height:1.6;margin-bottom:14px;">
+              応募通知メールを貼るだけ。<br>
+              テンプレに従って自動抽出。<br>
+              <span style="color:#534AB7;font-weight:600;">複数件まとめて登録OK</span>
+            </div>
+            <div style="display:inline-block;background:#534AB7;color:#fff;padding:8px 20px;border-radius:6px;font-size:12px;font-weight:600;">この方法で登録 →</div>
+          </div>
+
+          <!-- 手動入力 -->
+          <div onclick="goManualRegister()" style="background:#fff;border:1px solid #e8e8e6;border-radius:12px;padding:24px;cursor:pointer;text-align:center;transition:transform .15s ease,box-shadow .15s ease;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(0,0,0,0.08)';" onmouseout="this.style.transform='';this.style.boxShadow='';">
+            <div style="font-size:48px;margin-bottom:12px;line-height:1;">📝</div>
+            <div style="font-size:14px;font-weight:600;margin-bottom:6px;">手動入力</div>
+            <div style="font-size:11px;color:#666;line-height:1.6;margin-bottom:14px;">
+              全項目を自分で入力。<br>
+              詳細情報を最初から登録したい人向け。<br>
+              <span style="color:#888;">これまで通りのフォーム</span>
+            </div>
+            <div style="display:inline-block;background:#fff;color:#1a1a1a;padding:8px 20px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid #ccc;">この方法で登録 →</div>
+          </div>
+        </div>
+
+        <div style="text-align:center;margin-top:20px;font-size:11px;color:#aaa;">
+          💡 ペースト方式が初めての方は AIペースト → 結果を確認 → 編集してから登録、の流れがおすすめ
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== AIペースト登録画面（新規追加） ===== -->
+    <div id="sec-add-paste" class="sec">
+      <div style="position:fixed;bottom:20px;right:20px;z-index:50;display:none;" id="char_sec-add-paste">
+        <div style="text-align:right;margin-bottom:4px;">
+          <div style="display:inline-block;background:#1a1a1a;color:#fff;border-radius:10px 10px 2px 10px;padding:5px 9px;font-size:10px;font-weight:500;margin-bottom:4px;">貼ってね♪</div>
+        </div>
+        <img src="assets/koala-pc-small.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
+      </div>
+
+      <!-- パンくず -->
+      <div style="background:#fff;border-radius:8px;padding:.75rem 1rem;margin-bottom:.75rem;font-size:12px;color:#666;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="cursor:pointer;color:#185FA5;" onclick="goAddChoice()">← 戻る</span>
+        <span style="color:#ccc;">／</span>
+        <span>新規登録</span>
+        <span style="color:#ccc;">／</span>
+        <span style="color:#3C3489;font-weight:600;">🐨 AIペースト</span>
+      </div>
+
+      <!-- ステップ表示 -->
+      <div id="pasteStepIndicator" style="display:flex;gap:6px;margin-bottom:1rem;font-size:11px;align-items:center;flex-wrap:wrap;">
+        <span class="paste-step active" data-step="1" style="padding:4px 10px;background:#534AB7;color:#fff;border-radius:14px;">1. ペースト</span>
+        <span style="color:#aaa;">→</span>
+        <span class="paste-step" data-step="2" style="padding:4px 10px;background:#fff;color:#888;border:0.5px solid #e0e0e0;border-radius:14px;">2. 解析・確認</span>
+        <span style="color:#aaa;">→</span>
+        <span class="paste-step" data-step="3" style="padding:4px 10px;background:#fff;color:#888;border:0.5px solid #e0e0e0;border-radius:14px;">3. 登録</span>
+      </div>
+
+      <!-- ステップ1：ペースト入力 -->
+      <div id="pasteStep1" style="background:linear-gradient(180deg,#EEEDFE 0%,#fff 100%);border-radius:12px;padding:20px;">
+        <!-- テンプレ選択バー -->
+        <div style="background:#fff;border:0.5px solid #e0e0e0;border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span style="font-size:11px;color:#666;white-space:nowrap;">📋 メールテンプレ：</span>
+            <select id="pasteTemplateSelect" onchange="onPasteTemplateChange()" style="flex:1;min-width:200px;padding:6px 10px;border:0.5px solid #e0e0e0;border-radius:6px;font-size:12px;background:#fff;font-family:inherit;">
+              <option value="">— テンプレを選択 —</option>
+            </select>
+            <button onclick="openTemplateEditor()" style="padding:6px 12px;background:#fff;border:0.5px solid #534AB7;border-radius:6px;font-size:11px;cursor:pointer;color:#534AB7;white-space:nowrap;font-family:inherit;font-weight:500;">⚙ 編集 / + 新規</button>
+          </div>
+          <div id="pasteTemplateInfo" style="margin-top:6px;font-size:10px;color:#0F6E56;display:none;"></div>
+        </div>
+
+        <!-- ペースト枠リスト -->
+        <div id="pasteBoxList"></div>
+
+        <!-- 追加ボタン -->
+        <button onclick="addPasteBox()" style="width:100%;padding:12px;background:#fff;border:1.5px dashed #AFA9EC;border-radius:8px;font-size:12px;cursor:pointer;color:#534AB7;font-weight:600;margin-bottom:14px;font-family:inherit;">＋ もう1件追加</button>
+
+        <!-- アクション -->
+        <div style="display:flex;gap:8px;">
+          <button onclick="analyzePastes()" style="flex:1;padding:12px;background:#534AB7;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">🐨 解析して確認画面へ →</button>
+          <button onclick="clearAllPasteBoxes()" style="padding:12px 18px;background:#fff;border:0.5px solid #e0e0e0;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;">クリア</button>
+        </div>
+
+        <div style="margin-top:14px;background:rgba(255,255,255,0.7);border-radius:8px;padding:10px 12px;font-size:11px;color:#666;line-height:1.7;">
+          💡 <span style="font-weight:600;color:#3C3489;">プラスボタンで枠が増えていく：</span>1名ずつ確実に分けて貼れば、AIに分割ミスされる心配ゼロ🐨<br>
+          📋 <span style="font-weight:600;color:#3C3489;">テンプレを選ぶと精度UP：</span>媒体特有のフォーマットを覚えさせておけるので、毎回安定した抽出ができます
+        </div>
+      </div>
+
+      <!-- ステップ2：確認画面 -->
+      <div id="pasteStep2" style="display:none;">
+        <div style="background:#fff;border-radius:12px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:14px;border-bottom:0.5px solid #f0f0ee;">
+            <img src="assets/koala-good-small.png" style="width:36px;height:36px;object-fit:contain;flex-shrink:0;">
+            <div style="flex:1;">
+              <div id="pasteStep2Headline" style="font-size:13px;font-weight:600;">解析完了！</div>
+              <div style="font-size:10px;color:#666;">中身を確認して、必要なら修正してから登録してね</div>
+            </div>
+            <div id="pasteStep2Counter" style="font-size:11px;color:#666;"></div>
+          </div>
+
+          <!-- 解析結果カードリスト -->
+          <div id="pasteResultList"></div>
+
+          <!-- フッター -->
+          <div style="background:#f8f8f7;border-radius:8px;padding:12px 14px;margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div id="pasteFinalCount" style="font-size:12px;flex:1;min-width:200px;">0名を登録します</div>
+            <button onclick="backToPasteStep1()" style="padding:8px 14px;background:#fff;border:0.5px solid #e0e0e0;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;">← ペーストに戻る</button>
+            <button onclick="saveAllParsedApplicants()" id="pasteSaveBtn" style="padding:8px 18px;background:#5aaa8e;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">✓ まとめて登録</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== テンプレ編集モーダル（新規追加） ===== -->
+    <div id="templateEditorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px;">
+      <div style="background:#fff;border-radius:14px;width:100%;max-width:1000px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;">
+        <!-- ヘッダー -->
+        <div style="background:#EEEDFE;padding:14px 18px;border-bottom:0.5px solid #AFA9EC;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:14px;font-weight:600;color:#3C3489;">📋 メールテンプレ管理</span>
+          <select id="teTemplateSelect" onchange="onTemplateSelect()" style="padding:6px 10px;border:0.5px solid #AFA9EC;border-radius:6px;font-size:12px;background:#fff;font-family:inherit;">
+            <option value="__new__">＋ 新規作成…</option>
+          </select>
+          <input type="text" id="teTemplateName" placeholder="テンプレ名（例: JOBこあ）" style="flex:1;min-width:160px;padding:6px 10px;border:0.5px solid #AFA9EC;border-radius:6px;font-size:12px;font-family:inherit;">
+          <button onclick="duplicateTemplate()" style="padding:6px 10px;background:#fff;border:0.5px solid #e0e0e0;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;">複製</button>
+          <button onclick="deleteTemplate()" style="padding:6px 10px;background:#fff;border:0.5px solid #993C1D;border-radius:6px;font-size:11px;cursor:pointer;color:#993C1D;font-family:inherit;">削除</button>
+          <button onclick="closeTemplateEditor()" style="padding:6px 10px;background:transparent;border:none;cursor:pointer;font-size:18px;color:#666;line-height:1;">✕</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1;min-height:0;overflow:hidden;">
+          <!-- 左：サンプル本文 -->
+          <div style="padding:14px;border-right:0.5px solid #f0f0ee;display:flex;flex-direction:column;min-height:0;">
+            <div style="font-size:11px;color:#666;margin-bottom:8px;font-weight:600;">📨 サンプルメール本文</div>
+            <textarea id="teSampleText" placeholder="ここに実際のメール本文をコピペ…" style="flex:1;min-height:300px;background:#fafafa;border:0.5px solid #e0e0e0;border-radius:6px;padding:10px;font-family:Menlo,Consolas,monospace;font-size:11px;line-height:1.7;resize:vertical;font-weight:normal;outline:none;"></textarea>
+            <div style="font-size:10px;color:#888;margin-top:6px;line-height:1.6;">💡 サンプル本文を貼ると、右ペインのマッピングを「プレビュー」ボタンで試せます</div>
+          </div>
+
+          <!-- 右：マッピング設定 -->
+          <div style="padding:14px;display:flex;flex-direction:column;min-height:0;overflow-y:auto;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+              <span style="font-size:11px;font-weight:600;color:#666;">🔗 マッピング設定</span>
+              <span id="teMappingCount" style="font-size:10px;color:#aaa;margin-left:auto;">0 個</span>
+            </div>
+            <div id="teMappingList" style="display:flex;flex-direction:column;gap:6px;"></div>
+            <button onclick="addMappingRow()" style="margin-top:8px;width:100%;padding:8px;background:#fff;border:0.5px dashed #AFA9EC;border-radius:6px;font-size:11px;cursor:pointer;color:#534AB7;font-family:inherit;font-weight:500;">＋ マッピングを追加</button>
+
+            <!-- プレビューエリア -->
+            <div id="tePreviewArea" style="margin-top:14px;display:none;">
+              <div style="font-size:11px;font-weight:600;color:#0F6E56;margin-bottom:6px;">🔍 プレビュー結果</div>
+              <div id="tePreviewResult" style="background:#f3faf0;border:0.5px solid #5aaa8e;border-radius:6px;padding:10px;font-size:11px;line-height:1.6;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- フッター -->
+        <div style="background:#f8f8f7;padding:12px 18px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:0.5px solid #e8e8e6;">
+          <div style="font-size:11px;color:#666;">💡 マッピングを変更したら「保存」を忘れずに</div>
+          <div style="display:flex;gap:6px;">
+            <button onclick="previewTemplate()" style="padding:8px 14px;background:#fff;border:0.5px solid #e0e0e0;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;">プレビューで試す</button>
+            <button onclick="saveTemplate()" style="padding:8px 14px;background:#5aaa8e;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">✓ テンプレを保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 新規登録 -->
     <div id="sec-add" class="sec">
       <!-- sec-addキャラ -->
@@ -764,6 +947,10 @@
               <div class="afrow">
                 <div class="afrow-label"><span class="afreq">必須</span>電話番号</div>
                 <div class="afrow-input"><input type="tel" class="afw-md" id="fTel" placeholder="090-0000-0000"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>住所</div>
+                <div class="afrow-input"><input type="text" id="fAddr" placeholder="例：東京都新宿区西新宿1-1-1" style="flex:1;"></div>
               </div>
               <div class="afrow">
                 <div class="afrow-label"><span class="afreq-spacer"></span>生年月日</div>
@@ -1418,6 +1605,11 @@
             <span class="mm-side-label">ステータス</span>
             <span class="mm-side-count" id="mmCountStatus">0</span>
           </button>
+          <button class="mm-side-btn" data-mm-tab="paste-template" onclick="switchMmTab('paste-template')">
+            <span class="mm-side-icon">📨</span>
+            <span class="mm-side-label">メールテンプレ</span>
+            <span class="mm-side-count" id="mmCountPasteTemplate">0</span>
+          </button>
           <button class="mm-side-btn" data-mm-tab="settings" onclick="switchMmTab('settings')">
             <span class="mm-side-icon">⚙️</span>
             <span class="mm-side-label">パスワード</span>
@@ -1512,6 +1704,19 @@
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- メールテンプレ -->
+          <div class="mm-pane" id="mmPane-paste-template" style="display:none;">
+            <div class="mm-pane-header">
+              <h3>📨 メールテンプレ管理</h3>
+            </div>
+            <div style="background:#EEEDFE;border-left:3px solid #534AB7;padding:10px 12px;border-radius:0 6px 6px 0;font-size:11px;color:#3C3489;line-height:1.7;margin-bottom:14px;">
+              💡 媒体ごとのメール本文の取り込みルールを管理します。<br>
+              新規登録 → AIペースト時にここで登録したテンプレを使って自動抽出されます。
+            </div>
+            <div id="ptList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
+            <button onclick="openTemplateEditorForNew()" style="width:100%;padding:11px;background:#fff;border:1.5px dashed #AFA9EC;border-radius:8px;font-size:12px;cursor:pointer;color:#534AB7;font-family:inherit;font-weight:600;">＋ 新しいテンプレを追加</button>
           </div>
 
           <!-- パスワード（既存維持） -->
@@ -1644,6 +1849,7 @@
   </div>
 </div>
 
-<script src="js/app.js?v=20260505g"></script>
+<script src="js/app.js?v=20260505i"></script>
+<script src="js/paste-feature.js?v=20260505i"></script>
 </body>
 </html>

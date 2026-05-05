@@ -1194,3 +1194,234 @@ input.row-check {
   .mm-side-btn{flex-shrink:0;padding:6px 10px;font-size:11px;}
   .mm-side-label{display:none;}
 }
+
+/* ============================================
+ * AIペースト機能スタイル（2026/05/05追加）
+ * ============================================ */
+
+/* ペースト枠 */
+.paste-box {
+  background: #fff;
+  border: 0.5px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 10px;
+  transition: border-color .15s ease;
+}
+.paste-box:hover { border-color: #AFA9EC; }
+.paste-box.empty { border-style: dashed; border-color: #d0d0ce; }
+.paste-box-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.paste-box-num {
+  background: #534AB7;
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+.paste-box-num.empty { background: #aaa; }
+.paste-box-label {
+  font-size: 11px;
+  color: #666;
+}
+.paste-box-remove {
+  margin-left: auto;
+  padding: 2px 8px;
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  color: #993C1D;
+  cursor: pointer;
+  font-family: inherit;
+}
+.paste-box-remove:hover { text-decoration: underline; }
+.paste-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 10px;
+  border: 0.5px solid #e0e0e0;
+  border-radius: 6px;
+  font-family: Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  box-sizing: border-box;
+  background: #fafafa;
+  resize: vertical;
+  outline: none;
+}
+.paste-textarea:focus { border-color: #534AB7; background: #fff; }
+
+/* 解析結果カード */
+.parse-card {
+  background: #f3faf0;
+  border: 0.5px solid #5aaa8e;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.parse-card.has-error { background: #fdf3ef; border-color: #D85A30; }
+.parse-card.excluded { background: #f8f8f7; border-color: #ccc; opacity: 0.6; }
+.parse-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.parse-card-num {
+  font-size: 11px;
+  color: #0F6E56;
+  background: #E1F5EE;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+.parse-card.has-error .parse-card-num {
+  color: #993C1D;
+  background: #FAECE7;
+}
+.parse-card-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.parse-card-kana {
+  font-size: 10px;
+  color: #aaa;
+}
+.parse-card-stat {
+  margin-left: auto;
+  font-size: 10px;
+  color: #666;
+}
+.parse-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  font-size: 11px;
+}
+@media (max-width: 720px) {
+  .parse-fields { grid-template-columns: 1fr; }
+}
+.parse-field {
+  background: #fff;
+  padding: 6px 8px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.parse-field-label {
+  color: #888;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.parse-field-value {
+  flex: 1;
+  font-size: 11px;
+}
+.parse-field-input {
+  flex: 1;
+  border: 0.5px solid #ddd;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-family: inherit;
+  outline: none;
+  background: #fff;
+}
+.parse-field-input:focus { border-color: #5aaa8e; }
+.parse-field.tag-mapped { background: #EAF3DE; }
+.parse-field.tag-fixed { background: #FAEEDA; }
+.parse-field.tag-koala { background: #EEEDFE; }
+.parse-card-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 6px;
+}
+.parse-card-btn {
+  padding: 4px 10px;
+  background: #fff;
+  border: 0.5px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 10px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.parse-card-btn.danger { color: #993C1D; border-color: #f5c6b5; }
+.parse-card-btn:hover { background: #f8f8f7; }
+
+/* テンプレ編集モーダル */
+.te-mapping-row {
+  display: grid;
+  grid-template-columns: 70px 1fr 18px 1fr 24px;
+  gap: 4px;
+  align-items: center;
+  background: #f8f8f7;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+.te-mapping-row.kind-extract { background: #FBEAF0; }
+.te-mapping-row.kind-split { background: #EAF3DE; }
+.te-mapping-row.kind-fixed { background: #fff; border: 0.5px dashed #d0d0ce; }
+.te-mapping-row.kind-auto { background: #fff; border: 0.5px dashed #d0d0ce; }
+
+.te-kind-badge {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  text-align: center;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.te-kind-badge.extract { background: #fff; color: #993556; }
+.te-kind-badge.split { background: #fff; color: #3B6D11; }
+.te-kind-badge.fixed { background: #534AB7; color: #fff; }
+.te-kind-badge.auto { background: #888; color: #fff; }
+
+.te-config-input {
+  font-size: 11px;
+  padding: 4px 6px;
+  border: 0.5px solid #e0e0e0;
+  border-radius: 3px;
+  font-family: Menlo, Consolas, monospace;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+.te-config-input:focus { border-color: #534AB7; }
+
+.te-target-select {
+  font-size: 11px;
+  padding: 4px 6px;
+  border: 0.5px solid #e0e0e0;
+  border-radius: 3px;
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.te-arrow {
+  text-align: center;
+  color: #888;
+  font-size: 11px;
+}
+
+.te-row-del {
+  background: transparent;
+  border: none;
+  color: #993C1D;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  line-height: 1;
+}
+.te-row-del:hover { opacity: 0.7; }
