@@ -1425,3 +1425,48 @@ input.row-check {
   line-height: 1;
 }
 .te-row-del:hover { opacity: 0.7; }
+
+/* ============================================
+ * 応募者一覧テーブル レイアウト修正（2026/05/05追加）
+ * 求人名称が長文でも他列が縦書きにならないようにする
+ * ============================================ */
+
+/* セクションをスコープにして、応募者一覧のテーブルだけを対象 */
+#sec-list .tbl-wrap table {
+  table-layout: auto;
+}
+
+/* 全セルを基本1行で固定（縦書き化を防ぐ） */
+#sec-list .tbl-wrap th,
+#sec-list .tbl-wrap td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* 求人名称セルだけ：省略表示＋ホバー全文 */
+/* 5列目：求人名称（th/td どちらにも適用） */
+#sec-list .tbl-wrap thead tr th:nth-child(5),
+#sec-list .tbl-wrap tbody tr td:nth-child(5) {
+  max-width: 240px;
+  min-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 部署セルも長めの社名や部署名で崩れないようにmin-width設定 */
+#sec-list .tbl-wrap thead tr th:nth-child(7),
+#sec-list .tbl-wrap tbody tr td:nth-child(7) {
+  min-width: 90px;
+}
+
+/* 横スクロールが必要になったときに、ヘッダーとボディが揃うように */
+#sec-list .tbl-wrap {
+  overflow-x: auto;
+}
+
+/* 詳細パネル展開行は別構造なので影響を受けないようガード */
+#sec-list .tbl-wrap td.dp-row,
+#sec-list .tbl-wrap tr.dp-row td {
+  white-space: normal;
+}
