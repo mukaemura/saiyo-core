@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260506e">
+<link rel="stylesheet" href="css/style.css?v=20260506f">
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
   if (location.protocol === 'file:') {
@@ -1007,8 +1007,11 @@
                 <div class="afrow-input"><input type="date" class="afw-md" id="fAD"></div>
               </div>
               <div class="afrow">
-                <div class="afrow-label"><span class="afreq">必須</span>応募職種</div>
-                <div class="afrow-input"><input type="text" class="afw-lg" id="fJT" placeholder="エンジニア、営業 等"></div>
+                <div class="afrow-label"><span class="afreq-spacer"></span>応募職種 <span style="font-size:9px;color:#888;font-weight:400;">（複数可）</span></div>
+                <div class="afrow-input" style="flex-direction:column;align-items:stretch;gap:6px;">
+                  <div id="chipsJT" class="chip-group" data-target="fJT" data-multiple="true"></div>
+                  <input type="text" class="afw-lg" id="fJT" placeholder="項目にない場合は手動入力（カンマ区切りで複数可）" style="flex:1;">
+                </div>
               </div>
               <div class="afrow">
                 <div class="afrow-label"><span class="afreq-spacer"></span>求人番号</div>
@@ -1025,15 +1028,16 @@
               <div class="afrow">
                 <div class="afrow-label"><span class="afreq">必須</span>性別</div>
                 <div class="afrow-input">
-                  <select id="fGe" class="afw-md">
-                    <option value="">選択してください</option>
-                    <option>男性</option><option>女性</option><option>その他</option><option>未回答</option>
-                  </select>
+                  <div id="chipsGe" class="chip-group" data-target="fGe" data-multiple="false"></div>
+                  <input type="hidden" id="fGe">
                 </div>
               </div>
               <div class="afrow">
-                <div class="afrow-label"><span class="afreq-spacer"></span>部署</div>
-                <div class="afrow-input"><select id="fDept2" class="afw-md"><option value="">選択してください</option></select></div>
+                <div class="afrow-label"><span class="afreq-spacer"></span>部署 <span style="font-size:9px;color:#888;font-weight:400;">（複数可）</span></div>
+                <div class="afrow-input">
+                  <div id="chipsDept" class="chip-group" data-target="fDept2" data-multiple="true"></div>
+                  <input type="hidden" id="fDept2">
+                </div>
               </div>
             </div>
           </div>
@@ -1047,15 +1051,15 @@
                 <div class="afrow-input"><input type="text" class="afw-md" id="fNm" placeholder="山田 太郎"></div>
               </div>
               <div class="afrow">
-                <div class="afrow-label"><span class="afreq">必須</span>ふりがな</div>
+                <div class="afrow-label"><span class="afreq-spacer"></span>ふりがな</div>
                 <div class="afrow-input"><input type="text" class="afw-md" id="fKn" placeholder="やまだ たろう"></div>
               </div>
               <div class="afrow">
-                <div class="afrow-label"><span class="afreq">必須</span>メール</div>
+                <div class="afrow-label"><span class="afreq-spacer"></span>メール</div>
                 <div class="afrow-input"><input type="email" id="fEm" placeholder="example@email.com" style="flex:1;"></div>
               </div>
               <div class="afrow">
-                <div class="afrow-label"><span class="afreq">必須</span>電話番号</div>
+                <div class="afrow-label"><span class="afreq-spacer"></span>電話番号</div>
                 <div class="afrow-input"><input type="tel" class="afw-md" id="fTel" placeholder="090-0000-0000"></div>
               </div>
               <div class="afrow">
@@ -1095,7 +1099,7 @@
                 <div class="afrow-input"><select id="fAg2" class="afw-lg"><option value="">選択してください</option></select></div>
               </div>
               <div class="afrow">
-                <div class="afrow-label"><span class="afreq">必須</span>ステータス</div>
+                <div class="afrow-label"><span class="afreq-spacer"></span>ステータス</div>
                 <div class="afrow-input"><select id="fSt2" class="afw-lg"><option value="">選択してください</option></select></div>
               </div>
               <div class="afrow">
@@ -1978,8 +1982,9 @@
   </div>
 </div>
 
-<script src="js/app.js?v=20260506e"></script>
-<script src="js/paste-feature.js?v=20260506e"></script>
-<script src="js/email-feature.js?v=20260506e"></script>
+<script src="js/app.js?v=20260506f"></script>
+<script src="js/paste-feature.js?v=20260506f"></script>
+<script src="js/email-feature.js?v=20260506f"></script>
+<script src="js/chip-feature.js?v=20260506f"></script>
 </body>
 </html>

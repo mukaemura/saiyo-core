@@ -669,7 +669,7 @@ let currentClientId = null;
 let currentClientName = '';
 let isAdmin = false;
 let applicants = [];
-let masters = { media: [], status: [], agency: [], hire: [], dept: [], assignee: [] };
+let masters = { media: [], status: [], agency: [], hire: [], dept: [], assignee: [], jobType: [] };
 // マルチセレクトフィルターの選択状態（{status:[], media:[], jobType:[], dept:[]}）
 let multiFilterState = { status: [], media: [], jobType: [], dept: [] };
 let clients = []; // 管理者用
@@ -1038,13 +1038,19 @@ async function loadMasters() {
   const cid = isAdmin ? 'admin' : currentClientId;
   const { data } = await sb.from('masters').select('*').eq('client_id', cid);
   if (data && data.length) {
-    masters = { media: [], status: [], agency: [], hire: [], dept: [], assignee: [] };
+    masters = { media: [], status: [], agency: [], hire: [], dept: [], assignee: [], jobType: [] };
     data.forEach(r => { if (masters[r.type] !== undefined) masters[r.type].push(r.value); });
     // assigneeが空なら初期値を投入（既存マスターはあるが担当者だけ未登録のケース）
     if (!masters.assignee.length) {
       masters.assignee = ['LinkCore', 'クライアント'];
       const aRows = masters.assignee.map(v => ({ client_id: cid, type: 'assignee', value: v }));
       try { await sb.from('masters').insert(aRows); } catch(e) {}
+    }
+    // jobTypeが空ならデフォルト職種9個を投入
+    if (!masters.jobType.length) {
+      masters.jobType = ['マーケティング','デザイナー','事務','人事','経理','財務','カスタマーサポート','不動産管理','コンサルタント'];
+      const jRows = masters.jobType.map((v,i) => ({ client_id: cid, type: 'jobType', value: v, ord: i }));
+      try { await sb.from('masters').insert(jRows); } catch(e) {}
     }
   } else {
     // デフォルトマスター（新体系ステータス）
@@ -1054,7 +1060,8 @@ async function loadMasters() {
       agency: [],
       hire: ['内定','内定承諾','採用','不採用','保留'],
       dept: [],
-      assignee: ['LinkCore','クライアント']
+      assignee: ['LinkCore','クライアント'],
+      jobType: ['マーケティング','デザイナー','事務','人事','経理','財務','カスタマーサポート','不動産管理','コンサルタント']
     };
     // DBに保存
     const rows = [];
@@ -3062,7 +3069,7 @@ function showDuplicateWarning(dup, newName) {
 }
 
 async function saveApp() {
-  const req = {fAD:'応募日',fJT:'応募職種',fNm:'名前',fKn:'ふりがな',fEm:'メールアドレス',fTel:'電話番号',fGe:'性別',fMed:'媒体名',fSt2:'ステータス'};
+  const req = {fAD:'応募日',fNm:'名前',fGe:'性別'};
   for (const [id,lbl] of Object.entries(req)) {
     if (!document.getElementById(id).value) { alert(`「${lbl}」は必須項目です`); document.getElementById(id).focus(); return; }
   }
