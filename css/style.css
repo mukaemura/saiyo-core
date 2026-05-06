@@ -1470,3 +1470,67 @@ input.row-check {
 #sec-list .tbl-wrap tr.dp-row td {
   white-space: normal;
 }
+
+/* ============================================
+ * 応募者一覧 横幅最大化＋列幅最適化（2026/05/06）
+ * ============================================ */
+
+/* 応募者一覧のときだけ、コンテナを広く使う */
+body.list-page .app {
+  max-width: 1600px;
+}
+
+/* テーブルのフォントを少しコンパクトに */
+#sec-list .tbl-wrap {
+  overflow-x: auto;
+}
+#sec-list .tbl-wrap table {
+  font-size: 11px;
+  table-layout: auto;
+}
+#sec-list .tbl-wrap th,
+#sec-list .tbl-wrap td {
+  padding: 6px 8px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* 求人名称セル：上書き（前回のmin-width 140pxは過剰だった） */
+#sec-list .tbl-wrap thead tr th:nth-child(5),
+#sec-list .tbl-wrap tbody tr td:nth-child(5) {
+  max-width: 220px;
+  min-width: 100px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 部署列：min-width 90px → 不要、内容に応じて自動 */
+#sec-list .tbl-wrap thead tr th:nth-child(7),
+#sec-list .tbl-wrap tbody tr td:nth-child(7) {
+  min-width: auto;
+  max-width: 130px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 名前列：適度な幅 */
+#sec-list .tbl-wrap thead tr th:nth-child(3),
+#sec-list .tbl-wrap tbody tr td:nth-child(3) {
+  max-width: 160px;
+}
+
+/* 詳細パネル展開行は別 */
+#sec-list .tbl-wrap td.dp-row,
+#sec-list .tbl-wrap tr.dp-row td {
+  white-space: normal;
+}
+
+/* レスポンシブ：画面が狭いときは元のmax-width=1100に戻す */
+@media (max-width: 1200px) {
+  body.list-page .app {
+    max-width: 100%;
+    padding: 1rem;
+  }
+}

@@ -1088,6 +1088,24 @@ async function deleteTemplateById(tid) {
   };
 })();
 
+// showSec をフックして、応募者一覧画面のときだけ body に list-page クラスを付与
+// （横幅を広く使うCSSはこのクラスで切り替え）
+(function hookShowSecForListPage() {
+  const orig = window.showSec;
+  if (typeof orig !== 'function') return;
+  window.showSec = function(s) {
+    const ret = orig.apply(this, arguments);
+    try {
+      if (s === 'list') {
+        document.body.classList.add('list-page');
+      } else {
+        document.body.classList.remove('list-page');
+      }
+    } catch (e) {}
+    return ret;
+  };
+})();
+
 // 初回描画時に件数バッジも更新（renderManage呼び出しタイミングでloadPasteTemplatesを実行）
 (function hookRenderManageForPasteTemplate() {
   const orig = window.renderManage;
