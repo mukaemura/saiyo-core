@@ -305,8 +305,8 @@ function renderVarChips() {
   host.innerHTML = '';
   EMAIL_VARS.forEach(v => {
     const btn = document.createElement('button');
-    btn.style.cssText = 'padding:4px 8px;background:#fff;border:0.5px solid #e0e0e0;border-radius:14px;font-size:10px;cursor:pointer;font-family:inherit;color:#444441;';
-    btn.textContent = `{${v.key}}`;
+    btn.style.cssText = 'padding:5px 10px;background:#fff;border:0.5px solid #e0e0e0;border-radius:14px;font-size:10.5px;cursor:pointer;font-family:inherit;color:#444441;line-height:1.3;display:inline-flex;align-items:center;gap:5px;';
+    btn.innerHTML = `${escHtml(v.label)} <span style="color:#888;font-size:9.5px;font-family:Menlo,Consolas,monospace;">{${v.key}}</span>`;
     btn.title = v.desc;
     btn.onmouseover = () => { btn.style.borderColor = '#534AB7'; btn.style.color = '#534AB7'; };
     btn.onmouseout = () => { btn.style.borderColor = '#e0e0e0'; btn.style.color = '#444441'; };
