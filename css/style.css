@@ -1646,3 +1646,313 @@ input.row-check {
   border-color: #4a9881;
   color: #fff;
 }
+
+/* ============================================================
+ * スマホ対応 レベル1（2026/05/06追加）
+ * 目標：375px〜414px のスマホで「最低限見れる・使える」
+ * ============================================================ */
+
+@media (max-width: 768px) {
+
+  /* === ベース設定 === */
+  body {
+    font-size: 13px;
+  }
+  .app {
+    padding: 0.75rem !important;
+  }
+
+  /* === ヘッダー：ロゴ＋クライアント名＋担当 === */
+  .app > div:first-child,
+  .app > section:first-child {
+    /* ヘッダーコンテナ：折り返しを許容 */
+  }
+
+  /* ロゴ・採用コアタイトル列を縦積み風に */
+  .app .nb,
+  .app button.nb {
+    /* ナビボタン：折り返し対応はFlexbox側に頼る */
+    font-size: 11px !important;
+    padding: 6px 10px !important;
+  }
+
+  /* === ナビゲーション：折り返し === */
+  /* ナビが横並びの場合、画面に収まるよう折り返し */
+  .app > div:has(button.nb),
+  .app .nav-row,
+  .nav-area {
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+  }
+
+  /* === セクションのパディング縮小 === */
+  .sec {
+    padding: 0.875rem !important;
+  }
+
+  /* === ダッシュボード KPI === */
+  /* 大きいKPIカード（本日の応募/面接）：縦積み */
+  #sec-dashboard > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* 期間連動KPI（今月の応募数・対応中など6つ）：2列に */
+  #sec-dashboard div[style*="grid-template-columns:repeat(6"],
+  #sec-dashboard div[style*="grid-template-columns: repeat(6"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+  /* 5月の応募数〜入社数（5カード）：2列 */
+  #sec-dashboard div[style*="grid-template-columns:repeat(5"],
+  #sec-dashboard div[style*="grid-template-columns: repeat(5"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+  /* 媒体別ランキング・平均選考日数・ステータス滞留 */
+  #sec-dashboard div[style*="grid-template-columns:repeat(3"],
+  #sec-dashboard div[style*="grid-template-columns: repeat(3"] {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  /* コアラ画像（右下吹き出し）はスマホでは小さく */
+  [id^="char_sec-"] img {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  [id^="char_sec-"] {
+    bottom: 12px !important;
+    right: 12px !important;
+  }
+
+  /* === スケジュール：3カードを縦積み === */
+  #sec-schedule > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  /* === 応募者一覧 === */
+  /* 検索バー周辺の上部コントロールを折り返し */
+  #sec-list > div:first-child {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  /* 詳細絞り込みメニュー */
+  .mf-trigger {
+    max-width: 100% !important;
+  }
+  /* テーブル：font-sizeをさらに小さく＋PCと同じ横スクロール許容 */
+  #sec-list .tbl-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #sec-list .tbl-wrap table {
+    font-size: 10.5px !important;
+  }
+  #sec-list .tbl-wrap th,
+  #sec-list .tbl-wrap td {
+    padding: 5px 6px !important;
+  }
+
+  /* === 新規登録フォーム === */
+  /* afrow（ラベル横並び→縦積み） */
+  .afrow {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 4px !important;
+  }
+  .afrow-label {
+    width: 100% !important;
+    min-width: auto !important;
+    font-size: 12px !important;
+  }
+  .afrow-input {
+    width: 100% !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .afrow-input input,
+  .afrow-input select,
+  .afrow-input textarea {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .afw-md, .afw-lg, .afw-full, .afw-xs, .afw-sm {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .afbd-fields {
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+  }
+  .afsec {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+  }
+
+  /* チップグループ：折り返し（既存wrapあり、念のため） */
+  .chip-group {
+    gap: 4px !important;
+  }
+  .chip-btn {
+    font-size: 11px !important;
+    padding: 5px 10px !important;
+  }
+
+  /* タブ（基本情報・個人情報など） */
+  .af-tabs {
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+  }
+  .af-tab {
+    font-size: 11px !important;
+    padding: 5px 10px !important;
+  }
+
+  /* 登録ボタン・クリアボタン */
+  .af-actions {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .af-actions button {
+    width: 100% !important;
+  }
+
+  /* === モーダル全般 === */
+  /* 編集モーダル / メール作成 / テンプレ編集 / AIペースト確認 etc */
+  div[style*="position:fixed"][style*="inset:0"] > div,
+  .modal-content {
+    max-width: 100% !important;
+    max-height: 95vh !important;
+    margin: 0 !important;
+    border-radius: 10px !important;
+  }
+  /* モーダル内ヘッダーも折り返し */
+  div[style*="position:fixed"][style*="inset:0"] .modal-header {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  /* === メール作成モーダル === */
+  #emailComposerModal > div {
+    max-width: 100% !important;
+  }
+  #emailComposerModal input,
+  #emailComposerModal textarea,
+  #emailComposerModal select {
+    font-size: 13px !important;  /* iOSでズームされない最小サイズ */
+  }
+
+  /* === テンプレ編集モーダル === */
+  #emailTemplateEditorModal > div,
+  #templateEditorModal > div {
+    max-width: 100% !important;
+  }
+  /* テンプレ編集モーダルの2カラム → 1カラム */
+  #templateEditorModal div[style*="grid-template-columns:1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* === AIペースト関連 === */
+  /* ペースト枠 */
+  .paste-box {
+    padding: 10px !important;
+  }
+  .paste-textarea {
+    font-size: 12px !important;
+  }
+  /* 解析結果カード：2列フィールド→1列 */
+  .parse-fields {
+    grid-template-columns: 1fr !important;
+  }
+  /* 登録方法選択：2カラム→1カラム */
+  #sec-add-choice div[style*="grid-template-columns:1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* === マスター管理：サイドナビ＋ペイン → 縦積み === */
+  #sec-master > section > div[style*="grid-template-columns"],
+  #sec-master section div[style*="display:grid"][style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+  .mm-side {
+    width: 100% !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+    border-right: none !important;
+    border-bottom: 0.5px solid #e0e0e0;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+  }
+  .mm-side-btn {
+    width: auto !important;
+    font-size: 11px !important;
+    padding: 4px 8px !important;
+  }
+
+  /* === 分析・予算管理 === */
+  #sec-analytics div[style*="grid-template-columns"],
+  #sec-budget div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* グラフ系SVG/canvasは横スクロール許容 */
+  #sec-analytics .chart-wrap,
+  #sec-budget .chart-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* === 議事録・タスク === */
+  #sec-minutes .new-min-form,
+  #sec-tasks .new-task-form,
+  #sec-minutes form,
+  #sec-tasks form {
+    max-width: 100% !important;
+  }
+
+  /* === 全般：iOSのズーム防止（input/textareaは13px以上） === */
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="date"],
+  input[type="number"],
+  input[type="password"],
+  textarea,
+  select {
+    font-size: 13px !important;
+  }
+
+  /* タップターゲット最低40px確保 */
+  button:not(.chip-btn):not(.te-row-del):not(.parse-card-btn) {
+    min-height: 36px;
+  }
+
+  /* スクロールバー隠す */
+  .tbl-wrap::-webkit-scrollbar {
+    height: 6px;
+  }
+  .tbl-wrap::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.2);
+    border-radius: 3px;
+  }
+}
+
+/* === さらに小さい画面（〜375px）向けの追加調整 === */
+@media (max-width: 380px) {
+  .app {
+    padding: 0.5rem !important;
+  }
+  .sec {
+    padding: 0.625rem !important;
+  }
+  /* ナビボタンをさらに小さく */
+  .app .nb {
+    font-size: 10px !important;
+    padding: 5px 8px !important;
+  }
+  /* タイトル・見出し */
+  h1 { font-size: 16px !important; }
+  h2 { font-size: 14px !important; }
+  h3 { font-size: 13px !important; }
+}
