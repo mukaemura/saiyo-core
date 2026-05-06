@@ -3,7 +3,7 @@
 /* 基本リセットと共通スタイル */
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;background:#f8f8f7;color:#1a1a1a;}
-.app{max-width:1100px;margin:0 auto;padding:1.5rem;}
+.app{max-width:1600px;margin:0 auto;padding:1.5rem;}
 
 /* ログイン */
 /* ヘッダー */
@@ -1475,10 +1475,7 @@ input.row-check {
  * 応募者一覧 横幅最大化＋列幅最適化（2026/05/06）
  * ============================================ */
 
-/* 応募者一覧のときだけ、コンテナを広く使う */
-body.list-page .app {
-  max-width: 1600px;
-}
+/* 応募者一覧の幅は .app の1600px統一に追従（個別指定は不要） */
 
 /* テーブルのフォントを少しコンパクトに */
 #sec-list .tbl-wrap {
@@ -1557,9 +1554,49 @@ body.list-page .app {
   white-space: normal;
 }
 
+/* ============================================
+ * 1600px統一に伴うフォーム系の中央寄せ調整
+ * 入力欄が画面いっぱいに広がるのを防ぐ
+ * ============================================ */
+
+/* 新規登録フォーム：中央寄せ＋最大幅900px */
+#sec-add > .af-form,
+#sec-add .af-grid,
+#sec-add-paste #pasteStep1,
+#sec-add-paste #pasteStep2,
+#sec-add-choice > div {
+  /* 内側の余白は維持して、中身は読みやすい幅に絞る */
+}
+
+#sec-add {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+#sec-add-choice {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+#sec-add-paste {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+#sec-import {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* 議事録・タスクのフォーム部分も読みやすい幅に */
+#sec-minutes .new-min-form,
+#sec-tasks .new-task-form {
+  max-width: 900px;
+}
+
 /* レスポンシブ */
-@media (max-width: 1200px) {
-  body.list-page .app {
+@media (max-width: 1700px) {
+  .app {
     max-width: 100%;
     padding: 1rem;
   }
