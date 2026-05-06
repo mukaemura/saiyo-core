@@ -2524,8 +2524,11 @@ function buildAppRowHTML(a) {
       <td>${interviewCell}</td>
       <td class="list-col-memo" title="${esc(a.memo||'')}">${a.memo ? esc(a.memo) : '<span class="list-col-empty">-</span>'}</td>
       <td>${updatedCell}</td>
+      <td onclick="event.stopPropagation()" style="text-align:center;">
+        <button onclick="openApplicantEdit('${a.id}')" title="編集" style="padding:4px 10px;background:#fff;border:0.5px solid #5aaa8e;border-radius:6px;font-size:10.5px;cursor:pointer;color:#5aaa8e;font-family:inherit;font-weight:500;white-space:nowrap;">✏ 編集</button>
+      </td>
     </tr>
-    <tr id="detail_${a.id}" style="display:none;"><td colspan="14" style="padding:0;"></td></tr>`;
+    <tr id="detail_${a.id}" style="display:none;"><td colspan="15" style="padding:0;"></td></tr>`;
 }
 
 function stColor(s) {
