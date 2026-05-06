@@ -2512,7 +2512,7 @@ function buildAppRowHTML(a) {
       <td>${jobNameCell}</td>
       <td>${a.jobType||''}</td>
       <td>${a.dept ? esc(a.dept) : '<span class="list-col-empty">-</span>'}</td>
-      <td class="list-col-email" onclick="event.stopPropagation()">${a.email ? `<a href="https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(a.email)}" target="_blank" rel="noopener" title="${esc(a.email)}（クリックでGmail起動）" style="color:#185FA5;text-decoration:underline;text-underline-offset:2px;">${esc(a.email)}</a>` : '<span class="list-col-empty">-</span>'}</td>
+      <td class="list-col-email">${a.email ? `<span title="${esc(a.email)}">${esc(a.email)}</span>` : '<span class="list-col-empty">-</span>'}</td>
       <td>${a.media?`<span class="badge bb">${a.media}</span>`:''}</td>
       <td id="coreBadgeCell_${a.id}">${coreBadge}</td>
       <td onclick="event.stopPropagation()">
@@ -2524,8 +2524,9 @@ function buildAppRowHTML(a) {
       <td>${interviewCell}</td>
       <td class="list-col-memo" title="${esc(a.memo||'')}">${a.memo ? esc(a.memo) : '<span class="list-col-empty">-</span>'}</td>
       <td>${updatedCell}</td>
-      <td onclick="event.stopPropagation()" style="text-align:center;">
+      <td onclick="event.stopPropagation()" style="text-align:center;white-space:nowrap;">
         <button onclick="openApplicantEdit('${a.id}')" title="編集" style="padding:4px 10px;background:#fff;border:0.5px solid #5aaa8e;border-radius:6px;font-size:10.5px;cursor:pointer;color:#5aaa8e;font-family:inherit;font-weight:500;white-space:nowrap;">✏ 編集</button>
+        ${a.email ? `<button onclick="openEmailComposer('${a.id}')" title="メール送信" style="padding:4px 8px;background:#fff;border:0.5px solid #185FA5;border-radius:6px;font-size:10.5px;cursor:pointer;color:#185FA5;font-family:inherit;font-weight:500;margin-left:4px;">📧</button>` : ''}
       </td>
     </tr>
     <tr id="detail_${a.id}" style="display:none;"><td colspan="15" style="padding:0;"></td></tr>`;

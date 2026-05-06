@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260506c">
+<link rel="stylesheet" href="css/style.css?v=20260506d">
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
   if (location.protocol === 'file:') {
@@ -806,6 +806,114 @@
           <div style="display:flex;gap:6px;">
             <button onclick="previewTemplate()" style="padding:8px 14px;background:#fff;border:0.5px solid #e0e0e0;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;">プレビューで試す</button>
             <button onclick="saveTemplate()" style="padding:8px 14px;background:#5aaa8e;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">✓ テンプレを保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== メール作成モーダル（新規追加） ===== -->
+    <div id="emailComposerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px;">
+      <div style="background:#fff;border-radius:14px;width:100%;max-width:760px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;">
+        <!-- ヘッダー -->
+        <div style="background:#E6F1FB;padding:14px 18px;border-bottom:0.5px solid #B6D4F0;display:flex;align-items:center;gap:10px;">
+          <span style="font-size:18px;">📧</span>
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;color:#0C447C;">メール送信</div>
+            <div style="font-size:11px;color:#185FA5;" id="ecRecipientInfo">宛先：—</div>
+          </div>
+          <button onclick="closeEmailComposer()" style="padding:6px 10px;background:transparent;border:none;cursor:pointer;font-size:18px;color:#666;line-height:1;">✕</button>
+        </div>
+
+        <div style="padding:18px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;">
+          <!-- テンプレ選択 -->
+          <div style="background:#EEEDFE;border-radius:8px;padding:12px;">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span style="font-size:11px;color:#3C3489;font-weight:600;white-space:nowrap;">📋 テンプレ：</span>
+              <select id="ecTemplateSelect" onchange="onEmailTemplateApply()" style="flex:1;min-width:200px;padding:6px 10px;border:0.5px solid #AFA9EC;border-radius:6px;font-size:12px;background:#fff;font-family:inherit;">
+                <option value="">— テンプレなし（手書き） —</option>
+              </select>
+              <button onclick="openEmailTemplateEditorForNew()" style="padding:6px 12px;background:#fff;border:0.5px solid #534AB7;border-radius:6px;font-size:11px;cursor:pointer;color:#534AB7;font-family:inherit;font-weight:500;">⚙ 管理</button>
+            </div>
+          </div>
+
+          <!-- 宛先 -->
+          <div>
+            <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;font-weight:500;">TO</label>
+            <input type="text" id="ecToInput" style="width:100%;padding:8px 10px;border:0.5px solid #e0e0e0;border-radius:6px;font-size:12px;box-sizing:border-box;background:#fafafa;font-family:inherit;">
+          </div>
+
+          <!-- 件名 -->
+          <div>
+            <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;font-weight:500;">件名</label>
+            <input type="text" id="ecSubjectInput" style="width:100%;padding:8px 10px;border:0.5px solid #e0e0e0;border-radius:6px;font-size:12px;box-sizing:border-box;font-family:inherit;">
+          </div>
+
+          <!-- 本文 -->
+          <div>
+            <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;font-weight:500;">本文</label>
+            <textarea id="ecBodyInput" style="width:100%;padding:10px;border:0.5px solid #e0e0e0;border-radius:6px;font-size:12px;line-height:1.7;box-sizing:border-box;min-height:200px;font-family:inherit;resize:vertical;"></textarea>
+          </div>
+
+          <!-- ヒント -->
+          <div style="background:#f3faf0;border-left:3px solid #5aaa8e;padding:10px 12px;border-radius:0 6px 6px 0;font-size:11px;color:#27500A;line-height:1.7;">
+            🐨 テンプレの変数（{name}など）は応募者情報で自動展開済み。送信前に編集してOKです。
+          </div>
+        </div>
+
+        <!-- フッター -->
+        <div style="background:#f8f8f7;padding:12px 18px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:0.5px solid #e8e8e6;">
+          <label style="font-size:11px;color:#666;display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="ecRecordTimeline" checked style="accent-color:#5aaa8e;">
+            送信内容をタイムラインに記録
+          </label>
+          <div style="margin-left:auto;display:flex;gap:6px;">
+            <button onclick="closeEmailComposer()" style="padding:8px 14px;background:#fff;border:0.5px solid #e0e0e0;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;">キャンセル</button>
+            <button onclick="sendEmailViaGmail()" style="padding:8px 18px;background:#185FA5;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">📧 Gmailで送信 →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 送信メールテンプレ編集モーダル（新規追加） ===== -->
+    <div id="emailTemplateEditorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1001;align-items:center;justify-content:center;padding:20px;">
+      <div style="background:#fff;border-radius:14px;width:100%;max-width:880px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;">
+        <!-- ヘッダー -->
+        <div style="background:#E6F1FB;padding:14px 18px;border-bottom:0.5px solid #B6D4F0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:14px;font-weight:600;color:#0C447C;">📧 送信メールテンプレ管理</span>
+          <select id="eteTemplateSelect" onchange="onEmailTemplateSelect()" style="padding:6px 10px;border:0.5px solid #B6D4F0;border-radius:6px;font-size:12px;background:#fff;font-family:inherit;">
+            <option value="__new__">＋ 新規作成…</option>
+          </select>
+          <input type="text" id="eteTemplateName" placeholder="テンプレ名（例: 応募受付お礼）" style="flex:1;min-width:160px;padding:6px 10px;border:0.5px solid #B6D4F0;border-radius:6px;font-size:12px;font-family:inherit;">
+          <button onclick="duplicateEmailTemplate()" style="padding:6px 10px;background:#fff;border:0.5px solid #e0e0e0;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;">複製</button>
+          <button onclick="deleteEmailTemplateFromEditor()" style="padding:6px 10px;background:#fff;border:0.5px solid #993C1D;border-radius:6px;font-size:11px;cursor:pointer;color:#993C1D;font-family:inherit;">削除</button>
+          <button onclick="closeEmailTemplateEditor()" style="padding:6px 10px;background:transparent;border:none;cursor:pointer;font-size:18px;color:#666;line-height:1;">✕</button>
+        </div>
+
+        <div style="padding:18px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;">
+          <!-- 変数挿入バー -->
+          <div style="background:#FAEEDA;border-radius:8px;padding:10px 12px;">
+            <div style="font-size:10.5px;color:#5F5E5A;margin-bottom:6px;font-weight:500;">💡 クリックで本文/件名にカーソル位置に変数を挿入</div>
+            <div id="eteVarChips" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+          </div>
+
+          <!-- 件名 -->
+          <div>
+            <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;font-weight:500;">件名</label>
+            <input type="text" id="eteSubject" placeholder="例: 【Link Core】ご応募ありがとうございます／{name}様" style="width:100%;padding:8px 10px;border:0.5px solid #e0e0e0;border-radius:6px;font-size:12px;box-sizing:border-box;font-family:inherit;">
+          </div>
+
+          <!-- 本文 -->
+          <div>
+            <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;font-weight:500;">本文</label>
+            <textarea id="eteBody" placeholder="例:&#10;{name}様&#10;&#10;お世話になっております。&#10;Link Core採用担当の{staff_name}でございます。&#10;..." style="width:100%;padding:10px;border:0.5px solid #e0e0e0;border-radius:6px;font-size:12px;line-height:1.7;box-sizing:border-box;min-height:240px;font-family:inherit;resize:vertical;"></textarea>
+          </div>
+        </div>
+
+        <!-- フッター -->
+        <div style="background:#f8f8f7;padding:12px 18px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:0.5px solid #e8e8e6;">
+          <div style="font-size:11px;color:#666;">💡 編集が終わったら「保存」を押してください</div>
+          <div style="display:flex;gap:6px;">
+            <button onclick="saveEmailTemplate()" style="padding:8px 14px;background:#185FA5;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">✓ 保存</button>
           </div>
         </div>
       </div>
@@ -1612,6 +1720,11 @@
             <span class="mm-side-label">メールテンプレ</span>
             <span class="mm-side-count" id="mmCountPasteTemplate">0</span>
           </button>
+          <button class="mm-side-btn" data-mm-tab="email-template" onclick="switchMmTab('email-template')">
+            <span class="mm-side-icon">📧</span>
+            <span class="mm-side-label">送信メールテンプレ</span>
+            <span class="mm-side-count" id="mmCountEmailTemplate">0</span>
+          </button>
           <button class="mm-side-btn" data-mm-tab="settings" onclick="switchMmTab('settings')">
             <span class="mm-side-icon">⚙️</span>
             <span class="mm-side-label">パスワード</span>
@@ -1719,6 +1832,20 @@
             </div>
             <div id="ptList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
             <button onclick="openTemplateEditorForNew()" style="width:100%;padding:11px;background:#fff;border:1.5px dashed #AFA9EC;border-radius:8px;font-size:12px;cursor:pointer;color:#534AB7;font-family:inherit;font-weight:600;">＋ 新しいテンプレを追加</button>
+          </div>
+
+          <!-- 送信メールテンプレ -->
+          <div class="mm-pane" id="mmPane-email-template" style="display:none;">
+            <div class="mm-pane-header">
+              <h3>📧 送信メールテンプレ管理</h3>
+            </div>
+            <div style="background:#E6F1FB;border-left:3px solid #185FA5;padding:10px 12px;border-radius:0 6px 6px 0;font-size:11px;color:#0C447C;line-height:1.7;margin-bottom:14px;">
+              💡 応募者へのメール送信時に使うテンプレを管理します。<br>
+              本文に <code style="background:#fff;padding:1px 4px;border-radius:2px;font-size:10.5px;">{name}</code> などの変数を入れると、応募者ごとに自動置換されます。<br>
+              <span style="font-size:10px;">使える変数: {name} {kana} {email} {tel} {job_name} {job_no} {job_type} {dept} {media} {status} {app_date} {staff_name} {client_name}</span>
+            </div>
+            <div id="etList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
+            <button onclick="openEmailTemplateEditorForNew()" style="width:100%;padding:11px;background:#fff;border:1.5px dashed #B6D4F0;border-radius:8px;font-size:12px;cursor:pointer;color:#185FA5;font-family:inherit;font-weight:600;">＋ 新しいテンプレを追加</button>
           </div>
 
           <!-- パスワード（既存維持） -->
@@ -1851,7 +1978,8 @@
   </div>
 </div>
 
-<script src="js/app.js?v=20260506c"></script>
-<script src="js/paste-feature.js?v=20260506c"></script>
+<script src="js/app.js?v=20260506d"></script>
+<script src="js/paste-feature.js?v=20260506d"></script>
+<script src="js/email-feature.js?v=20260506d"></script>
 </body>
 </html>
