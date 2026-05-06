@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260506a">
+<link rel="stylesheet" href="css/style.css?v=20260506b">
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
   if (location.protocol === 'file:') {
@@ -522,11 +522,12 @@
   <th>求人名称</th>
   <th onclick="quickSort('jobType')" style="cursor:pointer;">職種 <span id="sort_jobType"></span></th>
   <th onclick="quickSort('dept')" style="cursor:pointer;">部署 <span id="sort_dept"></span></th>
+  <th>メール</th>
   <th>媒体</th>
   <th>ステータス</th>
   <th>詳細ステータス</th>
   <th>面接日</th>
-  <th>担当</th>
+  <th>メモ</th>
   <th onclick="quickSort('updatedAt')" style="cursor:pointer;">更新 <span id="sort_updatedAt"></span></th>
 </tr></thead>
           <tbody id="listBody"></tbody>
@@ -1849,7 +1850,7 @@
   </div>
 </div>
 
-<script src="js/app.js?v=20260506a"></script>
-<script src="js/paste-feature.js?v=20260506a"></script>
+<script src="js/app.js?v=20260506b"></script>
+<script src="js/paste-feature.js?v=20260506b"></script>
 </body>
 </html>

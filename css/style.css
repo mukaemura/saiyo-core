@@ -1495,7 +1495,7 @@ body.list-page .app {
   vertical-align: middle;
 }
 
-/* 求人名称セル：上書き（前回のmin-width 140pxは過剰だった） */
+/* 求人名称セル（5列目）：省略＋ホバー全文 */
 #sec-list .tbl-wrap thead tr th:nth-child(5),
 #sec-list .tbl-wrap tbody tr td:nth-child(5) {
   max-width: 220px;
@@ -1505,17 +1505,47 @@ body.list-page .app {
   text-overflow: ellipsis;
 }
 
-/* 部署列：min-width 90px → 不要、内容に応じて自動 */
+/* 部署列（7列目）：省略 */
 #sec-list .tbl-wrap thead tr th:nth-child(7),
 #sec-list .tbl-wrap tbody tr td:nth-child(7) {
-  min-width: auto;
   max-width: 130px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* 名前列：適度な幅 */
+/* メール列（8列目）：適度な幅で省略＋クリック可能 */
+#sec-list .tbl-wrap thead tr th:nth-child(8),
+#sec-list .tbl-wrap tbody tr td:nth-child(8) {
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#sec-list .tbl-wrap td.list-col-email a {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+/* メモ列（13列目）：省略＋ホバー全文 */
+#sec-list .tbl-wrap thead tr th:nth-child(13),
+#sec-list .tbl-wrap tbody tr td:nth-child(13) {
+  max-width: 240px;
+  min-width: 100px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #666;
+}
+#sec-list .tbl-wrap td.list-col-memo {
+  font-size: 10.5px;
+  font-style: italic;
+}
+
+/* 名前列（3列目）：適度な幅 */
 #sec-list .tbl-wrap thead tr th:nth-child(3),
 #sec-list .tbl-wrap tbody tr td:nth-child(3) {
   max-width: 160px;
@@ -1527,7 +1557,7 @@ body.list-page .app {
   white-space: normal;
 }
 
-/* レスポンシブ：画面が狭いときは元のmax-width=1100に戻す */
+/* レスポンシブ */
 @media (max-width: 1200px) {
   body.list-page .app {
     max-width: 100%;
