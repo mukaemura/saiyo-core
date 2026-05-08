@@ -2,47 +2,40 @@
 // 採用コア SPAルーター（History API版）
 // ===========================================================
 // 目的：URLとセクションを同期させる
-//   - /saiyo-core/dashboard ⇔ showSec('dashboard')
-//   - /saiyo-core/applicants ⇔ showSec('list')
-//   - /saiyo-core/applicants/new ⇔ showSec('add') + goNewApplicantForm()
-//   - /saiyo-core/applicants/:id ⇔ openApplicantEdit(id)
-//   - リロードしても画面復元
-//   - ブラウザ戻る/進む対応
+//   - /dashboard ⇔ showSec('dashboard')
+//   - /applicants ⇔ showSec('list')
+//   - /applicants/new ⇔ goNewApplicantForm()
+//   - /applicants/:id ⇔ openApplicantEdit(id)
 //
-// GitHub Pages 対策：
-//   - base path（/saiyo-core/）を自動判定
-//   - 404.html → index.html リダイレクトで直URLアクセス対応
-//   - パスワードリセット（#access_token=...）はSupabase用に予約、ハッシュは触らない
+// base path 対応：
+//   - GitHub Pages（mukaemura.github.io/saiyo-core）→ base = '/saiyo-core'
+//   - カスタムドメイン（app.link-core.co.jp）→ base = '' （ルート）
+//   - ローカル開発 → base = ''
 // ===========================================================
 
 (function() {
   'use strict';
 
   // ===== base path 自動判定 =====
-  // GitHub Pages: https://mukaemura.github.io/saiyo-core/  → '/saiyo-core'
-  // ローカル: http://localhost:8000/                      → ''
-  // index.html を含むパスから判定
   function detectBasePath() {
+    const host = window.location.hostname;
     const path = window.location.pathname;
-    // /saiyo-core/ で始まっていれば /saiyo-core が base
-    const ghMatch = path.match(/^(\/[^/]+)\/(?:index\.html)?(?:$|[a-z])/i);
-    if (ghMatch && !path.startsWith('/index.html')) {
-      // 末尾が index.html だけの場合は base なし
-      // たとえば /saiyo-core/index.html → base=/saiyo-core
-      // たとえば /index.html → base=''
-      const seg = ghMatch[1];
-      // GitHub Pages リポジトリ名らしき場合のみ採用（'/' のみ等は除外）
-      if (seg.length > 1) return seg;
+
+    // カスタムドメイン or localhost or IP → base なし（ルート運用）
+    // github.io ドメインのときだけ、最初のパスセグメントを base とする
+    if (host.endsWith('.github.io')) {
+      const seg = path.split('/')[1] || '';
+      if (seg && seg !== 'index.html' && seg !== '404.html') {
+        return '/' + seg;
+      }
     }
     return '';
   }
 
   const BASE = detectBasePath();
-  console.log('[router] BASE =', BASE || '(root)');
+  console.log('[router] BASE =', BASE || '(root)', '| host =', window.location.hostname);
 
   // ===== ルート定義 =====
-  // パス → セクション + アクション
-  // ":id" は動的パラメータ
   const routes = [
     { path: '/login',                    section: null,         action: 'showLogin' },
     { path: '/reset-password',           section: null,         action: 'resetPassword' },
@@ -63,7 +56,7 @@
     { path: '/admin',                    section: 'admin' },
   ];
 
-  // セクション → パス（逆引き、デフォルトURL）
+  // セクション → デフォルトパス
   const sectionToPath = {
     'dashboard':  '/dashboard',
     'list':       '/applicants',
@@ -81,15 +74,13 @@
     'import':     '/applicants/import',
   };
 
-  // ===== 内部状態 =====
-  // ルーター起因で showSec を呼んだことを示すフラグ（無限ループ防止）
+  // 内部状態
   let _routerInternal = false;
 
   // ===== パスマッチング =====
   function matchRoute(pathOnly) {
     for (const r of routes) {
       if (r.path === pathOnly) return { route: r, params: {} };
-      // 動的パラメータマッチ
       if (r.path.includes(':')) {
         const re = new RegExp('^' + r.path.replace(/:[a-zA-Z]+/g, '([^/]+)') + '$');
         const m = pathOnly.match(re);
@@ -132,34 +123,29 @@
   }
 
   // ===== セクション切替時にURLを反映 =====
-  // 既存の showSec() から呼ばれる。ルーター起因の場合はスキップ。
   function syncUrlFromSection(sectionId, options) {
     if (_routerInternal) return;
     options = options || {};
     let path;
-    // 編集モードの場合は ID 付きパスに
     if (sectionId === 'add' && options.editId) {
       path = '/applicants/' + encodeURIComponent(options.editId);
     } else if (sectionToPath[sectionId]) {
       path = sectionToPath[sectionId];
     } else {
-      return; // マッピングがないセクションは無視
+      return;
     }
     updateUrl(path, options.replace);
   }
 
   // ===== URLからセクションを復元 =====
   function navigateFromUrl() {
-    // ログインしてない場合は触らない（loginScreenが表示されるはず）
     if (!isLoggedIn()) {
       console.log('[router] 未ログイン → URLナビ保留');
       return;
     }
-
     const pathOnly = getCurrentPath();
     console.log('[router] navigateFromUrl path =', pathOnly);
 
-    // ルートパスはダッシュボードへ
     if (pathOnly === '/' || pathOnly === '') {
       _routerInternal = true;
       try { if (typeof showSec === 'function') showSec('dashboard'); } catch(e) {}
@@ -182,14 +168,10 @@
     _routerInternal = true;
     try {
       if (route.action === 'editApplicant' && params.id) {
-        // 応募者編集画面
         if (typeof openApplicantEdit === 'function') {
           openApplicantEdit(params.id);
-        } else {
-          console.warn('[router] openApplicantEdit が未定義');
         }
       } else if (route.action === 'newApplicant') {
-        // 新規登録画面
         if (typeof goNewApplicantForm === 'function') {
           goNewApplicantForm();
         } else if (typeof showSec === 'function') {
@@ -207,7 +189,6 @@
 
   // ===== ログインしているか =====
   function isLoggedIn() {
-    // mainAppが表示されてるか、currentClientIdがセットされてるかで判定
     const mainApp = document.getElementById('mainApp');
     if (mainApp && mainApp.style.display !== 'none' && mainApp.style.display !== '') {
       return true;
@@ -219,9 +200,7 @@
   }
 
   // ===== ログイン直後にURL復元 =====
-  // startApp 完了後に呼び出される
   function onLoginComplete() {
-    // 保存していたリダイレクト先があればそこへ
     const stored = sessionStorage.getItem('saiyoCoreRedirectAfterLogin');
     if (stored) {
       sessionStorage.removeItem('saiyoCoreRedirectAfterLogin');
@@ -232,24 +211,19 @@
       navigateFromUrl();
       return;
     }
-    // 現在のURLが意味あるパスなら、そこへ
     const pathOnly = getCurrentPath();
     if (pathOnly && pathOnly !== '/' && pathOnly !== '/login') {
       navigateFromUrl();
       return;
     }
-    // それ以外は dashboard へ
     updateUrl('/dashboard', true);
-    // showSec('dashboard') は startApp の中で呼ばれている
   }
 
   // ===== ログイン画面に来た時にURLを保存 =====
-  // 未ログインで /applicants にアクセスされた → ログインさせて元のURLへ戻す
   function rememberRedirectIfNeeded() {
     if (isLoggedIn()) return;
     const pathOnly = getCurrentPath();
     if (!pathOnly || pathOnly === '/' || pathOnly === '/login' || pathOnly === '/reset-password') return;
-    // パスワードリカバリー中はスキップ
     if (window.location.hash && window.location.hash.includes('type=recovery')) return;
     sessionStorage.setItem('saiyoCoreRedirectAfterLogin', pathOnly);
     console.log('[router] 未ログイン → ログイン後に戻すURLを保存:', pathOnly);
@@ -263,24 +237,18 @@
   });
 
   // ===== DOMContentLoaded時の初期化 =====
-  // app.js が読み込まれた後、Supabaseセッション復元 → startApp の流れの中で
-  // onLoginComplete() が呼ばれることを想定
-  // ただし、未ログインで直アクセスされた場合は rememberRedirectIfNeeded で保存しておく
   window.addEventListener('DOMContentLoaded', function() {
     // 404.html フォールバック経由でこのページに来た場合、URLを本来のパスに戻す
     try {
       const fallback = sessionStorage.getItem('saiyoCoreSpaFallback');
       if (fallback) {
         sessionStorage.removeItem('saiyoCoreSpaFallback');
-        // BASE が付いた状態の本来のURL に書き換え（リロード防止のため replaceState のみ）
         history.replaceState(null, '', BASE + fallback);
         console.log('[router] 404フォールバック経由 → URL復元:', BASE + fallback);
       }
     } catch(e) {}
 
-    // パスワードリカバリーはハッシュベースなので、それ以外をチェック
     if (!window.location.hash || !window.location.hash.includes('type=recovery')) {
-      // 短い遅延の後、ログイン状態を確認
       setTimeout(function() {
         if (!isLoggedIn()) {
           rememberRedirectIfNeeded();
@@ -293,8 +261,6 @@
   window.SaiyoRouter = {
     BASE: BASE,
     navigate: function(path, options) {
-      // path: '/dashboard' など
-      // options.replace: trueで履歴を残さず置換
       updateUrl(path, options && options.replace);
       _routerInternal = true;
       try {

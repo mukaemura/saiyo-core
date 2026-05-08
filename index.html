@@ -108,36 +108,23 @@
 <!-- 寝てるコアラ → ハッと起きる → ログインOK！ -->
 <!-- ============================================ -->
 <div id="loginLoadingOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:linear-gradient(145deg,#e8f7f3 0%,#f0faf8 40%,#fef9f2 100%);align-items:center;justify-content:center;flex-direction:column;opacity:0;transition:opacity 0.4s ease;">
-
-  <!-- 背景デコ -->
   <div style="position:absolute;top:-80px;left:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(106,180,154,.15) 0%,transparent 70%);pointer-events:none;"></div>
   <div style="position:absolute;bottom:-60px;right:-60px;width:280px;height:280px;background:radial-gradient(circle,rgba(55,138,221,.08) 0%,transparent 70%);pointer-events:none;"></div>
   <div style="position:absolute;top:18%;left:5%;width:10px;height:10px;background:#6ab49a;border-radius:50%;opacity:.2;animation:floatDot 4s ease-in-out infinite;"></div>
   <div style="position:absolute;top:10%;right:7%;width:7px;height:7px;background:#378ADD;border-radius:50%;opacity:.18;animation:floatDot 5s ease-in-out infinite reverse;"></div>
   <div style="position:absolute;bottom:20%;right:10%;width:5px;height:5px;background:#6ab49a;border-radius:50%;opacity:.25;animation:floatDot 3.5s ease-in-out infinite;"></div>
-
-  <!-- コアラエリア -->
   <div style="position:relative;width:200px;height:200px;display:flex;align-items:center;justify-content:center;">
-
-    <!-- Zzz 吹き出し（寝てる時のみ表示） -->
     <div id="loadingZzz" style="position:absolute;top:0;right:20px;font-family:'Comic Sans MS',cursive;font-weight:bold;color:#5DCAA5;opacity:0;transition:opacity 0.4s ease;pointer-events:none;">
       <span style="font-size:14px;display:inline-block;animation:zzzFloat 2s ease-in-out infinite;">z</span>
       <span style="font-size:18px;display:inline-block;margin-left:2px;animation:zzzFloat 2s ease-in-out infinite 0.4s;">z</span>
       <span style="font-size:24px;display:inline-block;margin-left:3px;animation:zzzFloat 2s ease-in-out infinite 0.8s;">Z</span>
     </div>
-
-    <!-- コアラ画像（睡眠時=character.png を傾けて、起床時=koala-good.png に切替） -->
     <img id="loadingKoala" src="assets/character.png" alt="コアラ" style="width:160px;height:160px;object-fit:contain;transition:transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);transform:rotate(-15deg) translateY(8px);filter:drop-shadow(0 8px 16px rgba(0,0,0,.1));">
   </div>
-
-  <!-- メッセージ -->
   <div id="loadingMessage" style="margin-top:24px;font-size:16px;font-weight:700;color:#3D4A42;letter-spacing:.04em;transition:all 0.3s ease;text-align:center;min-height:24px;">
     コアラを起こしています...
   </div>
-
-  <!-- スピナー（起きた後のローディング感） -->
   <div id="loadingSpinner" style="margin-top:18px;width:32px;height:32px;border:3px solid rgba(106,180,154,0.2);border-top-color:#5aaa8e;border-right-color:#5aaa8e;border-radius:50%;animation:loadingSpin 1s linear infinite;opacity:0;transition:opacity 0.3s ease;"></div>
-
 </div>
 
 <style>

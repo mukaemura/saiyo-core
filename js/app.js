@@ -792,14 +792,14 @@ async function doLogin() {
     ov.style.opacity = '0';
     setTimeout(() => { ov.style.display = 'none'; }, 400);
   }
-  // 演出を最低 1.8秒は表示する（実処理がそれより早く終わった場合の調整用）
+  // 演出を最低 1.8秒は表示する
   async function waitMinDuration(ms) {
     const started = window.__loginLoadingStartedAt || Date.now();
     const elapsed = Date.now() - started;
     const remain = ms - elapsed;
     if (remain > 0) await new Promise(r => setTimeout(r, remain));
   }
-  // グローバル公開（startApp等から呼び出すため）
+  // グローバル公開
   window.__saiyoLoginLoading = {
     show: showLoadingOverlay,
     wakeUp: wakeUpKoala,
@@ -975,7 +975,7 @@ async function startApp() {
     if (ovActive && window.__saiyoLoginLoading && window.__saiyoLoginLoading.show) {
       try {
         const ll = window.__saiyoLoginLoading;
-        // wakeUpがまだ呼ばれていない場合は強制実行（処理が早すぎたケース）
+        // wakeUpがまだ呼ばれていない場合は強制実行
         const koala = document.getElementById('loadingKoala');
         if (koala && !koala.classList.contains('koala-waking')) {
           ll.wakeUp();
@@ -9852,8 +9852,6 @@ window.addEventListener('DOMContentLoaded', function() {
 // ========================================
 // セッション自動復元（リロード時にログイン画面に戻らないため）
 // ========================================
-// Supabase は localStorage に JWT を保存するので、セッションを取り出して
-// 既存のログインフロー（loadActiveStaffList → startApp）を再現する
 async function tryRestoreSession() {
   if (typeof sb === 'undefined' || !sb) return false;
   try {
