@@ -733,6 +733,81 @@ async function doLogin() {
     }
   }
 
+  // ===== ログインローディング演出 =====
+  // 寝てるコアラ → ハッと起きる → ログインOK！
+  function showLoadingOverlay() {
+    const ov = document.getElementById('loginLoadingOverlay');
+    if (!ov) return;
+    // 寝てる状態にリセット
+    const koala = document.getElementById('loadingKoala');
+    const zzz = document.getElementById('loadingZzz');
+    const msg = document.getElementById('loadingMessage');
+    const sp = document.getElementById('loadingSpinner');
+    if (koala) {
+      koala.classList.remove('koala-waking');
+      koala.src = 'assets/character.png';
+      koala.style.transform = 'rotate(-15deg) translateY(8px)';
+    }
+    if (zzz) zzz.style.opacity = '0';
+    if (msg) {
+      msg.textContent = 'コアラを起こしています...';
+      msg.style.color = '#3D4A42';
+    }
+    if (sp) sp.style.opacity = '0';
+    // 表示開始
+    ov.style.display = 'flex';
+    requestAnimationFrame(() => {
+      ov.style.opacity = '1';
+      // Zzzをふんわり出す
+      setTimeout(() => { if (zzz) zzz.style.opacity = '1'; }, 200);
+    });
+    window.__loginLoadingStartedAt = Date.now();
+  }
+  function wakeUpKoala() {
+    // フェーズ2：コアラがハッと起きる
+    const koala = document.getElementById('loadingKoala');
+    const zzz = document.getElementById('loadingZzz');
+    const msg = document.getElementById('loadingMessage');
+    if (zzz) zzz.style.opacity = '0';
+    if (koala) {
+      // 起きたコアラ画像に切替
+      koala.src = 'assets/koala-good.png';
+      koala.classList.add('koala-waking');
+    }
+    if (msg) msg.textContent = 'おはようございます！';
+  }
+  function showLoginOk() {
+    // フェーズ3：ログインOK表示
+    const msg = document.getElementById('loadingMessage');
+    const sp = document.getElementById('loadingSpinner');
+    if (msg) {
+      msg.textContent = 'ログインOK！';
+      msg.style.color = '#1D9E75';
+    }
+    if (sp) sp.style.opacity = '1';
+  }
+  function hideLoadingOverlay() {
+    const ov = document.getElementById('loginLoadingOverlay');
+    if (!ov) return;
+    ov.style.opacity = '0';
+    setTimeout(() => { ov.style.display = 'none'; }, 400);
+  }
+  // 演出を最低 1.8秒は表示する（実処理がそれより早く終わった場合の調整用）
+  async function waitMinDuration(ms) {
+    const started = window.__loginLoadingStartedAt || Date.now();
+    const elapsed = Date.now() - started;
+    const remain = ms - elapsed;
+    if (remain > 0) await new Promise(r => setTimeout(r, remain));
+  }
+  // グローバル公開（startApp等から呼び出すため）
+  window.__saiyoLoginLoading = {
+    show: showLoadingOverlay,
+    wakeUp: wakeUpKoala,
+    ok: showLoginOk,
+    hide: hideLoadingOverlay,
+    waitMin: waitMinDuration
+  };
+
   hideErr();
 
   const email = (idEl?.value || '').trim();
@@ -761,6 +836,12 @@ async function doLogin() {
   }
 
   setBtnLoading(true);
+  // ローディングオーバーレイを表示（寝てるコアラ）
+  showLoadingOverlay();
+  // 600ms後に「ハッと起きる」演出
+  const wakeTimer = setTimeout(() => {
+    try { wakeUpKoala(); } catch(e) {}
+  }, 600);
 
   try {
     console.log('[doLogin] Supabase Auth signInWithPassword 開始');
@@ -774,6 +855,8 @@ async function doLogin() {
     if (error || !data?.user) {
       console.log('[doLogin] 認証失敗:', error?.message);
       showErr('メールアドレスまたはパスワードが正しくありません');
+      clearTimeout(wakeTimer);
+      hideLoadingOverlay();
       return;
     }
 
@@ -802,6 +885,8 @@ async function doLogin() {
       console.error('[doLogin] clients取得エラー', clientErr);
       showErr('アカウント情報の取得に失敗しました。管理者に確認してください');
       await sb.auth.signOut();
+      clearTimeout(wakeTimer);
+      hideLoadingOverlay();
       return;
     }
 
@@ -809,6 +894,8 @@ async function doLogin() {
       console.log('[doLogin] clients紐付けなし');
       showErr('アカウント情報が見つかりません。管理者にお問い合わせください');
       await sb.auth.signOut();
+      clearTimeout(wakeTimer);
+      hideLoadingOverlay();
       return;
     }
 
@@ -841,11 +928,15 @@ async function doLogin() {
       return;
     }
     // 担当者選択画面を表示
+    clearTimeout(wakeTimer);
+    hideLoadingOverlay();
     showStaffSelectScreen();
 
   } catch (e) {
     console.error('[doLogin] 例外発生', e);
     showErr('ログイン処理でエラーが発生しました。管理者に確認してください');
+    clearTimeout(wakeTimer);
+    hideLoadingOverlay();
   } finally {
     setBtnLoading(false);
   }
@@ -877,12 +968,35 @@ async function startApp() {
     if (window.SaiyoRouter && typeof window.SaiyoRouter.onLoginComplete === 'function') {
       try { window.SaiyoRouter.onLoginComplete(); } catch(e) { console.warn('[startApp] router連携エラー', e); }
     }
+    // ログインローディング演出：「ログインOK！」表示 → 最低1.8秒待ち → フェードアウト
+    // ※リロード時のセッション自動復元では演出は走らない（オーバーレイ非表示のため）
+    const ovEl = document.getElementById('loginLoadingOverlay');
+    const ovActive = ovEl && ovEl.style.display === 'flex' && window.__loginLoadingStartedAt;
+    if (ovActive && window.__saiyoLoginLoading && window.__saiyoLoginLoading.show) {
+      try {
+        const ll = window.__saiyoLoginLoading;
+        // wakeUpがまだ呼ばれていない場合は強制実行（処理が早すぎたケース）
+        const koala = document.getElementById('loadingKoala');
+        if (koala && !koala.classList.contains('koala-waking')) {
+          ll.wakeUp();
+          await new Promise(r => setTimeout(r, 600));
+        }
+        ll.ok();
+        await ll.waitMin(1800);
+        ll.hide();
+        window.__loginLoadingStartedAt = 0;
+      } catch(e) { console.warn('[startApp] loading演出エラー', e); }
+    }
     console.log('[startApp] 完了');
   } catch (e) {
     console.error('[startApp] エラー発生', e);
     // ログイン画面に戻してエラー表示
     document.getElementById('mainApp').style.display = 'none';
     document.getElementById('loginScreen').style.display = 'flex';
+    // ローディングも閉じる
+    if (window.__saiyoLoginLoading && window.__saiyoLoginLoading.hide) {
+      try { window.__saiyoLoginLoading.hide(); } catch(_) {}
+    }
     const err = document.getElementById('loginErr');
     if (err) {
       err.textContent = 'ログイン後の初期化でエラーが発生しました: ' + (e.message || '不明なエラー');
