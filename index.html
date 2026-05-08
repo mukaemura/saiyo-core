@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260508b">
+<link rel="stylesheet" href="css/style.css?v=20260508c">
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
   if (location.protocol === 'file:') {
@@ -105,7 +105,7 @@
 
 <!-- ============================================ -->
 <!-- ログインローディングオーバーレイ -->
-<!-- 寝てるコアラ → ハッと起きる → ログインOK！ -->
+<!-- コアラが横にトコトコ歩いて、メッセージが順番に切り替わる -->
 <!-- ============================================ -->
 <div id="loginLoadingOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:linear-gradient(145deg,#e8f7f3 0%,#f0faf8 40%,#fef9f2 100%);align-items:center;justify-content:center;flex-direction:column;opacity:0;transition:opacity 0.4s ease;">
   <div style="position:absolute;top:-80px;left:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(106,180,154,.15) 0%,transparent 70%);pointer-events:none;"></div>
@@ -113,34 +113,37 @@
   <div style="position:absolute;top:18%;left:5%;width:10px;height:10px;background:#6ab49a;border-radius:50%;opacity:.2;animation:floatDot 4s ease-in-out infinite;"></div>
   <div style="position:absolute;top:10%;right:7%;width:7px;height:7px;background:#378ADD;border-radius:50%;opacity:.18;animation:floatDot 5s ease-in-out infinite reverse;"></div>
   <div style="position:absolute;bottom:20%;right:10%;width:5px;height:5px;background:#6ab49a;border-radius:50%;opacity:.25;animation:floatDot 3.5s ease-in-out infinite;"></div>
-  <div style="position:relative;width:200px;height:200px;display:flex;align-items:center;justify-content:center;">
-    <div id="loadingZzz" style="position:absolute;top:0;right:20px;font-family:'Comic Sans MS',cursive;font-weight:bold;color:#5DCAA5;opacity:0;transition:opacity 0.4s ease;pointer-events:none;">
-      <span style="font-size:14px;display:inline-block;animation:zzzFloat 2s ease-in-out infinite;">z</span>
-      <span style="font-size:18px;display:inline-block;margin-left:2px;animation:zzzFloat 2s ease-in-out infinite 0.4s;">z</span>
-      <span style="font-size:24px;display:inline-block;margin-left:3px;animation:zzzFloat 2s ease-in-out infinite 0.8s;">Z</span>
+
+  <!-- 歩くステージ（横長） -->
+  <div style="position:relative;width:90%;max-width:520px;height:180px;">
+    <!-- 地面ライン -->
+    <div style="position:absolute;bottom:18px;left:5%;right:5%;height:2px;background:rgba(0,0,0,.06);border-radius:2px;"></div>
+    <!-- 歩くコアラ -->
+    <div id="loadingKoalaWalker" style="position:absolute;bottom:20px;left:10%;transform-origin:center bottom;animation:koalaWalkLR 5s ease-in-out infinite;">
+      <img id="loadingKoala" src="assets/character.png" alt="コアラ" style="width:120px;height:120px;object-fit:contain;animation:koalaBob 0.4s ease-in-out infinite;display:block;filter:drop-shadow(0 6px 12px rgba(0,0,0,.1));">
     </div>
-    <img id="loadingKoala" src="assets/character.png" alt="コアラ" style="width:160px;height:160px;object-fit:contain;transition:transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);transform:rotate(-15deg) translateY(8px);filter:drop-shadow(0 8px 16px rgba(0,0,0,.1));">
   </div>
-  <div id="loadingMessage" style="margin-top:24px;font-size:16px;font-weight:700;color:#3D4A42;letter-spacing:.04em;transition:all 0.3s ease;text-align:center;min-height:24px;">
-    コアラを起こしています...
+
+  <!-- メッセージ -->
+  <div id="loadingMessage" style="margin-top:18px;font-size:17px;font-weight:700;color:#3D4A42;letter-spacing:.04em;transition:opacity 0.3s ease;text-align:center;min-height:26px;">
+    もうちょっと待ってね
   </div>
-  <div id="loadingSpinner" style="margin-top:18px;width:32px;height:32px;border:3px solid rgba(106,180,154,0.2);border-top-color:#5aaa8e;border-right-color:#5aaa8e;border-radius:50%;animation:loadingSpin 1s linear infinite;opacity:0;transition:opacity 0.3s ease;"></div>
 </div>
 
 <style>
-  @keyframes loadingSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-  @keyframes zzzFloat {
-    0%, 100% { transform: translateY(0); opacity: 0.7; }
-    50% { transform: translateY(-6px); opacity: 1; }
+  @keyframes koalaWalkLR {
+    0%   { left: 10%; transform: scaleX(1); }
+    24%  { transform: scaleX(1); }
+    25%  { left: 78%; transform: scaleX(-1); }
+    49%  { left: 78%; transform: scaleX(-1); }
+    50%  { transform: scaleX(-1); }
+    74%  { transform: scaleX(-1); }
+    75%  { left: 10%; transform: scaleX(1); }
+    100% { left: 10%; transform: scaleX(1); }
   }
-  @keyframes loadingBounce {
-    0% { transform: rotate(-15deg) translateY(8px) scale(1); }
-    30% { transform: rotate(5deg) translateY(-15px) scale(1.05); }
-    60% { transform: rotate(-2deg) translateY(0) scale(1); }
-    100% { transform: rotate(0deg) translateY(0) scale(1); }
-  }
-  .koala-waking {
-    animation: loadingBounce 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+  @keyframes koalaBob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
   }
 </style>
 
@@ -2023,10 +2026,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260508b"></script>
-<script src="js/app.js?v=20260508b"></script>
-<script src="js/paste-feature.js?v=20260508b"></script>
-<script src="js/email-feature.js?v=20260508b"></script>
-<script src="js/chip-feature.js?v=20260508b"></script>
+<script src="js/router.js?v=20260508c"></script>
+<script src="js/app.js?v=20260508c"></script>
+<script src="js/paste-feature.js?v=20260508c"></script>
+<script src="js/email-feature.js?v=20260508c"></script>
+<script src="js/chip-feature.js?v=20260508c"></script>
 </body>
 </html>
