@@ -873,6 +873,10 @@ async function startApp() {
     await loadBudgetData();
     updateTaskBadge();
     renderDashboard();
+    // ルーター連携：URLから現在の画面を復元（直URL/リロード対応）
+    if (window.SaiyoRouter && typeof window.SaiyoRouter.onLoginComplete === 'function') {
+      try { window.SaiyoRouter.onLoginComplete(); } catch(e) { console.warn('[startApp] router連携エラー', e); }
+    }
     console.log('[startApp] 完了');
   } catch (e) {
     console.error('[startApp] エラー発生', e);
@@ -946,6 +950,13 @@ async function executeLogout() {
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('loginId').value = '';
   document.getElementById('loginPw').value = '';
+  // ルーター連携：URLを/loginに戻す（履歴も置換）
+  if (window.SaiyoRouter) {
+    try {
+      const base = window.SaiyoRouter.BASE || '';
+      history.replaceState({ path: '/login' }, '', base + '/login');
+    } catch(e) {}
+  }
 }
 
 // ========================================
@@ -1481,6 +1492,10 @@ document.addEventListener('click', function(e) {
 // ナビ
 // ========================================
 function showSec(s) {
+  // ルーター連携：URLを更新（ルーター起因の呼び出しでない場合のみ）
+  if (window.SaiyoRouter && typeof window.SaiyoRouter.syncUrlFromSection === 'function') {
+    window.SaiyoRouter.syncUrlFromSection(s);
+  }
   // 前のセクションのキャラを非表示
   document.querySelectorAll('[id^="char_sec-"]').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.sec').forEach(e => e.classList.remove('active'));
@@ -2706,6 +2721,10 @@ async function openApplicantEdit(id) {
     }
   } catch(e) {}
   showSec('add');
+  // ルーター連携：編集モードの場合は ID 付きURLに書き換え
+  if (window.SaiyoRouter && typeof window.SaiyoRouter.syncUrlFromSection === 'function') {
+    window.SaiyoRouter.syncUrlFromSection('add', { editId: editId, replace: true });
+  }
 }
 
 // 編集モードのヘッダーを表示
@@ -9715,6 +9734,87 @@ async function cancelResetPassword() {
 window.addEventListener('DOMContentLoaded', function() {
   checkPasswordRecoveryFlow();
 });
+
+// ========================================
+// セッション自動復元（リロード時にログイン画面に戻らないため）
+// ========================================
+// Supabase は localStorage に JWT を保存するので、セッションを取り出して
+// 既存のログインフロー（loadActiveStaffList → startApp）を再現する
+async function tryRestoreSession() {
+  if (typeof sb === 'undefined' || !sb) return false;
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session || !session.user) {
+      console.log('[restoreSession] セッションなし');
+      return false;
+    }
+    const user = session.user;
+    console.log('[restoreSession] セッション復元 uid:', user.id);
+
+    // admin判定
+    const role = user.app_metadata?.role;
+    if (role === 'admin') {
+      currentClientId = 'admin';
+      currentClientName = '管理者（全社）';
+      isAdmin = true;
+      await startApp();
+      return true;
+    }
+
+    // 一般クライアント
+    const { data: clientData, error: clientErr } = await sb.from('clients')
+      .select('client_id, name')
+      .eq('auth_user_id', user.id)
+      .maybeSingle();
+    if (clientErr || !clientData) {
+      console.warn('[restoreSession] clients取得失敗、ログアウト処理');
+      try { await sb.auth.signOut(); } catch(e) {}
+      return false;
+    }
+    currentClientId = clientData.client_id;
+    currentClientName = clientData.name;
+    isAdmin = false;
+
+    // 担当者：localStorage に保存があれば自動復元、なければ選択画面
+    await loadActiveStaffList();
+    const savedStaffId = (typeof loadSavedStaffSelection === 'function') ? loadSavedStaffSelection() : null;
+    if (savedStaffId) {
+      const found = activeStaffList.find(s => String(s.id) === String(savedStaffId));
+      if (found) {
+        currentStaffId = found.id;
+        currentStaffName = found.name;
+      }
+    }
+    if (!currentStaffId && activeStaffList.length > 0) {
+      // 担当者選択画面を表示
+      if (typeof showStaffSelectScreen === 'function') {
+        document.getElementById('loginScreen').style.display = 'none';
+        showStaffSelectScreen();
+        return true;
+      }
+    }
+    await startApp();
+    return true;
+  } catch(e) {
+    console.warn('[restoreSession] 例外:', e);
+    return false;
+  }
+}
+
+// DOMContentLoaded でセッション復元を試行
+window.addEventListener('DOMContentLoaded', function() {
+  // パスワードリカバリーフロー中はスキップ
+  if (window.location.hash && window.location.hash.includes('type=recovery')) return;
+  // 少し遅延させて、他の初期化を先に走らせる
+  setTimeout(function() {
+    tryRestoreSession();
+  }, 50);
+});
+
+// グローバル公開
+if (typeof window !== 'undefined') {
+  window.tryRestoreSession = tryRestoreSession;
+}
 
 
 // ========================================

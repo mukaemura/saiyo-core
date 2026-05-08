@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>採用コア - 読み込み中...</title>
+<script>
+  // GitHub Pages SPA フォールバック
+  // /saiyo-core/applicants/xxx に直アクセス → このページが返る
+  // → sessionStorage に元のパスを保存して /saiyo-core/ にリダイレクト
+  // → index.html が読み込まれ、router.js が sessionStorage を読んで該当画面に飛ぶ
+  (function() {
+    var fullPath = window.location.pathname + window.location.search + window.location.hash;
+    // base path 自動判定（/saiyo-core/ 配下にあるか）
+    var base = '';
+    var firstSeg = window.location.pathname.split('/')[1];
+    if (firstSeg && firstSeg !== 'index.html' && firstSeg !== '404.html') {
+      base = '/' + firstSeg;
+    }
+    // base 部分を除いた、アプリ内のパス
+    var appPath = window.location.pathname;
+    if (base && appPath.indexOf(base) === 0) {
+      appPath = appPath.substring(base.length);
+    }
+    if (!appPath) appPath = '/';
+
+    // 元のパスを sessionStorage に保存
+    try {
+      sessionStorage.setItem('saiyoCoreRedirectAfterLogin', appPath);
+      sessionStorage.setItem('saiyoCoreSpaFallback', appPath + window.location.search + window.location.hash);
+    } catch(e) {}
+
+    // ベースのindex.htmlへリダイレクト
+    var redirectTo = (base || '') + '/';
+    window.location.replace(redirectTo);
+  })();
+</script>
+</head>
+<body>
+<p style="font-family:sans-serif;padding:20px;">読み込み中... <a id="manualLink" href="/">こちら</a> をクリックしてください</p>
+<script>
+  // base path をリンクに反映
+  (function(){
+    var firstSeg = window.location.pathname.split('/')[1];
+    var base = '';
+    if (firstSeg && firstSeg !== 'index.html' && firstSeg !== '404.html') {
+      base = '/' + firstSeg;
+    }
+    var l = document.getElementById('manualLink');
+    if (l) l.href = (base || '') + '/';
+  })();
+</script>
+</body>
+</html>
