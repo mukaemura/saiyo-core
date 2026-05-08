@@ -7121,8 +7121,7 @@ function renderBudget() {
     if (sd.length) {
       let dlRows = '';
       sd.forEach(function(d) {
-        // IDをシングルクォートで安全にエスケープ（バックスラッシュとシングルクォートを処理）
-        const safeId = String(d.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const idEsc = escapeOwnerHtml(String(d.id));
         dlRows += '<tr>';
         if (isAdmin) dlRows += '<td style="'+tdL+'"><span style="font-size:10px;color:#185FA5;background:#f0f6ff;border:1px solid #c8ddf5;border-radius:6px;padding:1px 6px;">'+escapeOwnerHtml(getClientDisplayName(d.clientId||'')||'(未割当)')+'</span></td>';
         dlRows += '<td style="'+tdL+'">'+d.month+'</td><td style="'+tdL+'">'+d.media+'</td>';
@@ -7130,8 +7129,8 @@ function renderBudget() {
         dlRows += '<td style="'+tdR+'">'+d.amount.toLocaleString()+'円</td>';
         dlRows += '<td style="'+tdL+'">'+(d.type==='agency'?'人材紹介':'求人媒体')+'</td>';
         dlRows += '<td style="'+tdR+'white-space:nowrap;">';
-        dlRows += "<button class=\"btn-sm\" style=\"padding:3px 8px;font-size:10.5px;border:0.5px solid #5aaa8e;background:#fff;color:#5aaa8e;border-radius:6px;font-family:inherit;cursor:pointer;margin-right:4px;font-weight:500;\" onclick=\"editBudget('"+safeId+"')\">✏ 編集</button>";
-        dlRows += "<button class=\"btn-del\" onclick=\"deleteBudget('"+safeId+"')\">削除</button>";
+        dlRows += '<button type="button" class="btn-budget-edit" data-bid="'+idEsc+'" style="padding:3px 8px;font-size:10.5px;border:0.5px solid #5aaa8e;background:#fff;color:#5aaa8e;border-radius:6px;font-family:inherit;cursor:pointer;margin-right:4px;font-weight:500;">✏ 編集</button>';
+        dlRows += '<button type="button" class="btn-budget-del" data-bid="'+idEsc+'" style="padding:3px 8px;font-size:10.5px;border:0.5px solid #e57373;background:#fff;color:#e57373;border-radius:6px;font-family:inherit;cursor:pointer;font-weight:500;">削除</button>';
         dlRows += '</td></tr>';
       });
       dlEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>' +
@@ -7139,6 +7138,19 @@ function renderBudget() {
         '<th style="'+thL+'">月</th><th style="'+thL+'">媒体</th><th style="'+thL+'">部署</th>' +
         '<th style="'+thL+'">職種</th><th style="'+thR+'">金額</th><th style="'+thL+'">種別</th><th></th>' +
         '</tr></thead><tbody>' + dlRows + '</tbody></table>';
+      // 編集・削除ボタンにイベントリスナーをバインド（onclick属性ではエスケープ問題が発生するため）
+      dlEl.querySelectorAll('.btn-budget-edit').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const bid = btn.getAttribute('data-bid');
+          if (bid) editBudget(bid);
+        });
+      });
+      dlEl.querySelectorAll('.btn-budget-del').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const bid = btn.getAttribute('data-bid');
+          if (bid) deleteBudget(bid);
+        });
+      });
     } else {
       dlEl.innerHTML = '<div class="empty">予算データがありません</div>';
     }
