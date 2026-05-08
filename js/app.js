@@ -838,10 +838,10 @@ async function doLogin() {
   setBtnLoading(true);
   // ローディングオーバーレイを表示（寝てるコアラ）
   showLoadingOverlay();
-  // 600ms後に「ハッと起きる」演出
+  // 1000ms後に「ハッと起きる」演出（演出全体を3秒に延長）
   const wakeTimer = setTimeout(() => {
     try { wakeUpKoala(); } catch(e) {}
-  }, 600);
+  }, 1000);
 
   try {
     console.log('[doLogin] Supabase Auth signInWithPassword 開始');
@@ -979,10 +979,10 @@ async function startApp() {
         const koala = document.getElementById('loadingKoala');
         if (koala && !koala.classList.contains('koala-waking')) {
           ll.wakeUp();
-          await new Promise(r => setTimeout(r, 600));
+          await new Promise(r => setTimeout(r, 1000));
         }
         ll.ok();
-        await ll.waitMin(1800);
+        await ll.waitMin(3000);
         ll.hide();
         window.__loginLoadingStartedAt = 0;
       } catch(e) { console.warn('[startApp] loading演出エラー', e); }
