@@ -6751,10 +6751,53 @@ async function deleteBudget(id) {
     let q = sb.from('budgets').delete().eq('id', id);
     // adminでなければ、自分のクライアントIDに限定（他社のデータは削除できない）
     if (!isAdmin) q = q.eq('client_id', currentClientId);
-    await q;
-  } catch(e) {}
-  budgetData = budgetData.filter(d => d.id !== id);
+    const { error } = await q;
+    if (error) {
+      console.warn('[deleteBudget] 削除失敗', error);
+      alert('削除に失敗しました: ' + error.message);
+      return;
+    }
+  } catch(e) {
+    console.warn('[deleteBudget] 例外', e);
+    alert('削除中にエラーが発生しました');
+    return;
+  }
+  budgetData = budgetData.filter(d => String(d.id) !== String(id));
   renderBudget();
+  setStatus('予算データを削除しました', 'ok');
+}
+
+// 既存予算データを編集する（フォームを開いて1行で値をプリセット）
+function editBudget(id) {
+  const target = budgetData.find(d => String(d.id) === String(id));
+  if (!target) {
+    alert('対象データが見つかりません');
+    return;
+  }
+  // フォームを開く
+  showBudgetForm();
+  // addBudgetRow が空フォームを1行作るので、その値を編集対象で上書き
+  const rows = document.getElementById('budgetInputRows').querySelectorAll('tr');
+  const row = rows[rows.length - 1]; // 最後の行（直前にaddされた）
+  if (!row) return;
+  // dataset で「編集中ID」を保持（saveAllBudgets で upsert 時に同じIDを使うため）
+  row.dataset.editingId = String(target.id);
+  // 値をセット
+  const setVal = (cls, val) => {
+    const el = row.querySelector(cls);
+    if (el && val != null) el.value = val;
+  };
+  setVal('.bMonth', target.month || '');
+  setVal('.bMedia', target.media || '');
+  setVal('.bType',  target.type  || 'media');
+  setVal('.bDept',  target.dept  || '');
+  setVal('.bJob',   target.job   || '');
+  setVal('.bAmount', target.amount || 0);
+  if (isAdmin) setVal('.bClient', target.clientId || '');
+  // フォームの先頭にスクロール
+  const form = document.getElementById('budgetForm');
+  if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setStatus('編集モード：内容を変更して保存してください', 'ok');
 }
 
 function showBudgetForm() {
@@ -6827,7 +6870,10 @@ async function saveAllBudgets() {
     }
     if (!month || !media) { hasError = true; return; }
     if (!amount) return;
-    toSave.push({ id: Date.now()+Math.random()+'', month, media, type, dept, job, amount, clientId: rowClientId });
+    // 編集モードの場合は既存IDを使う、新規は新IDを発行
+    const editingId = row.dataset && row.dataset.editingId;
+    const useId = editingId || (Date.now()+Math.random()+'');
+    toSave.push({ id: useId, month, media, type, dept, job, amount, clientId: rowClientId });
   });
   if (clientMissing) { alert('管理者の場合、行ごとにクライアントを選択してください'); return; }
   if (hasError) { alert('月と媒体は必須です'); return; }
@@ -7081,7 +7127,10 @@ function renderBudget() {
         dlRows += '<td style="'+tdL+'">'+(d.dept||'-')+'</td><td style="'+tdL+'">'+(d.job||'-')+'</td>';
         dlRows += '<td style="'+tdR+'">'+d.amount.toLocaleString()+'円</td>';
         dlRows += '<td style="'+tdL+'">'+(d.type==='agency'?'人材紹介':'求人媒体')+'</td>';
-        dlRows += '<td style="'+tdR+'"><button class="btn-del" onclick="deleteBudget('+JSON.stringify(d.id)+')">削除</button></td></tr>';
+        dlRows += '<td style="'+tdR+';white-space:nowrap;">';
+        dlRows += '<button class="btn-sm" style="padding:3px 8px;font-size:10.5px;border:0.5px solid #5aaa8e;background:#fff;color:#5aaa8e;border-radius:6px;font-family:inherit;cursor:pointer;margin-right:4px;font-weight:500;" onclick="editBudget('+JSON.stringify(d.id)+')">✏ 編集</button>';
+        dlRows += '<button class="btn-del" onclick="deleteBudget('+JSON.stringify(d.id)+')">削除</button>';
+        dlRows += '</td></tr>';
       });
       dlEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>' +
         (isAdmin ? '<th style="'+thL+'">クライアント</th>' : '') +
@@ -10088,6 +10137,8 @@ if (typeof window !== 'undefined') {
   window.setDashPeriod = setDashPeriod;
   window.addClient = addClient;
   window.deleteClient = deleteClient;
+  window.deleteBudget = deleteBudget;
+  window.editBudget = editBudget;
   window.renderTaskCalendar = renderTaskCalendar;
   window.clickTaskCalDay = clickTaskCalDay;
   window.afJump = afJump;
