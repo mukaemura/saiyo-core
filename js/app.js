@@ -7121,15 +7121,17 @@ function renderBudget() {
     if (sd.length) {
       let dlRows = '';
       sd.forEach(function(d) {
+        // IDをシングルクォートで安全にエスケープ（バックスラッシュとシングルクォートを処理）
+        const safeId = String(d.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         dlRows += '<tr>';
         if (isAdmin) dlRows += '<td style="'+tdL+'"><span style="font-size:10px;color:#185FA5;background:#f0f6ff;border:1px solid #c8ddf5;border-radius:6px;padding:1px 6px;">'+escapeOwnerHtml(getClientDisplayName(d.clientId||'')||'(未割当)')+'</span></td>';
         dlRows += '<td style="'+tdL+'">'+d.month+'</td><td style="'+tdL+'">'+d.media+'</td>';
         dlRows += '<td style="'+tdL+'">'+(d.dept||'-')+'</td><td style="'+tdL+'">'+(d.job||'-')+'</td>';
         dlRows += '<td style="'+tdR+'">'+d.amount.toLocaleString()+'円</td>';
         dlRows += '<td style="'+tdL+'">'+(d.type==='agency'?'人材紹介':'求人媒体')+'</td>';
-        dlRows += '<td style="'+tdR+';white-space:nowrap;">';
-        dlRows += '<button class="btn-sm" style="padding:3px 8px;font-size:10.5px;border:0.5px solid #5aaa8e;background:#fff;color:#5aaa8e;border-radius:6px;font-family:inherit;cursor:pointer;margin-right:4px;font-weight:500;" onclick="editBudget('+JSON.stringify(d.id)+')">✏ 編集</button>';
-        dlRows += '<button class="btn-del" onclick="deleteBudget('+JSON.stringify(d.id)+')">削除</button>';
+        dlRows += '<td style="'+tdR+'white-space:nowrap;">';
+        dlRows += "<button class=\"btn-sm\" style=\"padding:3px 8px;font-size:10.5px;border:0.5px solid #5aaa8e;background:#fff;color:#5aaa8e;border-radius:6px;font-family:inherit;cursor:pointer;margin-right:4px;font-weight:500;\" onclick=\"editBudget('"+safeId+"')\">✏ 編集</button>";
+        dlRows += "<button class=\"btn-del\" onclick=\"deleteBudget('"+safeId+"')\">削除</button>";
         dlRows += '</td></tr>';
       });
       dlEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>' +
