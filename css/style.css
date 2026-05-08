@@ -1502,6 +1502,16 @@ input.row-check {
   text-overflow: ellipsis;
 }
 
+/* 職種列（6列目）：省略＋ホバー全文（求人名称と同じ220px） */
+#sec-list .tbl-wrap thead tr th:nth-child(6),
+#sec-list .tbl-wrap tbody tr td:nth-child(6) {
+  max-width: 220px;
+  min-width: 100px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* 部署列（7列目）：省略 */
 #sec-list .tbl-wrap thead tr th:nth-child(7),
 #sec-list .tbl-wrap tbody tr td:nth-child(7) {

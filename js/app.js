@@ -2517,8 +2517,8 @@ function buildAppRowHTML(a) {
       <td>${nameLink}</td>
       <td>${jobNoCell}</td>
       <td>${jobNameCell}</td>
-      <td>${a.jobType||''}</td>
-      <td>${a.dept ? esc(a.dept) : '<span class="list-col-empty">-</span>'}</td>
+      <td title="${esc(a.jobType||'')}">${a.jobType||''}</td>
+      <td title="${esc(a.dept||'')}">${a.dept ? esc(a.dept) : '<span class="list-col-empty">-</span>'}</td>
       <td class="list-col-email">${a.email ? `<span title="${esc(a.email)}">${esc(a.email)}</span>` : '<span class="list-col-empty">-</span>'}</td>
       <td>${a.media?`<span class="badge bb">${a.media}</span>`:''}</td>
       <td id="coreBadgeCell_${a.id}">${coreBadge}</td>
