@@ -914,6 +914,7 @@ async function doLogin() {
       return;
     }
     // 担当者選択画面を表示
+    // ※この場合は演出を中断して即座に閉じる（担当者選択後のstartAppで再演出される）
     hideLoadingOverlay();
     showStaffSelectScreen();
 
@@ -7807,6 +7808,13 @@ async function selectStaff(staffId, staffName) {
   currentStaffName = staffName;
   saveStaffSelection(staffId);
   console.log('[selectStaff] 担当者選択:', staffName);
+  // ローディング演出を再表示（担当者選択 → startApp で5秒演出）
+  if (window.__saiyoLoginLoading && window.__saiyoLoginLoading.show) {
+    try { window.__saiyoLoginLoading.show(); } catch(e) {}
+  }
+  // 担当者選択画面を非表示
+  const staffSel = document.getElementById('staffSelectScreen');
+  if (staffSel) staffSel.style.display = 'none';
   await startApp();
 }
 
@@ -7815,6 +7823,12 @@ async function continueWithoutStaff() {
   currentStaffId = null;
   currentStaffName = '';
   saveStaffSelection(null);
+  // ローディング演出を再表示
+  if (window.__saiyoLoginLoading && window.__saiyoLoginLoading.show) {
+    try { window.__saiyoLoginLoading.show(); } catch(e) {}
+  }
+  const staffSel = document.getElementById('staffSelectScreen');
+  if (staffSel) staffSel.style.display = 'none';
   await startApp();
 }
 
