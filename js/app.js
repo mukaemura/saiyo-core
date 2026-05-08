@@ -4438,6 +4438,26 @@ async function buildLeadTimeMap() {
     console.warn('[buildLeadTimeMap] 例外', e);
   }
 
+  // applied → in_progress のフォールバック：
+  // events で in_progress 日が取れていない応募者は、applicants.contact_date を使う
+  // contact_date もなければ、現在のステータスが applied より先（in_progress 以降）の場合は appDate と同日扱い
+  applicants.forEach(a => {
+    if (!map[a.id]) return;
+    if (map[a.id].in_progress) return; // 既にあればスキップ
+    if (a.contactDate) {
+      map[a.id].in_progress = String(a.contactDate).slice(0, 10);
+    } else {
+      // 現在のコアステータスが in_progress 以降なら、applied 日を流用
+      // （古いデータで events も contact_date もないが、状態は進んでいるケースの救済）
+      const cid = a.coreStatusId || STATUS_TO_CORE[a.status];
+      const advancedStates = ['in_progress', 'interview', 'hired', 'joined'];
+      if (cid && advancedStates.includes(cid) && map[a.id].applied) {
+        // events に詳細日がない場合は in_progress = applied 日とみなす（リードタイム0日）
+        map[a.id].in_progress = map[a.id].applied;
+      }
+    }
+  });
+
   _leadTimeMap = map;
   _leadTimeMapClientKey = ck;
   return map;
@@ -4452,13 +4472,14 @@ function _diffDays(a, b) {
   return Math.round((db - da) / 86400000);
 }
 
-// data（フィルタ済み応募者配列）から平均リードタイム4種を算出
+// data（フィルタ済み応募者配列）から平均リードタイムを算出
 function calcLeadTimes(data, ltMap) {
   const pairs = [
-    { key: 'in_to_int',  fromKey: 'in_progress', toKey: 'interview' },
-    { key: 'int_to_hire', fromKey: 'interview',   toKey: 'hired'     },
-    { key: 'hire_to_join', fromKey: 'hired',      toKey: 'joined'    },
-    { key: 'in_to_join',  fromKey: 'in_progress', toKey: 'joined'    },
+    { key: 'app_to_in',   fromKey: 'applied',     toKey: 'in_progress' },
+    { key: 'in_to_int',   fromKey: 'in_progress', toKey: 'interview'   },
+    { key: 'int_to_hire', fromKey: 'interview',   toKey: 'hired'       },
+    { key: 'hire_to_join',fromKey: 'hired',       toKey: 'joined'      },
+    { key: 'app_to_join', fromKey: 'applied',     toKey: 'joined'      },
   ];
   const result = {};
   pairs.forEach(p => {
@@ -4489,10 +4510,11 @@ async function renderLeadTime(data) {
   const lt = calcLeadTimes(data, ltMap);
 
   const cards = [
-    { label: '対応中 → 面接', key: 'in_to_int',   color: '#9B59B6', bg: '#F5F4FD' },
-    { label: '面接 → 採用',   key: 'int_to_hire', color: '#27AE60', bg: '#EAF5EC' },
-    { label: '採用 → 入社',   key: 'hire_to_join',color: '#1D9E75', bg: '#E1F5EE' },
-    { label: '対応中 → 入社', key: 'in_to_join',  color: '#185FA5', bg: '#E6F1FB' },
+    { label: '応募 → 対応中', key: 'app_to_in',    color: '#EF9F27', bg: '#FAEEDA' },
+    { label: '対応中 → 面接', key: 'in_to_int',    color: '#9B59B6', bg: '#F5F4FD' },
+    { label: '面接 → 採用',   key: 'int_to_hire',  color: '#27AE60', bg: '#EAF5EC' },
+    { label: '採用 → 入社',   key: 'hire_to_join', color: '#1D9E75', bg: '#E1F5EE' },
+    { label: '応募 → 入社',   key: 'app_to_join',  color: '#185FA5', bg: '#E6F1FB' },
   ];
   el.innerHTML = cards.map(c => {
     const r = lt[c.key];
@@ -4509,6 +4531,91 @@ async function renderLeadTime(data) {
         <div style="font-size:10px;color:#888;">${subHtml}</div>
       </div>`;
   }).join('');
+
+  // 月別リードタイム集計（応募月ベース）
+  renderLeadTimeMonthly(data, ltMap);
+}
+
+// 月別リードタイム集計テーブル描画
+// 応募月（appDate の YYYY-MM）でグルーピングし、各リードタイムの平均を計算
+function renderLeadTimeMonthly(data, ltMap) {
+  const el = document.getElementById('anLeadTimeMonthly');
+  if (!el) return;
+
+  // 応募月ごとに応募者をグループ化
+  const byMonth = {};
+  data.forEach(a => {
+    if (!a.appDate) return;
+    const m = String(a.appDate).slice(0, 7);
+    if (!byMonth[m]) byMonth[m] = [];
+    byMonth[m].push(a);
+  });
+
+  const months = Object.keys(byMonth).sort();
+  if (months.length === 0) {
+    el.innerHTML = `<div style="font-size:11px;color:#aaa;text-align:center;padding:20px 0;">データがありません</div>`;
+    return;
+  }
+
+  const pairs = [
+    { key: 'app_to_in',    label: '応募→対応中', color: '#EF9F27' },
+    { key: 'in_to_int',    label: '対応中→面接', color: '#9B59B6' },
+    { key: 'int_to_hire',  label: '面接→採用',   color: '#27AE60' },
+    { key: 'hire_to_join', label: '採用→入社',   color: '#1D9E75' },
+    { key: 'app_to_join',  label: '応募→入社',   color: '#185FA5' },
+  ];
+
+  // 各月のリードタイムを計算
+  const rows = months.map(m => {
+    const monthData = byMonth[m];
+    const lt = calcLeadTimes(monthData, ltMap);
+    return { month: m, count: monthData.length, lt };
+  });
+
+  // 全体平均（合計行）
+  const allLt = calcLeadTimes(data, ltMap);
+
+  // テーブル描画
+  const fmtCell = (r) => {
+    if (!r || r.avg == null) return `<span style="color:#bbb;">-</span>`;
+    return `<span style="font-weight:600;">${r.avg.toFixed(1)}</span><span style="font-size:9.5px;color:#888;margin-left:2px;">日 (${r.count})</span>`;
+  };
+
+  let html = `
+    <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px;min-width:560px;">
+      <thead>
+        <tr style="background:#fafafa;">
+          <th style="padding:8px 10px;text-align:left;font-weight:600;border-bottom:1px solid #e8e8e6;">月</th>
+          <th style="padding:8px 10px;text-align:right;font-weight:600;border-bottom:1px solid #e8e8e6;">応募</th>`;
+  pairs.forEach(p => {
+    html += `<th style="padding:8px 10px;text-align:right;font-weight:600;border-bottom:1px solid #e8e8e6;color:${p.color};white-space:nowrap;">${p.label}</th>`;
+  });
+  html += `</tr></thead><tbody>`;
+
+  rows.forEach(row => {
+    html += `<tr>
+      <td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;">${row.month}</td>
+      <td style="padding:7px 10px;text-align:right;border-bottom:1px solid #f0f0f0;">${row.count}</td>`;
+    pairs.forEach(p => {
+      html += `<td style="padding:7px 10px;text-align:right;border-bottom:1px solid #f0f0f0;">${fmtCell(row.lt[p.key])}</td>`;
+    });
+    html += `</tr>`;
+  });
+
+  // 合計行
+  html += `<tr style="background:#fafafa;font-weight:600;">
+    <td style="padding:8px 10px;">合計</td>
+    <td style="padding:8px 10px;text-align:right;">${data.length}</td>`;
+  pairs.forEach(p => {
+    html += `<td style="padding:8px 10px;text-align:right;">${fmtCell(allLt[p.key])}</td>`;
+  });
+  html += `</tr></tbody></table></div>`;
+
+  // 注釈
+  html += `<div style="margin-top:8px;font-size:10px;color:#888;line-height:1.5;">※「(数字)」は対象者数。応募日が属する月で集計しています。</div>`;
+
+  el.innerHTML = html;
 }
 
 // ========================================
