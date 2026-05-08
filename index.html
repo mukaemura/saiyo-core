@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260508d">
+<link rel="stylesheet" href="css/style.css?v=20260508e">
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
   if (location.protocol === 'file:') {
@@ -105,7 +105,7 @@
 
 <!-- ============================================ -->
 <!-- ログインローディングオーバーレイ -->
-<!-- コアラが横にトコトコ歩いて、メッセージが順番に切り替わる -->
+<!-- 2モード: jump（ログイン直後）/ walk（担当者選択後） -->
 <!-- ============================================ -->
 <div id="loginLoadingOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:linear-gradient(145deg,#e8f7f3 0%,#f0faf8 40%,#fef9f2 100%);align-items:center;justify-content:center;flex-direction:column;opacity:0;transition:opacity 0.4s ease;">
   <div style="position:absolute;top:-80px;left:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(106,180,154,.15) 0%,transparent 70%);pointer-events:none;"></div>
@@ -114,11 +114,17 @@
   <div style="position:absolute;top:10%;right:7%;width:7px;height:7px;background:#378ADD;border-radius:50%;opacity:.18;animation:floatDot 5s ease-in-out infinite reverse;"></div>
   <div style="position:absolute;bottom:20%;right:10%;width:5px;height:5px;background:#6ab49a;border-radius:50%;opacity:.25;animation:floatDot 3.5s ease-in-out infinite;"></div>
 
-  <!-- 歩くステージ（横長） -->
-  <div style="position:relative;width:90%;max-width:520px;height:180px;">
-    <!-- 地面ライン -->
+  <!-- ジャンプモード：ログインボタン押下後（2秒） -->
+  <div id="loadingJumpStage" style="display:none;position:relative;width:240px;height:200px;align-items:flex-end;justify-content:center;">
+    <!-- 手フリ「👋」 -->
+    <div id="loadingHand" style="position:absolute;top:30px;right:50px;font-size:42px;opacity:0;transition:opacity 0.2s ease;line-height:1;user-select:none;">👋</div>
+    <!-- ジャンプするコアラ -->
+    <img id="loadingKoalaJumper" src="assets/character.png" alt="コアラ" style="width:140px;height:140px;object-fit:contain;display:block;transform-origin:center bottom;filter:drop-shadow(0 6px 12px rgba(0,0,0,.1));">
+  </div>
+
+  <!-- 歩くモード：担当者選択後（5秒） -->
+  <div id="loadingWalkStage" style="display:none;position:relative;width:90%;max-width:520px;height:180px;">
     <div style="position:absolute;bottom:18px;left:5%;right:5%;height:2px;background:rgba(0,0,0,.06);border-radius:2px;"></div>
-    <!-- 歩くコアラ -->
     <div id="loadingKoalaWalker" style="position:absolute;bottom:20px;left:10%;transform-origin:center bottom;animation:koalaWalkLR 5s ease-in-out infinite;">
       <img id="loadingKoala" src="assets/character.png" alt="コアラ" style="width:120px;height:120px;object-fit:contain;animation:koalaBob 0.4s ease-in-out infinite;display:block;filter:drop-shadow(0 6px 12px rgba(0,0,0,.1));">
     </div>
@@ -126,7 +132,7 @@
 
   <!-- メッセージ -->
   <div id="loadingMessage" style="margin-top:18px;font-size:17px;font-weight:700;color:#3D4A42;letter-spacing:.04em;transition:opacity 0.3s ease;text-align:center;min-height:26px;">
-    もうちょっと待ってね
+    ログイン中...
   </div>
 </div>
 
@@ -145,6 +151,19 @@
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-6px); }
   }
+  @keyframes koalaJump {
+    0%   { transform: translateY(0) rotate(0deg); }
+    30%  { transform: translateY(-50px) rotate(-5deg); }
+    50%  { transform: translateY(0) rotate(0deg); }
+    65%  { transform: translateY(-35px) rotate(5deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+  }
+  @keyframes handWave {
+    0%, 100% { transform: rotate(-15deg); }
+    50% { transform: rotate(20deg); }
+  }
+  .koala-jumping { animation: koalaJump 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important; }
+  .hand-waving { animation: handWave 0.4s ease-in-out infinite !important; }
 </style>
 
 <!-- ===== パスワードリセット画面 ===== -->
@@ -2026,10 +2045,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260508d"></script>
-<script src="js/app.js?v=20260508d"></script>
-<script src="js/paste-feature.js?v=20260508d"></script>
-<script src="js/email-feature.js?v=20260508d"></script>
-<script src="js/chip-feature.js?v=20260508d"></script>
+<script src="js/router.js?v=20260508e"></script>
+<script src="js/app.js?v=20260508e"></script>
+<script src="js/paste-feature.js?v=20260508e"></script>
+<script src="js/email-feature.js?v=20260508e"></script>
+<script src="js/chip-feature.js?v=20260508e"></script>
 </body>
 </html>

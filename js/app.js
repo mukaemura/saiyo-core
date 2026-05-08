@@ -734,67 +734,109 @@ async function doLogin() {
   }
 
   // ===== ログインローディング演出 =====
-  // コアラが横にトコトコ歩いて、メッセージが4つ順に切り替わる（5秒）
-  function showLoadingOverlay() {
+  // 2モード:
+  //  jump: ログインボタン押下後（2秒、ジャンプ＋手フリ＋「ログイン中...」）
+  //  walk: 担当者選択後（5秒、トコトコ歩く＋メッセージ4本）
+  function showLoadingOverlay(mode) {
+    mode = mode || 'walk';
     const ov = document.getElementById('loginLoadingOverlay');
     if (!ov) return;
+    const jumpStage = document.getElementById('loadingJumpStage');
+    const walkStage = document.getElementById('loadingWalkStage');
+    const jumper = document.getElementById('loadingKoalaJumper');
+    const hand = document.getElementById('loadingHand');
     const msg = document.getElementById('loadingMessage');
-    if (msg) {
-      msg.textContent = 'もうちょっと待ってね';
-      msg.style.color = '#3D4A42';
-      msg.style.opacity = '1';
-    }
-    // 表示開始
-    ov.style.display = 'flex';
-    requestAnimationFrame(() => {
-      ov.style.opacity = '1';
-    });
-    window.__loginLoadingStartedAt = Date.now();
     // 既存タイマーがあればクリア
     if (window.__loadingMsgTimers) {
       window.__loadingMsgTimers.forEach(t => clearTimeout(t));
     }
     window.__loadingMsgTimers = [];
-    // メッセージ切替（1.2秒間隔で4本）
-    const messages = [
-      'もうちょっと待ってね',
-      'データを取りに行ってるよ',
-      'もうすぐだよ',
-      'あと少し！'
-    ];
-    messages.forEach((text, i) => {
-      const t = setTimeout(() => {
-        if (!msg) return;
-        msg.style.opacity = '0';
-        setTimeout(() => {
-          msg.textContent = text;
-          msg.style.opacity = '1';
-        }, 250);
-      }, i * 1200);
-      window.__loadingMsgTimers.push(t);
+
+    if (mode === 'jump') {
+      // ジャンプモード
+      if (jumpStage) jumpStage.style.display = 'flex';
+      if (walkStage) walkStage.style.display = 'none';
+      if (msg) {
+        msg.textContent = 'ログイン中...';
+        msg.style.color = '#3D4A42';
+        msg.style.opacity = '1';
+      }
+      // ジャンプアニメをリセット → 再起動
+      if (jumper) {
+        jumper.classList.remove('koala-jumping');
+        void jumper.offsetWidth; // reflow trigger
+        jumper.classList.add('koala-jumping');
+      }
+      if (hand) {
+        hand.classList.remove('hand-waving');
+        hand.style.opacity = '0';
+        // 600ms後に手フリ開始
+        const t = setTimeout(() => {
+          if (!hand) return;
+          hand.style.opacity = '1';
+          hand.classList.add('hand-waving');
+        }, 600);
+        window.__loadingMsgTimers.push(t);
+      }
+    } else {
+      // 歩くモード
+      if (jumpStage) jumpStage.style.display = 'none';
+      if (walkStage) walkStage.style.display = 'block';
+      if (msg) {
+        msg.textContent = 'もうちょっと待ってね';
+        msg.style.color = '#3D4A42';
+        msg.style.opacity = '1';
+      }
+      // メッセージ切替（1.2秒間隔で4本）
+      const messages = [
+        'もうちょっと待ってね',
+        'データを取りに行ってるよ',
+        'もうすぐだよ',
+        'あと少し！'
+      ];
+      messages.forEach((text, i) => {
+        const t = setTimeout(() => {
+          if (!msg) return;
+          msg.style.opacity = '0';
+          setTimeout(() => {
+            msg.textContent = text;
+            msg.style.opacity = '1';
+          }, 250);
+        }, i * 1200);
+        window.__loadingMsgTimers.push(t);
+      });
+    }
+
+    // オーバーレイ表示
+    ov.style.display = 'flex';
+    requestAnimationFrame(() => {
+      ov.style.opacity = '1';
     });
+    window.__loginLoadingStartedAt = Date.now();
+    window.__loginLoadingMode = mode;
   }
   function hideLoadingOverlay() {
     const ov = document.getElementById('loginLoadingOverlay');
     if (!ov) return;
     ov.style.opacity = '0';
     setTimeout(() => { ov.style.display = 'none'; }, 400);
-    // メッセージタイマーもクリア
     if (window.__loadingMsgTimers) {
       window.__loadingMsgTimers.forEach(t => clearTimeout(t));
       window.__loadingMsgTimers = [];
     }
   }
-  // 最低N秒は表示する（実処理が早く終わっても演出を完走させる）
+  // 最低N秒は表示する
   async function waitMinDuration(ms) {
     const started = window.__loginLoadingStartedAt || Date.now();
     const elapsed = Date.now() - started;
     const remain = ms - elapsed;
     if (remain > 0) await new Promise(r => setTimeout(r, remain));
   }
-  // グローバル公開（互換のため wakeUp/ok は no-op で残す）
+  // グローバル公開
   window.__saiyoLoginLoading = {
     show: showLoadingOverlay,
+    showJump: function() { showLoadingOverlay('jump'); },
+    showWalk: function() { showLoadingOverlay('walk'); },
     wakeUp: function() {},
     ok: function() {},
     hide: hideLoadingOverlay,
@@ -829,8 +871,8 @@ async function doLogin() {
   }
 
   setBtnLoading(true);
-  // ローディングオーバーレイを表示（コアラがトコトコ歩く）
-  showLoadingOverlay();
+  // ローディングオーバーレイを表示（ジャンプモード：ようこそ！）
+  showLoadingOverlay('jump');
 
   try {
     console.log('[doLogin] Supabase Auth signInWithPassword 開始');
@@ -914,7 +956,8 @@ async function doLogin() {
       return;
     }
     // 担当者選択画面を表示
-    // ※この場合は演出を中断して即座に閉じる（担当者選択後のstartAppで再演出される）
+    // ※ジャンプ演出を最低2秒見せてから閉じる（担当者選択後にwalk演出が再開される）
+    await waitMinDuration(2000);
     hideLoadingOverlay();
     showStaffSelectScreen();
 
@@ -953,14 +996,17 @@ async function startApp() {
     if (window.SaiyoRouter && typeof window.SaiyoRouter.onLoginComplete === 'function') {
       try { window.SaiyoRouter.onLoginComplete(); } catch(e) { console.warn('[startApp] router連携エラー', e); }
     }
-    // ログインローディング演出：最低5秒待ってからフェードアウト
+    // ログインローディング演出：モード別の最低時間待ってからフェードアウト
+    //  jump（admin or 自動担当者復元）：2秒
+    //  walk（担当者選択後）：5秒
     // ※リロード時のセッション自動復元では演出は走らない（オーバーレイ非表示のため）
     const ovEl = document.getElementById('loginLoadingOverlay');
     const ovActive = ovEl && ovEl.style.display === 'flex' && window.__loginLoadingStartedAt;
     if (ovActive && window.__saiyoLoginLoading && window.__saiyoLoginLoading.show) {
       try {
         const ll = window.__saiyoLoginLoading;
-        await ll.waitMin(5000);
+        const minMs = (window.__loginLoadingMode === 'walk') ? 5000 : 2000;
+        await ll.waitMin(minMs);
         ll.hide();
         window.__loginLoadingStartedAt = 0;
       } catch(e) { console.warn('[startApp] loading演出エラー', e); }
@@ -7808,9 +7854,9 @@ async function selectStaff(staffId, staffName) {
   currentStaffName = staffName;
   saveStaffSelection(staffId);
   console.log('[selectStaff] 担当者選択:', staffName);
-  // ローディング演出を再表示（担当者選択 → startApp で5秒演出）
-  if (window.__saiyoLoginLoading && window.__saiyoLoginLoading.show) {
-    try { window.__saiyoLoginLoading.show(); } catch(e) {}
+  // ローディング演出を歩くモードで再表示（5秒）
+  if (window.__saiyoLoginLoading && window.__saiyoLoginLoading.showWalk) {
+    try { window.__saiyoLoginLoading.showWalk(); } catch(e) {}
   }
   // 担当者選択画面を非表示
   const staffSel = document.getElementById('staffSelectScreen');
@@ -7823,9 +7869,9 @@ async function continueWithoutStaff() {
   currentStaffId = null;
   currentStaffName = '';
   saveStaffSelection(null);
-  // ローディング演出を再表示
-  if (window.__saiyoLoginLoading && window.__saiyoLoginLoading.show) {
-    try { window.__saiyoLoginLoading.show(); } catch(e) {}
+  // ローディング演出を歩くモードで再表示
+  if (window.__saiyoLoginLoading && window.__saiyoLoginLoading.showWalk) {
+    try { window.__saiyoLoginLoading.showWalk(); } catch(e) {}
   }
   const staffSel = document.getElementById('staffSelectScreen');
   if (staffSel) staffSel.style.display = 'none';
