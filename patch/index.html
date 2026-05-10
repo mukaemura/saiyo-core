@@ -1,0 +1,2105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>採用コア</title>
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link rel="stylesheet" href="css/style.css?v=20260510a">
+<script>
+  // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
+  if (location.protocol === 'file:') {
+    window.addEventListener('DOMContentLoaded', function() {
+      var w = document.createElement('div');
+      w.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#ff9800;color:#fff;padding:12px 16px;font-size:13px;font-family:sans-serif;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.2);';
+      w.innerHTML = '⚠ このHTMLは file:// プロトコルで開かれています。CSS・JS・画像が読み込めず、ログインも動作しません。<br>HTTPサーバー経由で開いてください（例: フォルダ内で <code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:3px;">python3 -m http.server</code> を実行し、http://localhost:8000 にアクセス）';
+      document.body.insertBefore(w, document.body.firstChild);
+    });
+  }
+</script>
+</head>
+<body>
+
+<!-- ===== Supabase設定（ここを書き換える） ===== -->
+<!-- Supabase設定とメインJSは js/app.js に統合 -->
+
+<!-- ===== ログイン画面 ===== -->
+<div id="loginScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,#e8f7f3 0%,#f0faf8 40%,#fef9f2 100%);position:relative;overflow:hidden;">
+
+  <!-- 背景デコ -->
+  <div style="position:absolute;top:-80px;left:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(106,180,154,.15) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;bottom:-60px;right:-60px;width:280px;height:280px;background:radial-gradient(circle,rgba(55,138,221,.08) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;top:18%;left:5%;width:10px;height:10px;background:#6ab49a;border-radius:50%;opacity:.2;animation:floatDot 4s ease-in-out infinite;"></div>
+  <div style="position:absolute;top:10%;right:7%;width:7px;height:7px;background:#378ADD;border-radius:50%;opacity:.18;animation:floatDot 5s ease-in-out infinite reverse;"></div>
+  <div style="position:absolute;bottom:20%;right:10%;width:5px;height:5px;background:#6ab49a;border-radius:50%;opacity:.25;animation:floatDot 3.5s ease-in-out infinite;"></div>
+
+  <!-- カード全体 -->
+  <div style="position:relative;width:100%;max-width:460px;margin:2rem 1rem;">
+
+    <!-- 上部：ロゴ＋キャラクター（横並び・浮遊） -->
+    <div style="display:flex;align-items:flex-end;justify-content:center;gap:16px;margin-bottom:-20px;position:relative;z-index:2;pointer-events:none;">
+
+      <!-- ロゴ（浮遊・影付き） -->
+      <div style="animation:floatLogo 3.5s ease-in-out infinite;filter:drop-shadow(0 10px 20px rgba(0,0,0,.15));">
+        <img id="loginLogoImg" src="assets/logo.png" alt="ロゴ" style="width:90px;height:90px;object-fit:contain;">
+      </div>
+
+      <!-- キャラクター（ロゴと逆位相で浮遊） -->
+      <div style="animation:floatChar 3.2s ease-in-out infinite;filter:drop-shadow(0 8px 16px rgba(0,0,0,.1));">
+        <img id="loginCharImg" src="assets/character.png" alt="キャラクター" style="width:110px;height:110px;object-fit:contain;">
+      </div>
+    </div>
+
+    <!-- ログインカード本体 -->
+    <div style="background:#fff;border-radius:24px;padding:2.5rem 2.5rem 2rem;box-shadow:0 8px 40px rgba(0,0,0,.07),0 2px 8px rgba(106,180,154,.12);position:relative;z-index:1;">
+
+      <!-- サービス名 -->
+      <div style="text-align:center;margin-bottom:1.75rem;">
+        <div style="font-size:26px;font-weight:800;color:#1a1a1a;letter-spacing:-.04em;margin-bottom:6px;">採用<span style="color:#6ab49a;">コア</span></div>
+        <div style="font-size:11px;color:#aab;letter-spacing:.07em;font-weight:500;">採用管理システム | Link Core</div>
+      </div>
+
+      <div style="height:1px;background:linear-gradient(to right,transparent,#deeee9,transparent);margin-bottom:1.75rem;"></div>
+
+      <!-- 入力フォーム -->
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#667;display:block;margin-bottom:6px;letter-spacing:.04em;">メールアドレス</label>
+          <input type="email" id="loginId" placeholder="例: client@example.com" autocomplete="email"
+            onkeydown="if(event.key==='Enter')doLogin()"
+            style="width:100%;padding:13px 16px;border:1.5px solid #deeee9;border-radius:12px;font-size:14px;font-family:inherit;background:#f7fcfa;outline:none;box-sizing:border-box;transition:all .2s;"
+            onfocus="this.style.borderColor='#6ab49a';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(106,180,154,.12)'"
+            onblur="this.style.borderColor='#deeee9';this.style.background='#f7fcfa';this.style.boxShadow='none'">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#667;display:block;margin-bottom:6px;letter-spacing:.04em;">パスワード</label>
+          <input type="password" id="loginPw" placeholder="パスワードを入力" autocomplete="current-password"
+            onkeydown="if(event.key==='Enter')doLogin()"
+            style="width:100%;padding:13px 16px;border:1.5px solid #deeee9;border-radius:12px;font-size:14px;font-family:inherit;background:#f7fcfa;outline:none;box-sizing:border-box;transition:all .2s;"
+            onfocus="this.style.borderColor='#6ab49a';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(106,180,154,.12)'"
+            onblur="this.style.borderColor='#deeee9';this.style.background='#f7fcfa';this.style.boxShadow='none'">
+        </div>
+
+        <div id="loginErr" style="display:none;font-size:12px;color:#e05555;background:#fff5f5;border-radius:8px;padding:9px 12px;text-align:center;border:1px solid #fdd;">
+          メールアドレスまたはパスワードが正しくありません
+        </div>
+
+        <button id="loginBtn" onclick="doLogin()"
+          style="width:100%;padding:14px;background:linear-gradient(135deg,#72bda6,#5aaa8e);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.05em;transition:all .25s;box-shadow:0 4px 14px rgba(106,180,154,.3);margin-top:4px;"
+          onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 7px 22px rgba(106,180,154,.42)'"
+          onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 14px rgba(106,180,154,.3)'">
+          ログイン
+        </button>
+      </div>
+
+      <div style="text-align:center;margin-top:1.75rem;font-size:10px;color:#ccc;line-height:1.9;">
+        © 2025 Link Core｜採用コア<br>ご不明な点は管理会社までお問い合わせください
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============================================ -->
+<!-- ログインローディングオーバーレイ -->
+<!-- 2モード: jump（ログイン直後）/ walk（担当者選択後） -->
+<!-- ============================================ -->
+<div id="loginLoadingOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:linear-gradient(145deg,#e8f7f3 0%,#f0faf8 40%,#fef9f2 100%);align-items:center;justify-content:center;flex-direction:column;opacity:0;transition:opacity 0.4s ease;">
+  <div style="position:absolute;top:-80px;left:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(106,180,154,.15) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;bottom:-60px;right:-60px;width:280px;height:280px;background:radial-gradient(circle,rgba(55,138,221,.08) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;top:18%;left:5%;width:10px;height:10px;background:#6ab49a;border-radius:50%;opacity:.2;animation:floatDot 4s ease-in-out infinite;"></div>
+  <div style="position:absolute;top:10%;right:7%;width:7px;height:7px;background:#378ADD;border-radius:50%;opacity:.18;animation:floatDot 5s ease-in-out infinite reverse;"></div>
+  <div style="position:absolute;bottom:20%;right:10%;width:5px;height:5px;background:#6ab49a;border-radius:50%;opacity:.25;animation:floatDot 3.5s ease-in-out infinite;"></div>
+
+  <!-- ジャンプモード：ログインボタン押下後（2秒） -->
+  <div id="loadingJumpStage" style="display:none;position:relative;width:240px;height:200px;align-items:flex-end;justify-content:center;">
+    <!-- 手フリ「👋」 -->
+    <div id="loadingHand" style="position:absolute;top:30px;right:50px;font-size:42px;opacity:0;transition:opacity 0.2s ease;line-height:1;user-select:none;">👋</div>
+    <!-- ジャンプするコアラ -->
+    <img id="loadingKoalaJumper" src="assets/character.png" alt="コアラ" style="width:140px;height:140px;object-fit:contain;display:block;transform-origin:center bottom;filter:drop-shadow(0 6px 12px rgba(0,0,0,.1));">
+  </div>
+
+  <!-- 歩くモード：担当者選択後（5秒） -->
+  <div id="loadingWalkStage" style="display:none;position:relative;width:90%;max-width:520px;height:180px;">
+    <div style="position:absolute;bottom:18px;left:5%;right:5%;height:2px;background:rgba(0,0,0,.06);border-radius:2px;"></div>
+    <div id="loadingKoalaWalker" style="position:absolute;bottom:20px;left:10%;transform-origin:center bottom;animation:koalaWalkLR 5s ease-in-out infinite;">
+      <img id="loadingKoala" src="assets/character.png" alt="コアラ" style="width:120px;height:120px;object-fit:contain;animation:koalaBob 0.4s ease-in-out infinite;display:block;filter:drop-shadow(0 6px 12px rgba(0,0,0,.1));">
+    </div>
+  </div>
+
+  <!-- メッセージ -->
+  <div id="loadingMessage" style="margin-top:18px;font-size:17px;font-weight:700;color:#3D4A42;letter-spacing:.04em;transition:opacity 0.3s ease;text-align:center;min-height:26px;">
+    ログイン中...
+  </div>
+</div>
+
+<style>
+  @keyframes koalaWalkLR {
+    0%   { left: 10%; transform: scaleX(1); }
+    24%  { transform: scaleX(1); }
+    25%  { left: 78%; transform: scaleX(-1); }
+    49%  { left: 78%; transform: scaleX(-1); }
+    50%  { transform: scaleX(-1); }
+    74%  { transform: scaleX(-1); }
+    75%  { left: 10%; transform: scaleX(1); }
+    100% { left: 10%; transform: scaleX(1); }
+  }
+  @keyframes koalaBob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+  @keyframes koalaJump {
+    0%   { transform: translateY(0) rotate(0deg); }
+    30%  { transform: translateY(-50px) rotate(-5deg); }
+    50%  { transform: translateY(0) rotate(0deg); }
+    65%  { transform: translateY(-35px) rotate(5deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+  }
+  @keyframes handWave {
+    0%, 100% { transform: rotate(-15deg); }
+    50% { transform: rotate(20deg); }
+  }
+  .koala-jumping { animation: koalaJump 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important; }
+  .hand-waving { animation: handWave 0.4s ease-in-out infinite !important; }
+</style>
+
+<!-- ===== パスワードリセット画面 ===== -->
+<div id="resetPwScreen" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(145deg,#e8f7f3 0%,#f0faf8 40%,#fef9f2 100%);position:relative;overflow:hidden;">
+
+  <!-- 背景デコ -->
+  <div style="position:absolute;top:-80px;left:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(106,180,154,.15) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;bottom:-60px;right:-60px;width:280px;height:280px;background:radial-gradient(circle,rgba(55,138,221,.08) 0%,transparent 70%);pointer-events:none;"></div>
+
+  <!-- カード全体 -->
+  <div style="position:relative;width:100%;max-width:460px;margin:2rem 1rem;">
+
+    <!-- 上部：ロゴ＋キャラクター -->
+    <div style="display:flex;align-items:flex-end;justify-content:center;gap:16px;margin-bottom:-20px;position:relative;z-index:2;pointer-events:none;">
+      <div style="animation:floatLogo 3.5s ease-in-out infinite;filter:drop-shadow(0 10px 20px rgba(0,0,0,.15));">
+        <img src="assets/logo.png" alt="ロゴ" style="width:90px;height:90px;object-fit:contain;">
+      </div>
+      <div style="animation:floatChar 3.2s ease-in-out infinite;filter:drop-shadow(0 8px 16px rgba(0,0,0,.1));">
+        <img src="assets/character.png" alt="キャラクター" style="width:110px;height:110px;object-fit:contain;">
+      </div>
+    </div>
+
+    <!-- リセットカード本体 -->
+    <div style="background:#fff;border-radius:24px;padding:2.5rem 2.5rem 2rem;box-shadow:0 8px 40px rgba(0,0,0,.07),0 2px 8px rgba(106,180,154,.12);position:relative;z-index:1;">
+
+      <!-- タイトル -->
+      <div style="text-align:center;margin-bottom:1.75rem;">
+        <div style="font-size:24px;font-weight:800;color:#1a1a1a;letter-spacing:-.04em;margin-bottom:6px;">🔐 パスワード再設定</div>
+        <div style="font-size:11px;color:#aab;letter-spacing:.07em;font-weight:500;">新しいパスワードを設定してください</div>
+      </div>
+
+      <div style="height:1px;background:linear-gradient(to right,transparent,#deeee9,transparent);margin-bottom:1.75rem;"></div>
+
+      <!-- 入力フォーム -->
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#667;display:block;margin-bottom:6px;letter-spacing:.04em;">新しいパスワード（6文字以上）</label>
+          <input type="password" id="resetPw1" placeholder="新しいパスワード" autocomplete="new-password"
+            onkeydown="if(event.key==='Enter')document.getElementById('resetPw2').focus()"
+            style="width:100%;padding:13px 16px;border:1.5px solid #deeee9;border-radius:12px;font-size:14px;font-family:inherit;background:#f7fcfa;outline:none;box-sizing:border-box;transition:all .2s;"
+            onfocus="this.style.borderColor='#6ab49a';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(106,180,154,.12)'"
+            onblur="this.style.borderColor='#deeee9';this.style.background='#f7fcfa';this.style.boxShadow='none'">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#667;display:block;margin-bottom:6px;letter-spacing:.04em;">確認のためもう一度</label>
+          <input type="password" id="resetPw2" placeholder="同じパスワードを再入力" autocomplete="new-password"
+            onkeydown="if(event.key==='Enter')doResetPassword()"
+            style="width:100%;padding:13px 16px;border:1.5px solid #deeee9;border-radius:12px;font-size:14px;font-family:inherit;background:#f7fcfa;outline:none;box-sizing:border-box;transition:all .2s;"
+            onfocus="this.style.borderColor='#6ab49a';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(106,180,154,.12)'"
+            onblur="this.style.borderColor='#deeee9';this.style.background='#f7fcfa';this.style.boxShadow='none'">
+        </div>
+
+        <div id="resetPwErr" style="display:none;font-size:12px;color:#e05555;background:#fff5f5;border-radius:8px;padding:9px 12px;text-align:center;border:1px solid #fdd;"></div>
+        <div id="resetPwOk" style="display:none;font-size:12px;color:#3B6D11;background:#f3faf0;border-radius:8px;padding:9px 12px;text-align:center;border:1px solid #c8e6c9;"></div>
+
+        <button id="resetPwBtn" onclick="doResetPassword()"
+          style="width:100%;padding:14px;background:linear-gradient(135deg,#72bda6,#5aaa8e);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.05em;transition:all .25s;box-shadow:0 4px 14px rgba(106,180,154,.3);margin-top:4px;"
+          onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 7px 22px rgba(106,180,154,.42)'"
+          onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 14px rgba(106,180,154,.3)'">
+          パスワードを設定する
+        </button>
+
+        <button onclick="cancelResetPassword()"
+          style="width:100%;padding:10px;background:transparent;color:#888;border:1px solid #deeee9;border-radius:12px;font-size:12px;font-family:inherit;cursor:pointer;margin-top:4px;">
+          キャンセル（ログイン画面に戻る）
+        </button>
+      </div>
+
+      <div style="text-align:center;margin-top:1.75rem;font-size:10px;color:#ccc;line-height:1.9;">
+        © 2025 Link Core｜採用コア
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== ログアウト確認ポップアップ ===== -->
+<div id="logoutConfirmModal" onclick="onLogoutModalBgClick(event)" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;">
+  <div onclick="event.stopPropagation()" style="background:#fff;border-radius:20px;padding:1.5rem 1.75rem 1.25rem;box-shadow:0 12px 40px rgba(0,0,0,.18);max-width:340px;width:calc(100% - 2rem);text-align:center;animation:logoutModalIn .3s cubic-bezier(.34,1.56,.64,1);">
+    <img src="assets/koala-good.png" alt="またね" style="width:130px;height:130px;object-fit:contain;margin:0 auto 0.5rem;display:block;">
+    <div style="font-size:18px;font-weight:800;color:#1a1a1a;margin-bottom:.4rem;letter-spacing:-.02em;">またね♪</div>
+    <div style="font-size:13px;color:#666;margin-bottom:1.25rem;line-height:1.6;">ログアウトしますか？</div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="closeLogoutConfirm()"
+        style="flex:1;padding:11px 0;background:#f5f5f3;color:#666;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;">
+        いいえ、続ける
+      </button>
+      <button onclick="executeLogout()"
+        style="flex:1;padding:11px 0;background:linear-gradient(135deg,#D85A30,#c44e26);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:0 4px 12px rgba(216,90,48,.25);">
+        はい、ログアウト
+      </button>
+    </div>
+  </div>
+</div>
+<style>
+@keyframes logoutModalIn {
+  0% { opacity: 0; transform: scale(0.85) translateY(20px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+</style>
+
+<!-- ===== 担当者選択画面（Phase B-2） ===== -->
+<div id="staffSelectScreen" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(145deg,#e8f7f3 0%,#f0faf8 40%,#fef9f2 100%);position:relative;overflow:hidden;">
+
+  <!-- 背景デコ -->
+  <div style="position:absolute;top:-80px;left:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(106,180,154,.15) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;bottom:-60px;right:-60px;width:280px;height:280px;background:radial-gradient(circle,rgba(55,138,221,.08) 0%,transparent 70%);pointer-events:none;"></div>
+
+  <!-- カード全体 -->
+  <div style="position:relative;width:100%;max-width:560px;margin:2rem 1rem;">
+
+    <!-- 上部：ロゴ＋キャラクター -->
+    <div style="display:flex;align-items:flex-end;justify-content:center;gap:16px;margin-bottom:-20px;position:relative;z-index:2;pointer-events:none;">
+      <div style="animation:floatLogo 3.5s ease-in-out infinite;filter:drop-shadow(0 10px 20px rgba(0,0,0,.15));">
+        <img src="assets/logo.png" alt="ロゴ" style="width:80px;height:80px;object-fit:contain;">
+      </div>
+      <div style="animation:floatChar 3.2s ease-in-out infinite;filter:drop-shadow(0 8px 16px rgba(0,0,0,.1));">
+        <img src="assets/character.png" alt="キャラクター" style="width:100px;height:100px;object-fit:contain;">
+      </div>
+    </div>
+
+    <!-- カード本体 -->
+    <div style="background:#fff;border-radius:24px;padding:2.5rem 2.5rem 2rem;box-shadow:0 8px 40px rgba(0,0,0,.07),0 2px 8px rgba(106,180,154,.12);position:relative;z-index:1;">
+
+      <!-- タイトル -->
+      <div style="text-align:center;margin-bottom:.5rem;">
+        <div style="font-size:22px;font-weight:800;color:#1a1a1a;letter-spacing:-.04em;margin-bottom:6px;">担当者を選択してください</div>
+        <div style="font-size:11px;color:#aab;letter-spacing:.07em;font-weight:500;" id="staffSelectClientName"></div>
+      </div>
+
+      <div style="height:1px;background:linear-gradient(to right,transparent,#deeee9,transparent);margin:1.25rem 0;"></div>
+
+      <!-- 担当者リスト（カード形式） -->
+      <div id="staffSelectList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:1rem;">
+        <!-- ここに担当者カードが動的生成 -->
+      </div>
+
+      <!-- 担当者ゼロ時のメッセージ（renderStaffSelect内で切替） -->
+      <div id="staffSelectEmpty" style="display:none;text-align:center;padding:1.5rem 0;">
+        <div style="font-size:13px;color:#888;margin-bottom:1rem;">担当者がまだ登録されていません</div>
+        <button onclick="continueWithoutStaff()"
+          style="padding:10px 22px;background:linear-gradient(135deg,#72bda6,#5aaa8e);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:0 4px 14px rgba(106,180,154,.3);">
+          このまま続ける
+        </button>
+        <div style="font-size:10px;color:#aab;margin-top:8px;">※ ログイン後に「担当者管理」から追加できます</div>
+      </div>
+
+      <!-- 下部のキャンセル -->
+      <div style="text-align:center;margin-top:1rem;">
+        <button onclick="cancelStaffSelect()"
+          style="padding:8px 16px;background:transparent;color:#888;border:1px solid #deeee9;border-radius:10px;font-size:11px;font-family:inherit;cursor:pointer;">
+          ログアウトしてやり直す
+        </button>
+      </div>
+
+      <div style="text-align:center;margin-top:1.5rem;font-size:10px;color:#ccc;line-height:1.9;">
+        © 2025 Link Core｜採用コア
+      </div>
+    </div>
+  </div>
+
+</div>
+
+  <div class="app" id="mainApp" style="display:none;">
+    <div class="header">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:6px;"><img src="assets/header-icon.png" style="width:28px;height:28px;object-fit:contain;"><div class="logo">採用<span>コア</span></div></div>
+        <span class="client-badge" id="clientBadge"></span>
+        <!-- 担当者表示エリア（Phase B-2） -->
+        <div id="staffSwitcher" style="display:none;align-items:center;gap:6px;">
+          <span style="font-size:10px;color:#aaa;">担当：</span>
+          <select id="staffSwitcherSelect" onchange="switchActiveStaff(this.value)"
+            style="padding:4px 8px;border:1px solid #deeee9;border-radius:6px;background:#f7fcfa;color:#1a1a1a;font-size:12px;font-family:inherit;font-weight:600;cursor:pointer;outline:none;">
+          </select>
+        </div>
+        <!-- admin時の表示 -->
+        <span id="adminStaffBadge" style="display:none;font-size:11px;color:#185FA5;background:#e8f1fc;border:1px solid #c8ddf5;border-radius:20px;padding:3px 10px;font-weight:600;">管理者</span>
+        <!-- ベル通知（Phase E） -->
+        <div id="bellWrap" style="position:relative;margin-left:6px;">
+          <button id="bellBtn" onclick="toggleBellPanel()" style="position:relative;background:#fff;border:1px solid #e8e8e6;border-radius:50%;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;padding:0;">
+            🔔
+            <span id="bellBadge" style="display:none;position:absolute;top:-3px;right:-3px;background:#D85A30;color:#fff;border-radius:9px;padding:0 5px;font-size:9px;font-weight:600;min-width:14px;height:14px;line-height:14px;text-align:center;">0</span>
+          </button>
+          <div id="bellPanel" style="display:none;position:absolute;top:100%;right:0;margin-top:6px;background:#fff;border:1px solid #e8e8e6;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.08);width:320px;max-height:420px;overflow-y:auto;z-index:300;">
+            <div style="padding:10px 14px;border-bottom:1px solid #f0f0ee;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:12px;font-weight:600;">通知</span>
+              <span onclick="toggleBellPanel()" style="font-size:16px;color:#888;cursor:pointer;line-height:1;">×</span>
+            </div>
+            <div id="bellList" style="padding:6px 0;">
+              <div style="padding:14px;font-size:11px;color:#aaa;text-align:center;">通知はありません</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+        <nav class="nav" id="mainNav">
+          <button class="nb active" onclick="showSec('dashboard')">ダッシュボード</button>
+          <button class="nb" onclick="showSec('list')">応募者一覧</button>
+          <button class="nb" onclick="showSec('schedule')" id="scheduleNavBtn">📅 スケジュール</button>
+          <button class="nb" onclick="showSec('analytics')">分析</button>
+          <button class="nb" onclick="showSec('minutes')">議事録</button>
+          <button class="nb" onclick="showSec('tasks')" id="taskNavBtn">タスク</button>
+          <button class="nb" onclick="showSec('budget')">💰 予算管理</button>
+          <button class="nb" onclick="showSec('master')">マスター管理</button>
+          <button class="nb" onclick="showSec('staff')">担当者管理</button>
+        </nav>
+        <button id="adminNavBtn" class="nb" style="display:none;border-color:#378ADD;color:#378ADD;" onclick="showSec('admin')">クライアント管理</button>
+        <button class="nb-logout" onclick="confirmLogout()">ログアウト</button>
+      </div>
+    </div>
+    <div class="status-bar" id="statusBar"></div>
+
+    <!-- ダッシュボード -->
+    <div id="sec-dashboard" class="sec active">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;background:linear-gradient(135deg,#f0faf6,#fdf8f0);border-radius:12px;padding:1.25rem 1.5rem;">
+        <div>
+          <div style="font-size:11px;color:#999;" id="dashDate"></div>
+          <h2 style="font-size:18px;font-weight:700;margin-top:4px;color:#1a1a1a;" id="dashGreet"></h2>
+          <div style="font-size:11px;color:#6ab49a;margin-top:4px;">採用コア｜Link Core</div>
+        </div>
+        <div id="dashHeader" style="display:flex;align-items:center;gap:12px;position:relative;">
+          <!-- キャラクター -->
+          <div style="display:flex;align-items:center;gap:0;flex-direction:row;">
+          <!-- 吹き出し（左） -->
+          <div id="dashBubble" style="background:#fff;border-radius:16px 16px 4px 16px;padding:10px 14px;box-shadow:0 2px 12px rgba(0,0,0,.1);font-size:11px;line-height:1.8;color:#1a1a1a;max-width:180px;margin-right:8px;position:relative;">
+            <div id="dashBubbleText" style="font-size:12px;">🐨 ただいま読み込み中...</div>
+          </div>
+          <!-- キャラクター（右） -->
+          <img id="dashChar" src="assets/koala-pc.png" style="width:90px;height:90px;object-fit:contain;flex-shrink:0;">
+        </div>
+        </div>
+      </div>
+
+      <!-- 1段目：本日のKPI（固定） -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:1rem;" id="dashKpiToday"></div>
+
+      <!-- 期間フィルタ（2段目のKPIに連動） -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem;flex-wrap:wrap;">
+        <span style="font-size:11px;color:#888;font-weight:600;">期間：</span>
+        <div id="dashPeriodTabs" style="display:inline-flex;background:#f5f5f3;border-radius:10px;padding:3px;gap:0;">
+          <button class="dash-period-tab" data-period="today" onclick="setDashPeriod('today')" style="padding:6px 14px;border:none;border-radius:8px;background:transparent;font-size:12px;font-family:inherit;cursor:pointer;color:#666;font-weight:600;">今日</button>
+          <button class="dash-period-tab" data-period="week" onclick="setDashPeriod('week')" style="padding:6px 14px;border:none;border-radius:8px;background:transparent;font-size:12px;font-family:inherit;cursor:pointer;color:#666;font-weight:600;">今週</button>
+          <button class="dash-period-tab active" data-period="month" onclick="setDashPeriod('month')" style="padding:6px 14px;border:none;border-radius:8px;background:#fff;font-size:12px;font-family:inherit;cursor:pointer;color:#1a1a1a;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.08);">今月</button>
+          <button class="dash-period-tab" data-period="all" onclick="setDashPeriod('all')" style="padding:6px 14px;border:none;border-radius:8px;background:transparent;font-size:12px;font-family:inherit;cursor:pointer;color:#666;font-weight:600;">累計</button>
+        </div>
+      </div>
+
+      <!-- 2段目：期間フィルタ連動KPIカード -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1.5rem;" id="dashKpi"></div>
+
+      <!-- TODOカード（当月ベース） -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:1.5rem;" id="dashTodo"></div>
+
+      <!-- 追加情報（媒体Top3 / 平均選考日数 / 滞留 / 30日推移） -->
+      <div id="dashInsights"></div>
+
+      <!-- 直近の応募者 -->
+      <div style="margin-bottom:.5rem;display:flex;align-items:center;justify-content:space-between;">
+        <strong style="font-size:12px;">直近の応募者</strong>
+        <button class="btn-sm" onclick="showSec('list')">全件表示 →</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>応募日</th><th>名前</th><th>職種</th><th>部署</th><th>媒体</th><th>ステータス</th><th>書類</th><th></th></tr></thead>
+          <tbody id="dashRecentBody"></tbody>
+        </table>
+      </div>
+
+      <!-- タスクサマリー -->
+      <div style="margin-top:1.25rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <strong style="font-size:12px;">未完了タスク</strong>
+            <span id="dashTaskBadge" style="display:none;background:#D85A30;color:#fff;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;"></span>
+          </div>
+          <button class="btn-sm" onclick="showSec('tasks')">全件表示 →</button>
+        </div>
+        <div id="dashTaskList"></div>
+      </div>
+    </div>
+
+    <!-- 一覧 -->
+    <div id="sec-list" class="sec">
+      <!-- sec-listキャラ -->
+      <div style="position:fixed;bottom:20px;right:20px;z-index:50;display:none;" id="char_sec-list">
+        <div style="text-align:right;margin-bottom:4px;">
+          <div style="display:inline-block;background:#1a1a1a;color:#fff;border-radius:10px 10px 2px 10px;padding:5px 9px;font-size:10px;font-weight:500;margin-bottom:4px;">一覧で確認！</div>
+        </div>
+        <img src="assets/koala-pc-small.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
+      </div>
+      <!-- 一括操作バー -->
+    <div id="bulkBar" style="display:none;background:linear-gradient(135deg,#1a1a1a,#333);color:#fff;border-radius:10px;padding:.875rem 1rem;margin-bottom:.875rem;display:none;align-items:center;gap:12px;flex-wrap:wrap;">
+      <span id="bulkCount" style="font-size:12px;font-weight:600;">0件選択中</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto;">
+        <span style="font-size:11px;color:#aaa;">ステータス一括変更：</span>
+        <select id="bulkStatus" style="padding:5px 9px;border:1px solid #555;border-radius:6px;background:#2a2a2a;color:#fff;font-size:11px;font-family:inherit;">
+          <option value="">選択</option>
+        </select>
+        <button onclick="bulkUpdateStatus()" style="padding:6px 12px;background:#378ADD;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">適用</button>
+        <button onclick="bulkDelete()" style="padding:6px 12px;background:#D85A30;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">一括削除</button>
+        <button onclick="clearChecks()" style="padding:6px 12px;background:transparent;color:#aaa;border:1px solid #555;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;">選択解除</button>
+      </div>
+    </div>
+    <div class="list-top">
+        <!-- 1段目：検索ボックス＋詳細絞り込みボタン＋並び替え＋自分の担当のみ／担当者で絞り込み -->
+        <div class="sr-row" style="gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="srch" placeholder="名前・メール検索" style="width:160px;" oninput="renderList()">
+          <select id="appClientFilter" onchange="renderList()" style="display:none;padding:5px 9px;border:1.5px solid #378ADD;border-radius:8px;font-size:11px;font-family:inherit;background:#f0f6ff;color:#185FA5;font-weight:600;">
+            <option value="">全クライアント</option>
+          </select>
+          <!-- 詳細絞り込みボタン -->
+          <button id="filterPanelOpenBtn" onclick="openFilterPanel()" style="padding:6px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;display:inline-flex;align-items:center;gap:5px;">
+            <span style="display:inline-block;width:12px;height:12px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"></path></svg>
+            </span>
+            詳細絞り込み
+            <span id="filterCountBadge" style="display:none;background:#D85A30;color:#fff;border-radius:9px;padding:1px 7px;font-size:10px;font-weight:600;">0</span>
+          </button>
+          <!-- 並び替え -->
+          <select id="sortSelect" onchange="onSortChange()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fafafa;cursor:pointer;">
+            <option value="appDate:desc" selected>並び替え：応募日（新しい順）</option>
+            <option value="appDate:asc">応募日（古い順）</option>
+            <option value="name:asc">名前（あいうえお順）</option>
+            <option value="updatedAt:desc">更新日（新しい順）</option>
+            <option value="jobType:asc">職種</option>
+            <option value="dept:asc">部署</option>
+          </select>
+          <!-- 自分の担当のみ（クライアントのみ表示） -->
+          <label id="selfFilterLabel" style="display:none;align-items:center;gap:6px;font-size:12px;color:#0F6E56;font-weight:600;padding:5px 12px;background:#E1F5EE;border:1px solid #5DCAA5;border-radius:8px;cursor:pointer;">
+            <input type="checkbox" id="selfFilterCheck" onchange="renderList()" style="margin:0;width:13px;height:13px;cursor:pointer;">
+            自分の担当のみ
+          </label>
+          <!-- 担当者で絞り込み（admin専用） -->
+          <select id="staffFilterSelect" onchange="renderList()" style="display:none;padding:6px 10px;border:1px solid #5DCAA5;border-radius:8px;font-size:12px;font-family:inherit;background:#E1F5EE;color:#0F6E56;font-weight:600;cursor:pointer;">
+            <option value="">担当者で絞り込み（全て）</option>
+          </select>
+        </div>
+        <!-- 2段目：アクティブな絞り込み条件をチップで表示 -->
+        <div id="activeFilterChips" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center;"></div>
+        <!-- 3段目：件数 + アクションボタン -->
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <span id="listCnt" style="font-size:13px;font-weight:600;color:#1a1a1a;"></span>
+          <button class="btn-exp" onclick="goAddChoice()" style="background:#5aaa8e;color:#fff;border-color:#5aaa8e;">＋ 新規登録</button>
+          <button class="btn-exp" onclick="showSec('import')">📥 応募者一括取り込み</button>
+          <button class="btn-exp" onclick="exportCSV()">CSV出力</button>
+        </div>
+      </div>
+
+      <!-- 詳細絞り込みパネル（右からスライドイン） -->
+      <div id="filterPanelOverlay" onclick="closeFilterPanel(event)" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:400;">
+        <div onclick="event.stopPropagation()" style="position:absolute;top:0;right:0;bottom:0;width:340px;max-width:90vw;background:#fff;border-left:1px solid #e8e8e6;padding:1.125rem 1.25rem;overflow-y:auto;display:flex;flex-direction:column;gap:0;animation:slideInRight .2s ease;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-shrink:0;">
+            <span style="font-size:14px;font-weight:600;">詳細絞り込み</span>
+            <button onclick="closeFilterPanel()" style="background:none;border:none;font-size:20px;color:#888;cursor:pointer;line-height:1;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%;">×</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;flex:1;">
+            <div>
+              <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;">ステータス（コア）</label>
+              <select id="fpCoreStatus" style="width:100%;font-size:12px;padding:6px 10px;border:1px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-family:inherit;">
+                <option value="">全て</option>
+                <option value="applied">応募</option>
+                <option value="in_progress">対応中</option>
+                <option value="interview">面接</option>
+                <option value="hired">採用</option>
+                <option value="joined">入社</option>
+                <option value="resigned">退職</option>
+                <option value="other">その他</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;">詳細ステータス</label>
+              <select id="fpDetailStatus" style="width:100%;font-size:12px;padding:6px 10px;border:1px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-family:inherit;">
+                <option value="">全て</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;">媒体</label>
+              <select id="fpMedia" style="width:100%;font-size:12px;padding:6px 10px;border:1px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-family:inherit;">
+                <option value="">全て</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;">職種</label>
+              <select id="fpJobType" style="width:100%;font-size:12px;padding:6px 10px;border:1px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-family:inherit;">
+                <option value="">全て</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;">部署</label>
+              <select id="fpDept" style="width:100%;font-size:12px;padding:6px 10px;border:1px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-family:inherit;">
+                <option value="">全て</option>
+              </select>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+                <label style="font-size:11px;color:#666;">応募日</label>
+                <span onclick="clearDateFilter()" style="font-size:10.5px;color:#185FA5;cursor:pointer;text-decoration:underline;">期間クリア</span>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center;">
+                <input type="date" id="fDateFrom" style="flex:1;font-size:11px;padding:5px 8px;border:1px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-family:inherit;">
+                <span style="color:#aaa;font-size:11px;">〜</span>
+                <input type="date" id="fDateTo" style="flex:1;font-size:11px;padding:5px 8px;border:1px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-family:inherit;">
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:18px;border-top:1px solid #f0f0ee;padding-top:14px;flex-shrink:0;">
+            <button onclick="clearAllFilters()" style="flex:1;font-size:12px;padding:8px;background:transparent;border:1px solid #e4e8e7;border-radius:8px;color:#666;cursor:pointer;font-family:inherit;">クリア</button>
+            <button onclick="applyFilterPanel()" style="flex:2;font-size:12px;padding:8px;background:#5aaa8e;color:#fff;border:0;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;">適用</button>
+          </div>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+  <th style="width:36px;"><input type="checkbox" id="checkAll" onclick="toggleCheckAll(this)" style="cursor:pointer;width:14px;height:14px;"></th>
+  <th onclick="quickSort('appDate')" style="cursor:pointer;">応募日 <span id="sort_appDate">↓</span></th>
+  <th onclick="quickSort('name')" style="cursor:pointer;">名前 <span id="sort_name"></span></th>
+  <th>求人番号</th>
+  <th>求人名称</th>
+  <th onclick="quickSort('jobType')" style="cursor:pointer;">職種 <span id="sort_jobType"></span></th>
+  <th onclick="quickSort('dept')" style="cursor:pointer;">部署 <span id="sort_dept"></span></th>
+  <th>メール</th>
+  <th>媒体</th>
+  <th>ステータス</th>
+  <th>詳細ステータス</th>
+  <th>面接日</th>
+  <th>メモ</th>
+  <th onclick="quickSort('updatedAt')" style="cursor:pointer;">更新 <span id="sort_updatedAt"></span></th>
+  <th></th>
+</tr></thead>
+          <tbody id="listBody"></tbody>
+        </table>
+        <div id="emptyList" class="empty" style="display:none;text-align:center;padding:2rem;">
+          <img src="assets/koala-kira-small.png" style="width:70px;opacity:.8;">
+          <div style="font-size:12px;color:#aaa;margin-top:8px;">応募者データがありません</div>
+        </div>
+      </div>
+      <div class="dp" id="detailPanel">
+        <div class="dp-hd">
+          <h3 id="dpName"></h3>
+          <button class="dp-cls" onclick="closeDetail()">×</button>
+        </div>
+        <div class="dp-grid" id="dpBody"></div>
+        <div class="dp-act">
+          <button class="btn-del" onclick="delApp()">削除</button>
+          <button class="btn btn-s" onclick="closeDetail()">閉じる</button>
+          <button class="btn btn-p" onclick="editApp()">編集</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- スケジュール（Phase E） -->
+    <div id="sec-schedule" class="sec">
+      <!-- sec-scheduleキャラ -->
+      <div style="position:fixed;bottom:20px;right:20px;z-index:50;display:none;" id="char_sec-schedule">
+        <div style="text-align:right;margin-bottom:4px;">
+          <div style="display:inline-block;background:#1a1a1a;color:#fff;border-radius:10px 10px 2px 10px;padding:5px 9px;font-size:10px;font-weight:500;margin-bottom:4px;">スケジュール！</div>
+        </div>
+        <img src="assets/koala-pc-small.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
+      </div>
+      <div class="sec-head">
+        <h2>📅 スケジュール</h2>
+        <p class="sec-desc">今日対応すべき人・面接予定・放置警告を一覧で確認</p>
+      </div>
+      <!-- 上部コントロール -->
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
+        <select id="schClientFilter" onchange="renderSchedule()" style="display:none;padding:5px 9px;border:1.5px solid #378ADD;border-radius:8px;font-size:11px;font-family:inherit;background:#f0f6ff;color:#185FA5;font-weight:600;">
+          <option value="">全クライアント</option>
+        </select>
+        <label id="schSelfFilterLabel" style="display:none;align-items:center;gap:6px;font-size:12px;color:#0F6E56;font-weight:600;padding:5px 12px;background:#E1F5EE;border:1px solid #5DCAA5;border-radius:8px;cursor:pointer;">
+          <input type="checkbox" id="schSelfFilterCheck" onchange="renderSchedule()" style="margin:0;width:13px;height:13px;cursor:pointer;">
+          自分の担当のみ
+        </label>
+        <select id="schStaffFilterSelect" onchange="renderSchedule()" style="display:none;padding:6px 10px;border:1px solid #5DCAA5;border-radius:8px;font-size:12px;font-family:inherit;background:#E1F5EE;color:#0F6E56;font-weight:600;cursor:pointer;">
+          <option value="">担当者で絞り込み（全て）</option>
+        </select>
+        <button onclick="renderSchedule()" style="padding:5px 10px;background:transparent;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;color:#666;cursor:pointer;">🔄 更新</button>
+      </div>
+      <!-- KPIカード3つ -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
+        <div id="schKpiToday" onclick="toggleSchPanel('today')" style="background:#FAECE7;border:2px solid transparent;border-radius:12px;padding:14px 16px;cursor:pointer;transition:transform .1s;position:relative;">
+          <span class="sch-info-btn" data-tip="今日対応すべき人&#10;・ステータス未入力&#10;・応募／対応中&#10;・面接日が昨日／今日／明日&#10;・面接ステータスで日程未確定" onclick="event.stopPropagation();" style="position:absolute;top:8px;right:8px;width:18px;height:18px;background:rgba(153,60,29,.18);color:#993C1D;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;cursor:help;font-family:inherit;line-height:1;">i</span>
+          <div style="font-size:11px;color:#993C1D;font-weight:600;">今日対応すべき人</div>
+          <div style="font-size:28px;font-weight:600;color:#712B13;line-height:1.2;margin-top:4px;"><span id="schKpiTodayN">0</span> <span style="font-size:11px;font-weight:400;">名</span></div>
+          <div style="font-size:10px;color:#993C1D;margin-top:4px;">クリックで一覧 ▼</div>
+        </div>
+        <div id="schKpiInterview" onclick="toggleSchPanel('interview')" style="background:#EEEDFE;border:2px solid transparent;border-radius:12px;padding:14px 16px;cursor:pointer;transition:transform .1s;position:relative;">
+          <span class="sch-info-btn" data-tip="今週の面接&#10;・面接日が今日〜6日後の範囲&#10;・面接の結果が「未実施」のもの&#10;（実施済みは除外）" onclick="event.stopPropagation();" style="position:absolute;top:8px;right:8px;width:18px;height:18px;background:rgba(60,52,137,.18);color:#3C3489;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;cursor:help;font-family:inherit;line-height:1;">i</span>
+          <div style="font-size:11px;color:#3C3489;font-weight:600;">今週の面接</div>
+          <div style="font-size:28px;font-weight:600;color:#26215C;line-height:1.2;margin-top:4px;"><span id="schKpiInterviewN">0</span> <span style="font-size:11px;font-weight:400;">件</span></div>
+          <div style="font-size:10px;color:#3C3489;margin-top:4px;">クリックで一覧 ▼</div>
+        </div>
+        <div id="schKpiStale" onclick="toggleSchPanel('stale')" style="background:#FAEEDA;border:2px solid transparent;border-radius:12px;padding:14px 16px;cursor:pointer;transition:transform .1s;position:relative;">
+          <span class="sch-info-btn" data-tip="放置警告（経過日数で判定）&#10;・ステータス未入力／応募 → 2日経過&#10;・対応中 → 3日経過&#10;・面接日程未確定 → 3日経過&#10;・面接実施後 → 2日経過" onclick="event.stopPropagation();" style="position:absolute;top:8px;right:8px;width:18px;height:18px;background:rgba(133,79,11,.18);color:#854F0B;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;cursor:help;font-family:inherit;line-height:1;">i</span>
+          <div style="font-size:11px;color:#854F0B;font-weight:600;">放置警告</div>
+          <div style="font-size:28px;font-weight:600;color:#633806;line-height:1.2;margin-top:4px;"><span id="schKpiStaleN">0</span> <span style="font-size:11px;font-weight:400;">名</span></div>
+          <div style="font-size:10px;color:#854F0B;margin-top:4px;">クリックで一覧 ▼</div>
+        </div>
+      </div>
+      <!-- パネル展開エリア -->
+      <div id="schPanelToday" style="display:none;background:#fff;border:1px solid #F0997B;border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+        <div style="font-size:13px;font-weight:600;color:#993C1D;margin-bottom:8px;">▼ 今日対応すべき人</div>
+        <div style="background:#fdf6f3;border:1px dashed #F0997B;border-radius:6px;padding:8px 10px;font-size:11px;line-height:1.7;color:#712B13;margin-bottom:10px;">
+          <strong style="font-weight:700;">判定基準：</strong>ステータス未入力 ／ 応募 ／ 対応中 ／ 面接日が昨日・今日・明日 ／ 面接ステータスで日程未確定
+        </div>
+        <div id="schListToday" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+      <div id="schPanelInterview" style="display:none;background:#fff;border:1px solid #AFA9EC;border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+        <div style="font-size:13px;font-weight:600;color:#3C3489;margin-bottom:8px;">▼ 今週の面接</div>
+        <div style="background:#f5f4fd;border:1px dashed #AFA9EC;border-radius:6px;padding:8px 10px;font-size:11px;line-height:1.7;color:#26215C;margin-bottom:10px;">
+          <strong style="font-weight:700;">判定基準：</strong>面接日が今日〜6日後の範囲内、かつ面接の結果が「未実施」のもの（実施済みは除外）
+        </div>
+        <div id="schListInterview" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+      <div id="schPanelStale" style="display:none;background:#fff;border:1px solid #FAC775;border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+        <div style="font-size:13px;font-weight:600;color:#854F0B;margin-bottom:8px;">▼ 放置警告</div>
+        <div style="background:#fef7e9;border:1px dashed #FAC775;border-radius:6px;padding:8px 10px;font-size:11px;line-height:1.7;color:#633806;margin-bottom:10px;">
+          <strong style="font-weight:700;">判定基準：</strong>
+          <span style="display:inline-block;margin-right:10px;">ステータス未入力／応募 → <strong>2日経過</strong></span>
+          <span style="display:inline-block;margin-right:10px;">対応中 → <strong>3日経過</strong></span>
+          <span style="display:inline-block;margin-right:10px;">面接日程未確定 → <strong>3日経過</strong></span>
+          <span style="display:inline-block;">面接実施後 → <strong>2日経過</strong></span>
+        </div>
+        <div id="schListStale" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+    </div>
+
+    <!-- ===== 登録方法選択画面（新規追加） ===== -->
+    <div id="sec-add-choice" class="sec">
+      <div style="position:fixed;bottom:20px;right:20px;z-index:50;display:none;" id="char_sec-add-choice">
+        <div style="text-align:right;margin-bottom:4px;">
+          <div style="display:inline-block;background:#1a1a1a;color:#fff;border-radius:10px 10px 2px 10px;padding:5px 9px;font-size:10px;font-weight:500;margin-bottom:4px;">どっちで登録する？</div>
+        </div>
+        <img src="assets/koala-think-small.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
+      </div>
+
+      <div style="background:#fff;border-radius:12px;padding:1.75rem 2rem;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+        <div style="text-align:center;margin-bottom:1.5rem;">
+          <h1 style="font-size:18px;font-weight:600;margin-bottom:6px;"><span style="color:#5aaa8e;">＋</span> 新規登録</h1>
+          <div style="font-size:12px;color:#888;">どの方法で登録しますか？</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:720px;margin:0 auto;">
+          <!-- AIペースト -->
+          <div onclick="goPasteRegister()" style="background:linear-gradient(135deg,#EEEDFE 0%,#fff 100%);border:1.5px solid #AFA9EC;border-radius:12px;padding:24px;cursor:pointer;text-align:center;position:relative;transition:transform .15s ease,box-shadow .15s ease;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(83,74,183,0.15)';" onmouseout="this.style.transform='';this.style.boxShadow='';">
+            <div style="position:absolute;top:10px;right:10px;background:#534AB7;color:#fff;font-size:9px;padding:2px 6px;border-radius:3px;font-weight:600;">NEW</div>
+            <img src="assets/koala-kira-small.png" style="width:64px;height:64px;object-fit:contain;margin-bottom:12px;">
+            <div style="font-size:14px;font-weight:600;margin-bottom:6px;color:#3C3489;">🐨 AIペースト</div>
+            <div style="font-size:11px;color:#666;line-height:1.6;margin-bottom:14px;">
+              応募通知メールを貼るだけ。<br>
+              テンプレに従って自動抽出。<br>
+              <span style="color:#534AB7;font-weight:600;">複数件まとめて登録OK</span>
+            </div>
+            <div style="display:inline-block;background:#534AB7;color:#fff;padding:8px 20px;border-radius:6px;font-size:12px;font-weight:600;">この方法で登録 →</div>
+          </div>
+
+          <!-- 手動入力 -->
+          <div onclick="goManualRegister()" style="background:#fff;border:1px solid #e8e8e6;border-radius:12px;padding:24px;cursor:pointer;text-align:center;transition:transform .15s ease,box-shadow .15s ease;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(0,0,0,0.08)';" onmouseout="this.style.transform='';this.style.boxShadow='';">
+            <div style="font-size:48px;margin-bottom:12px;line-height:1;">📝</div>
+            <div style="font-size:14px;font-weight:600;margin-bottom:6px;">手動入力</div>
+            <div style="font-size:11px;color:#666;line-height:1.6;margin-bottom:14px;">
+              全項目を自分で入力。<br>
+              詳細情報を最初から登録したい人向け。<br>
+              <span style="color:#888;">これまで通りのフォーム</span>
+            </div>
+            <div style="display:inline-block;background:#fff;color:#1a1a1a;padding:8px 20px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid #ccc;">この方法で登録 →</div>
+          </div>
+        </div>
+
+        <div style="text-align:center;margin-top:20px;font-size:11px;color:#aaa;">
+          💡 ペースト方式が初めての方は AIペースト → 結果を確認 → 編集してから登録、の流れがおすすめ
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== AIペースト登録画面（新規追加） ===== -->
+    <div id="sec-add-paste" class="sec">
+      <div style="position:fixed;bottom:20px;right:20px;z-index:50;display:none;" id="char_sec-add-paste">
+        <div style="text-align:right;margin-bottom:4px;">
+          <div style="display:inline-block;background:#1a1a1a;color:#fff;border-radius:10px 10px 2px 10px;padding:5px 9px;font-size:10px;font-weight:500;margin-bottom:4px;">貼ってね♪</div>
+        </div>
+        <img src="assets/koala-pc-small.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
+      </div>
+
+      <!-- パンくず -->
+      <div style="background:#fff;border-radius:8px;padding:.75rem 1rem;margin-bottom:.75rem;font-size:12px;color:#666;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="cursor:pointer;color:#185FA5;" onclick="goAddChoice()">← 戻る</span>
+        <span style="color:#ccc;">／</span>
+        <span>新規登録</span>
+        <span style="color:#ccc;">／</span>
+        <span style="color:#3C3489;font-weight:600;">🐨 AIペースト</span>
+      </div>
+
+      <!-- ステップ表示 -->
+      <div id="pasteStepIndicator" style="display:flex;gap:6px;margin-bottom:1rem;font-size:11px;align-items:center;flex-wrap:wrap;">
+        <span class="paste-step active" data-step="1" style="padding:4px 10px;background:#534AB7;color:#fff;border-radius:14px;">1. ペースト</span>
+        <span style="color:#aaa;">→</span>
+        <span class="paste-step" data-step="2" style="padding:4px 10px;background:#fff;color:#888;border:0.5px solid #e0e0e0;border-radius:14px;">2. 解析・確認</span>
+        <span style="color:#aaa;">→</span>
+        <span class="paste-step" data-step="3" style="padding:4px 10px;background:#fff;color:#888;border:0.5px solid #e0e0e0;border-radius:14px;">3. 登録</span>
+      </div>
+
+      <!-- ステップ1：ペースト入力 -->
+      <div id="pasteStep1" style="background:linear-gradient(180deg,#EEEDFE 0%,#fff 100%);border-radius:12px;padding:20px;">
+        <!-- テンプレ選択バー -->
+        <div style="background:#fff;border:0.5px solid #e0e0e0;border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span style="font-size:11px;color:#666;white-space:nowrap;">📋 メールテンプレ：</span>
+            <select id="pasteTemplateSelect" onchange="onPasteTemplateChange()" style="flex:1;min-width:200px;padding:6px 10px;border:0.5px solid #e0e0e0;border-radius:6px;font-size:12px;background:#fff;font-family:inherit;">
+              <option value="">— テンプレを選択 —</option>
+            </select>
+            <button onclick="openTemplateEditor()" style="padding:6px 12px;background:#fff;border:0.5px solid #534AB7;border-radius:6px;font-size:11px;cursor:pointer;color:#534AB7;white-space:nowrap;font-family:inherit;font-weight:500;">⚙ 編集 / + 新規</button>
+          </div>
+          <div id="pasteTemplateInfo" style="margin-top:6px;font-size:10px;color:#0F6E56;display:none;"></div>
+        </div>
+
+        <!-- ペースト枠リスト -->
+        <div id="pasteBoxList"></div>
+
+        <!-- 追加ボタン -->
+        <button onclick="addPasteBox()" style="width:100%;padding:12px;background:#fff;border:1.5px dashed #AFA9EC;border-radius:8px;font-size:12px;cursor:pointer;color:#534AB7;font-weight:600;margin-bottom:14px;font-family:inherit;">＋ もう1件追加</button>
+
+        <!-- アクション -->
+        <div style="display:flex;gap:8px;">
+          <button onclick="analyzePastes()" style="flex:1;padding:12px;background:#534AB7;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">🐨 解析して確認画面へ →</button>
+          <button onclick="clearAllPasteBoxes()" style="padding:12px 18px;background:#fff;border:0.5px solid #e0e0e0;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;">クリア</button>
+        </div>
+
+        <div style="margin-top:14px;background:rgba(255,255,255,0.7);border-radius:8px;padding:10px 12px;font-size:11px;color:#666;line-height:1.7;">
+          💡 <span style="font-weight:600;color:#3C3489;">プラスボタンで枠が増えていく：</span>1名ずつ確実に分けて貼れば、AIに分割ミスされる心配ゼロ🐨<br>
+          📋 <span style="font-weight:600;color:#3C3489;">テンプレを選ぶと精度UP：</span>媒体特有のフォーマットを覚えさせておけるので、毎回安定した抽出ができます
+        </div>
+      </div>
+
+      <!-- ステップ2：確認画面 -->
+      <div id="pasteStep2" style="display:none;">
+        <div style="background:#fff;border-radius:12px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:14px;border-bottom:0.5px solid #f0f0ee;">
+            <img src="assets/koala-good-small.png" style="width:36px;height:36px;object-fit:contain;flex-shrink:0;">
+            <div style="flex:1;">
+              <div id="pasteStep2Headline" style="font-size:13px;font-weight:600;">解析完了！</div>
+              <div style="font-size:10px;color:#666;">中身を確認して、必要なら修正してから登録してね</div>
+            </div>
+            <div id="pasteStep2Counter" style="font-size:11px;color:#666;"></div>
+          </div>
+
+          <!-- 解析結果カードリスト -->
+          <div id="pasteResultList"></div>
+
+          <!-- フッター -->
+          <div style="background:#f8f8f7;border-radius:8px;padding:12px 14px;margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div id="pasteFinalCount" style="font-size:12px;flex:1;min-width:200px;">0名を登録します</div>
+            <button onclick="backToPasteStep1()" style="padding:8px 14px;background:#fff;border:0.5px solid #e0e0e0;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;">← ペーストに戻る</button>
+            <button onclick="saveAllParsedApplicants()" id="pasteSaveBtn" style="padding:8px 18px;background:#5aaa8e;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">✓ まとめて登録</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== テンプレ編集モーダル（新規追加） ===== -->
+    <div id="templateEditorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px;">
+      <div style="background:#fff;border-radius:14px;width:100%;max-width:1000px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;">
+        <!-- ヘッダー -->
+        <div style="background:#EEEDFE;padding:14px 18px;border-bottom:0.5px solid #AFA9EC;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:14px;font-weight:600;color:#3C3489;">📋 メールテンプレ管理</span>
+          <select id="teTemplateSelect" onchange="onTemplateSelect()" style="padding:6px 10px;border:0.5px solid #AFA9EC;border-radius:6px;font-size:12px;background:#fff;font-family:inherit;">
+            <option value="__new__">＋ 新規作成…</option>
+          </select>
+          <input type="text" id="teTemplateName" placeholder="テンプレ名（例: JOBこあ）" style="flex:1;min-width:160px;padding:6px 10px;border:0.5px solid #AFA9EC;border-radius:6px;font-size:12px;font-family:inherit;">
+          <button onclick="duplicateTemplate()" style="padding:6px 10px;background:#fff;border:0.5px solid #e0e0e0;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;">複製</button>
+          <button onclick="deleteTemplate()" style="padding:6px 10px;background:#fff;border:0.5px solid #993C1D;border-radius:6px;font-size:11px;cursor:pointer;color:#993C1D;font-family:inherit;">削除</button>
+          <button onclick="closeTemplateEditor()" style="padding:6px 10px;background:transparent;border:none;cursor:pointer;font-size:18px;color:#666;line-height:1;">✕</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1;min-height:0;overflow:hidden;">
+          <!-- 左：サンプル本文 -->
+          <div style="padding:14px;border-right:0.5px solid #f0f0ee;display:flex;flex-direction:column;min-height:0;">
+            <div style="font-size:11px;color:#666;margin-bottom:8px;font-weight:600;">📨 サンプルメール本文</div>
+            <textarea id="teSampleText" placeholder="ここに実際のメール本文をコピペ…" style="flex:1;min-height:300px;background:#fafafa;border:0.5px solid #e0e0e0;border-radius:6px;padding:10px;font-family:Menlo,Consolas,monospace;font-size:11px;line-height:1.7;resize:vertical;font-weight:normal;outline:none;"></textarea>
+            <div style="font-size:10px;color:#888;margin-top:6px;line-height:1.6;">💡 サンプル本文を貼ると、右ペインのマッピングを「プレビュー」ボタンで試せます</div>
+          </div>
+
+          <!-- 右：マッピング設定 -->
+          <div style="padding:14px;display:flex;flex-direction:column;min-height:0;overflow-y:auto;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+              <span style="font-size:11px;font-weight:600;color:#666;">🔗 マッピング設定</span>
+              <span id="teMappingCount" style="font-size:10px;color:#aaa;margin-left:auto;">0 個</span>
+            </div>
+            <div id="teMappingList" style="display:flex;flex-direction:column;gap:6px;"></div>
+            <button onclick="addMappingRow()" style="margin-top:8px;width:100%;padding:8px;background:#fff;border:0.5px dashed #AFA9EC;border-radius:6px;font-size:11px;cursor:pointer;color:#534AB7;font-family:inherit;font-weight:500;">＋ マッピングを追加</button>
+
+            <!-- プレビューエリア -->
+            <div id="tePreviewArea" style="margin-top:14px;display:none;">
+              <div style="font-size:11px;font-weight:600;color:#0F6E56;margin-bottom:6px;">🔍 プレビュー結果</div>
+              <div id="tePreviewResult" style="background:#f3faf0;border:0.5px solid #5aaa8e;border-radius:6px;padding:10px;font-size:11px;line-height:1.6;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- フッター -->
+        <div style="background:#f8f8f7;padding:12px 18px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:0.5px solid #e8e8e6;">
+          <div style="font-size:11px;color:#666;">💡 マッピングを変更したら「保存」を忘れずに</div>
+          <div style="display:flex;gap:6px;">
+            <button onclick="previewTemplate()" style="padding:8px 14px;background:#fff;border:0.5px solid #e0e0e0;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;">プレビューで試す</button>
+            <button onclick="saveTemplate()" style="padding:8px 14px;background:#5aaa8e;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">✓ テンプレを保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== メール作成モーダル（新規追加） ===== -->
+    <div id="emailComposerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px;">
+      <div style="background:#fff;border-radius:14px;width:100%;max-width:760px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;">
+        <!-- ヘッダー -->
+        <div style="background:#E6F1FB;padding:14px 18px;border-bottom:0.5px solid #B6D4F0;display:flex;align-items:center;gap:10px;">
+          <span style="font-size:18px;">📧</span>
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;color:#0C447C;">メール送信</div>
+            <div style="font-size:11px;color:#185FA5;" id="ecRecipientInfo">宛先：—</div>
+          </div>
+          <button onclick="closeEmailComposer()" style="padding:6px 10px;background:transparent;border:none;cursor:pointer;font-size:18px;color:#666;line-height:1;">✕</button>
+        </div>
+
+        <div style="padding:18px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;">
+          <!-- テンプレ選択 -->
+          <div style="background:#EEEDFE;border-radius:8px;padding:12px;">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span style="font-size:11px;color:#3C3489;font-weight:600;white-space:nowrap;">📋 テンプレ：</span>
+              <select id="ecTemplateSelect" onchange="onEmailTemplateApply()" style="flex:1;min-width:200px;padding:6px 10px;border:0.5px solid #AFA9EC;border-radius:6px;font-size:12px;background:#fff;font-family:inherit;">
+                <option value="">— テンプレなし（手書き） —</option>
+              </select>
+              <button onclick="openEmailTemplateEditorForNew()" style="padding:6px 12px;background:#fff;border:0.5px solid #534AB7;border-radius:6px;font-size:11px;cursor:pointer;color:#534AB7;font-family:inherit;font-weight:500;">⚙ 管理</button>
+            </div>
+          </div>
+
+          <!-- 宛先 -->
+          <div>
+            <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;font-weight:500;">TO</label>
+            <input type="text" id="ecToInput" style="width:100%;padding:8px 10px;border:0.5px solid #e0e0e0;border-radius:6px;font-size:12px;box-sizing:border-box;background:#fafafa;font-family:inherit;">
+          </div>
+
+          <!-- 件名 -->
+          <div>
+            <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;font-weight:500;">件名</label>
+            <input type="text" id="ecSubjectInput" style="width:100%;padding:8px 10px;border:0.5px solid #e0e0e0;border-radius:6px;font-size:12px;box-sizing:border-box;font-family:inherit;">
+          </div>
+
+          <!-- 本文 -->
+          <div>
+            <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;font-weight:500;">本文</label>
+            <textarea id="ecBodyInput" style="width:100%;padding:10px;border:0.5px solid #e0e0e0;border-radius:6px;font-size:12px;line-height:1.7;box-sizing:border-box;min-height:200px;font-family:inherit;resize:vertical;"></textarea>
+          </div>
+
+          <!-- ヒント -->
+          <div style="background:#f3faf0;border-left:3px solid #5aaa8e;padding:10px 12px;border-radius:0 6px 6px 0;font-size:11px;color:#27500A;line-height:1.7;">
+            🐨 テンプレの変数（{name}など）は応募者情報で自動展開済み。送信前に編集してOKです。
+          </div>
+        </div>
+
+        <!-- フッター -->
+        <div style="background:#f8f8f7;padding:12px 18px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:0.5px solid #e8e8e6;">
+          <label style="font-size:11px;color:#666;display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="ecRecordTimeline" checked style="accent-color:#5aaa8e;">
+            送信内容をタイムラインに記録
+          </label>
+          <div style="margin-left:auto;display:flex;gap:6px;">
+            <button onclick="closeEmailComposer()" style="padding:8px 14px;background:#fff;border:0.5px solid #e0e0e0;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;">キャンセル</button>
+            <button onclick="sendEmailViaGmail()" style="padding:8px 18px;background:#185FA5;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">📧 Gmailで送信 →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 送信メールテンプレ編集モーダル（新規追加） ===== -->
+    <div id="emailTemplateEditorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1001;align-items:center;justify-content:center;padding:20px;">
+      <div style="background:#fff;border-radius:14px;width:100%;max-width:880px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;">
+        <!-- ヘッダー -->
+        <div style="background:#E6F1FB;padding:14px 18px;border-bottom:0.5px solid #B6D4F0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:14px;font-weight:600;color:#0C447C;">📧 送信メールテンプレ管理</span>
+          <select id="eteTemplateSelect" onchange="onEmailTemplateSelect()" style="padding:6px 10px;border:0.5px solid #B6D4F0;border-radius:6px;font-size:12px;background:#fff;font-family:inherit;">
+            <option value="__new__">＋ 新規作成…</option>
+          </select>
+          <input type="text" id="eteTemplateName" placeholder="テンプレ名（例: 応募受付お礼）" style="flex:1;min-width:160px;padding:6px 10px;border:0.5px solid #B6D4F0;border-radius:6px;font-size:12px;font-family:inherit;">
+          <button onclick="duplicateEmailTemplate()" style="padding:6px 10px;background:#fff;border:0.5px solid #e0e0e0;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;">複製</button>
+          <button onclick="deleteEmailTemplateFromEditor()" style="padding:6px 10px;background:#fff;border:0.5px solid #993C1D;border-radius:6px;font-size:11px;cursor:pointer;color:#993C1D;font-family:inherit;">削除</button>
+          <button onclick="closeEmailTemplateEditor()" style="padding:6px 10px;background:transparent;border:none;cursor:pointer;font-size:18px;color:#666;line-height:1;">✕</button>
+        </div>
+
+        <div style="padding:18px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;">
+          <!-- 変数挿入バー -->
+          <div style="background:#FAEEDA;border-radius:8px;padding:10px 12px;">
+            <div style="font-size:10.5px;color:#5F5E5A;margin-bottom:6px;font-weight:500;">💡 クリックで本文/件名にカーソル位置に変数を挿入</div>
+            <div id="eteVarChips" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+          </div>
+
+          <!-- 件名 -->
+          <div>
+            <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;font-weight:500;">件名</label>
+            <input type="text" id="eteSubject" placeholder="例: 【Link Core】ご応募ありがとうございます／{name}様" style="width:100%;padding:8px 10px;border:0.5px solid #e0e0e0;border-radius:6px;font-size:12px;box-sizing:border-box;font-family:inherit;">
+          </div>
+
+          <!-- 本文 -->
+          <div>
+            <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;font-weight:500;">本文</label>
+            <textarea id="eteBody" placeholder="例:&#10;{name}様&#10;&#10;お世話になっております。&#10;Link Core採用担当の{staff_name}でございます。&#10;..." style="width:100%;padding:10px;border:0.5px solid #e0e0e0;border-radius:6px;font-size:12px;line-height:1.7;box-sizing:border-box;min-height:240px;font-family:inherit;resize:vertical;"></textarea>
+          </div>
+        </div>
+
+        <!-- フッター -->
+        <div style="background:#f8f8f7;padding:12px 18px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:0.5px solid #e8e8e6;">
+          <div style="font-size:11px;color:#666;">💡 編集が終わったら「保存」を押してください</div>
+          <div style="display:flex;gap:6px;">
+            <button onclick="saveEmailTemplate()" style="padding:8px 14px;background:#185FA5;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">✓ 保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 新規登録 -->
+    <div id="sec-add" class="sec">
+      <!-- sec-addキャラ -->
+      <div style="position:fixed;bottom:20px;right:20px;z-index:50;display:none;" id="char_sec-add">
+        <div style="text-align:right;margin-bottom:4px;">
+          <div style="display:inline-block;background:#1a1a1a;color:#fff;border-radius:10px 10px 2px 10px;padding:5px 9px;font-size:10px;font-weight:500;margin-bottom:4px;">登録しよう！</div>
+        </div>
+        <img src="assets/koala-kira-small.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
+      </div>
+
+      <!-- ===== Phase C-2：編集モード時のみ表示するヘッダー ===== -->
+      <div id="editModeHeader" style="display:none;background:#fff;border-radius:10px;padding:14px 18px;margin-bottom:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+          <button onclick="backToList()" style="border:1px solid #deeee9;background:#fff;padding:7px 14px;border-radius:8px;font-size:12px;font-family:inherit;cursor:pointer;color:#1a1a1a;font-weight:500;">← 一覧へ戻る</button>
+          <div style="flex:1;min-width:200px;">
+            <div id="editModeName" style="font-size:16px;font-weight:600;color:#1a1a1a;line-height:1.2;">名前</div>
+            <div id="editModeJobInfo" style="font-size:11px;color:#888;margin-top:3px;">求人情報</div>
+          </div>
+          <div id="editModeCoreBadge"></div>
+        </div>
+        <!-- タブナビ -->
+        <div id="editModeTabs" style="display:flex;gap:0;margin-top:14px;border-bottom:1px solid #f0f0ee;padding:0 4px;">
+          <div class="emt-tab active" data-tab="basic" onclick="switchEditTab('basic')" style="padding:10px 16px;font-size:13px;font-weight:600;border-bottom:2px solid #5aaa8e;color:#5aaa8e;cursor:pointer;">基本情報</div>
+          <div class="emt-tab" data-tab="timeline" onclick="switchEditTab('timeline')" style="padding:10px 16px;font-size:13px;font-weight:500;border-bottom:2px solid transparent;color:#888;cursor:pointer;display:flex;align-items:center;gap:5px;">
+            タイムライン
+            <span id="emtBadgeTimeline" style="background:#f0f0ee;color:#888;padding:1px 7px;border-radius:9px;font-size:10px;display:none;">0</span>
+          </div>
+          <div class="emt-tab" data-tab="interviews" onclick="switchEditTab('interviews')" style="padding:10px 16px;font-size:13px;font-weight:500;border-bottom:2px solid transparent;color:#888;cursor:pointer;display:flex;align-items:center;gap:5px;">
+            面接履歴
+            <span id="emtBadgeInterviews" style="background:#f0f0ee;color:#888;padding:1px 7px;border-radius:9px;font-size:10px;display:none;">0</span>
+          </div>
+          <div class="emt-tab" data-tab="files" onclick="switchEditTab('files')" style="padding:10px 16px;font-size:13px;font-weight:500;border-bottom:2px solid transparent;color:#888;cursor:pointer;display:flex;align-items:center;gap:5px;">
+            ファイル
+            <span id="emtBadgeFiles" style="background:#f0f0ee;color:#888;padding:1px 7px;border-radius:9px;font-size:10px;display:none;">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Phase C-2：タイムライン・面接履歴・ファイル各タブのコンテンツ ===== -->
+      <div id="editTabContent_timeline" style="display:none;background:#fff;border-radius:10px;padding:1.5rem 1.5rem;margin-bottom:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+        <div id="timelineContent">
+          <!-- ここにタイムライン描画 -->
+          <div style="text-align:center;padding:2rem;color:#aaa;font-size:13px;">読み込み中...</div>
+        </div>
+      </div>
+      <div id="editTabContent_interviews" style="display:none;background:#fff;border-radius:10px;padding:1.5rem 1.5rem;margin-bottom:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+        <div id="interviewsContent">
+          <div style="text-align:center;padding:2rem;color:#aaa;font-size:13px;">読み込み中...</div>
+        </div>
+      </div>
+      <div id="editTabContent_files" style="display:none;background:#fff;border-radius:10px;padding:1.5rem 1.5rem;margin-bottom:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+        <div id="filesContent">
+          <div style="text-align:center;padding:2rem;color:#aaa;font-size:13px;">読み込み中...</div>
+        </div>
+      </div>
+
+      <!-- ===== 既存の新規登録フォーム本体（基本情報タブで使用） ===== -->
+      <div id="editTabContent_basic" class="addform-container">
+        <!-- ヘッダー -->
+        <div class="addform-head">
+          <h1><span class="addform-icon">＋</span>新規登録</h1>
+          <div class="addform-meta">
+            <span><strong>登録モード：</strong><span id="addModeLabel">新規</span></span>
+          </div>
+        </div>
+
+        <!-- セクションナビ -->
+        <div class="addform-nav">
+          <a class="active" href="#af-basic" onclick="afJump('af-basic',this);return false;">基本情報</a>
+          <a href="#af-personal" onclick="afJump('af-personal',this);return false;">個人情報</a>
+          <a href="#af-apply" onclick="afJump('af-apply',this);return false;">応募情報</a>
+          <a href="#af-screening" onclick="afJump('af-screening',this);return false;">選考情報</a>
+          <a href="#af-memo" onclick="afJump('af-memo',this);return false;">メモ</a>
+          <a href="#af-staff" onclick="afJump('af-staff',this);return false;">担当者</a>
+        </div>
+
+        <!-- フォーム本体 -->
+        <div class="addform-body">
+
+          <!-- ▼ 基本情報 -->
+          <div class="afsec" id="af-basic">
+            <div class="afsec-head"><span class="afsec-marker"></span><h2>基本情報</h2></div>
+            <div class="afsec-body">
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq">必須</span>応募日</div>
+                <div class="afrow-input"><input type="date" class="afw-md" id="fAD"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>応募職種 <span style="font-size:9px;color:#888;font-weight:400;">（複数可）</span></div>
+                <div class="afrow-input" style="flex-direction:column;align-items:stretch;gap:6px;">
+                  <div id="chipsJT" class="chip-group" data-target="fJT" data-multiple="true"></div>
+                  <input type="text" class="afw-lg" id="fJT" placeholder="項目にない場合は手動入力（カンマ区切りで複数可）" style="flex:1;">
+                </div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>求人番号</div>
+                <div class="afrow-input"><input type="text" class="afw-md" id="fJobNo" placeholder="例：JOB-1234"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>求人名称</div>
+                <div class="afrow-input"><input type="text" class="afw-full" id="fJobName" placeholder="例：Webエンジニア募集（経験3年以上）" style="flex:1;"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>勤務地</div>
+                <div class="afrow-input"><input type="text" class="afw-lg" id="fLoc" placeholder="東京、大阪 等"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq">必須</span>性別</div>
+                <div class="afrow-input">
+                  <div id="chipsGe" class="chip-group" data-target="fGe" data-multiple="false"></div>
+                  <input type="hidden" id="fGe">
+                </div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>部署 <span style="font-size:9px;color:#888;font-weight:400;">（複数可）</span></div>
+                <div class="afrow-input">
+                  <div id="chipsDept" class="chip-group" data-target="fDept2" data-multiple="true"></div>
+                  <input type="hidden" id="fDept2">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ▼ 個人情報 -->
+          <div class="afsec" id="af-personal">
+            <div class="afsec-head"><span class="afsec-marker"></span><h2>個人情報</h2></div>
+            <div class="afsec-body">
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq">必須</span>氏名</div>
+                <div class="afrow-input"><input type="text" class="afw-md" id="fNm" placeholder="山田 太郎"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>ふりがな</div>
+                <div class="afrow-input"><input type="text" class="afw-md" id="fKn" placeholder="やまだ たろう"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>メール</div>
+                <div class="afrow-input"><input type="email" id="fEm" placeholder="example@email.com" style="flex:1;"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>電話番号</div>
+                <div class="afrow-input"><input type="tel" class="afw-md" id="fTel" placeholder="090-0000-0000"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>住所</div>
+                <div class="afrow-input"><input type="text" id="fAddr" placeholder="例：東京都新宿区西新宿1-1-1" style="flex:1;"></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>生年月日</div>
+                <div class="afrow-input">
+                  <div class="afbd-fields">
+                    <input type="number" class="afw-xs" id="fBY" placeholder="1990" min="1940" max="2010">
+                    <span class="afbd-suffix">年</span>
+                    <select id="fBM" class="afw-xs"><option value="">--</option></select>
+                    <span class="afbd-suffix">月</span>
+                    <select id="fBD" class="afw-xs"><option value="">--</option></select>
+                    <span class="afbd-suffix">日</span>
+                  </div>
+                  <div class="afbd-age">
+                    応募時 <input type="number" id="fAg" min="0" max="100" style="width:60px;text-align:center;padding:8px 8px;border:1.5px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-size:13px;" placeholder="--"> 歳
+                    <span id="fAgAuto" style="font-size:10px;color:#5aaa8e;margin-left:4px;display:none;font-weight:600;">✨自動</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ▼ 応募情報 -->
+          <div class="afsec" id="af-apply">
+            <div class="afsec-head"><span class="afsec-marker"></span><h2>応募情報</h2></div>
+            <div class="afsec-body">
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq">必須</span>媒体名</div>
+                <div class="afrow-input"><select id="fMed" class="afw-lg"><option value="">選択してください</option></select></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>人材紹介会社</div>
+                <div class="afrow-input"><select id="fAg2" class="afw-lg"><option value="">選択してください</option></select></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>ステータス</div>
+                <div class="afrow-input"><select id="fSt2" class="afw-lg"><option value="">選択してください</option></select></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>採用可否</div>
+                <div class="afrow-input"><select id="fHire2" class="afw-md"><option value="">選択してください</option></select></div>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>コンタクト日</div>
+                <div class="afrow-input"><input type="date" class="afw-md" id="fCD"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ▼ 選考情報 -->
+          <div class="afsec" id="af-screening">
+            <div class="afsec-head"><span class="afsec-marker"></span><h2>選考情報</h2></div>
+            <div class="afsec-body">
+              <!-- Phase D-2：1次/2次面接は「面接履歴」タブで管理 -->
+              <div style="margin-bottom:10px;padding:11px 14px;background:#f0faf6;border:1px dashed #9fd9c2;border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <div style="font-size:18px;">📅</div>
+                  <div>
+                    <div style="font-size:12px;font-weight:600;color:#1a1a1a;">面接情報は「面接履歴」タブで管理</div>
+                    <div style="font-size:10.5px;color:#888;margin-top:1px;">日時、結果、メモを面接ごとに記録できます</div>
+                  </div>
+                </div>
+                <button type="button" onclick="switchEditTab('interviews')" style="background:#5aaa8e;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">面接履歴へ →</button>
+              </div>
+              <!-- Phase D-3：書類は「ファイル」タブで管理 -->
+              <div style="margin-bottom:14px;padding:11px 14px;background:#fef7f0;border:1px dashed #f5c89e;border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <div style="font-size:18px;">📎</div>
+                  <div>
+                    <div style="font-size:12px;font-weight:600;color:#1a1a1a;">履歴書・職務経歴書などは「ファイル」タブで管理</div>
+                    <div style="font-size:10.5px;color:#888;margin-top:1px;">PDF/Word/Excel/画像など、最大10MBまで添付できます</div>
+                  </div>
+                </div>
+                <button type="button" onclick="switchEditTab('files')" style="background:#EF9F27;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">ファイルへ →</button>
+              </div>
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>退職日</div>
+                <div class="afrow-input"><input type="date" class="afw-md" id="fRD"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ▼ メモ -->
+          <div class="afsec" id="af-memo">
+            <div class="afsec-head"><span class="afsec-marker"></span><h2>メモ</h2></div>
+            <div class="afsec-body">
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>自由記述</div>
+                <div class="afrow-input"><textarea id="fMemo" placeholder="気になった点、引き継ぎ事項などを記入..." style="resize:vertical;min-height:80px;width:100%;font-family:inherit;line-height:1.6;padding:10px 12px;border:1.5px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-size:13px;"></textarea></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ▼ 担当者（Phase C-2） -->
+          <div class="afsec" id="af-staff">
+            <div class="afsec-head"><span class="afsec-marker"></span><h2>担当者</h2></div>
+            <div class="afsec-body">
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>担当者選択</div>
+                <div class="afrow-input">
+                  <div id="staffCheckboxList" style="display:flex;flex-wrap:wrap;gap:8px;padding:10px;border:1.5px solid #e4e8e7;border-radius:8px;background:#fafcfb;min-height:50px;">
+                    <span style="font-size:11px;color:#aaa;align-self:center;">担当者を読み込み中...</span>
+                  </div>
+                  <div style="font-size:10.5px;color:#888;margin-top:6px;">複数選択可。在籍中の担当者のみ表示されます。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 既存のインラインフッターは削除し、Phase D-1で外に固定フッターを設置 -->
+
+        </div>
+      </div>
+
+      <!-- ===== Phase D-1：固定追随フッター（タブをまたいで常に表示） ===== -->
+      <div id="addFormFloatingFooter" style="position:sticky;bottom:14px;z-index:30;margin:0 0 0.5rem;display:flex;justify-content:flex-end;align-items:center;gap:10px;background:rgba(255,255,255,0.96);backdrop-filter:blur(8px);border:1px solid #e8e8e6;border-radius:14px;padding:10px 16px;box-shadow:0 4px 16px rgba(0,0,0,.08);">
+        <div style="font-size:11px;color:#888;flex:1;">※ <span style="color:#e85a5a;font-weight:700;">必須</span> マークの項目は必ず入力してください</div>
+        <button class="btn btn-s" onclick="resetForm()">クリア</button>
+        <button class="btn btn-p" onclick="saveApp()" id="addFormSaveBtn">登録する</button>
+      </div>
+    </div>
+
+    <!-- 一括取り込み -->
+    <div id="sec-import" class="sec">
+      <!-- sec-importキャラ -->
+      <div style="position:fixed;bottom:20px;right:20px;z-index:50;display:none;" id="char_sec-import">
+        <div style="text-align:right;margin-bottom:4px;">
+          <div style="display:inline-block;background:#1a1a1a;color:#fff;border-radius:10px 10px 2px 10px;padding:5px 9px;font-size:10px;font-weight:500;margin-bottom:4px;">まとめて取り込み！</div>
+        </div>
+        <img src="assets/koala-kira-small.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
+      </div>
+      <div style="margin-bottom:1.25rem;">
+        <h2 style="font-size:14px;font-weight:600;margin-bottom:4px;">応募者一括取り込み</h2>
+        <p style="font-size:11px;color:#888;">CSVテンプレートをダウンロード → 情報を入力 → アップロードで一括登録できます。</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1.25rem;">
+        <div style="border:1px solid #e8e8e6;border-radius:10px;padding:1.125rem;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:.75rem;">
+            <span style="width:22px;height:22px;background:#1a1a1a;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">1</span>
+            <strong style="font-size:13px;">テンプレートCSVをダウンロードする</strong>
+          </div>
+          <p style="font-size:11px;color:#888;margin-bottom:.75rem;">全項目のヘッダーが入ったExcel対応のCSVファイルです。1行目はヘッダーなので消さないでください。</p>
+          <button class="btn btn-s" onclick="downloadTemplate()">テンプレートCSVをダウンロード</button>
+        </div>
+        <div style="border:1px solid #e8e8e6;border-radius:10px;padding:1.125rem;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:.75rem;">
+            <span style="width:22px;height:22px;background:#1a1a1a;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">2</span>
+            <strong style="font-size:13px;">CSVに情報を入力する（Excelで開いてOK）</strong>
+          </div>
+          <div style="background:#f8f8f7;border-radius:8px;padding:.875rem;font-size:11px;color:#666;line-height:1.9;">
+            <strong style="color:#1a1a1a;">入力ルール：</strong><br>
+            ・<strong>応募日</strong>：YYYY-MM-DD形式（例: 2024-04-01）<span style="color:#D85A30;">★必須</span><br>
+            ・<strong>応募職種・名前・ふりがな・メール・電話・性別・媒体名・ステータス</strong>：<span style="color:#D85A30;">★必須</span><br>
+            ・<strong>生年月日_年/月/日</strong>：数字のみ（例: 年=1990, 月=4, 日=1）<br>
+            ・<strong>性別</strong>：男性 / 女性 / その他 / 未回答 のいずれか<br>
+            ・<strong>面接日時</strong>：YYYY-MM-DDTHH:MM（例: 2024-04-15T14:00）<br>
+            ・<strong>書類URL</strong>：GoogleドライブのURLをそのまま<br>
+            ・空欄の項目はそのまま空白でOK
+          </div>
+        </div>
+        <div style="border:1px solid #e8e8e6;border-radius:10px;padding:1.125rem;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:.75rem;">
+            <span style="width:22px;height:22px;background:#1a1a1a;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">3</span>
+            <strong style="font-size:13px;">CSVをアップロードしてプレビュー確認</strong>
+          </div>
+          <div id="dropZone" style="border:2px dashed #ddd;border-radius:8px;padding:2rem;text-align:center;cursor:pointer;transition:all .15s;background:#fafafa;" onclick="document.getElementById('csvFileInput').click()" ondragover="event.preventDefault();this.style.borderColor='#378ADD'" ondragleave="this.style.borderColor='#ddd'" ondrop="handleDrop(event)">
+            <div style="font-size:13px;color:#888;margin-bottom:6px;">クリックまたはCSVファイルをドラッグ＆ドロップ</div>
+            <div style="font-size:11px;color:#bbb;">.csv ファイルのみ対応</div>
+            <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="handleCSVFile(this.files[0])">
+          </div>
+        </div>
+        <div id="importPreview" style="display:none;border:1px solid #e8e8e6;border-radius:10px;padding:1.125rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem;flex-wrap:wrap;gap:8px;">
+            <div>
+              <strong style="font-size:13px;">取り込みプレビュー</strong>
+              <span id="previewCount" style="font-size:11px;color:#888;margin-left:8px;"></span>
+            </div>
+            <div style="display:flex;gap:7px;">
+              <button class="btn btn-s" onclick="cancelImport()">キャンセル</button>
+              <button class="btn btn-p" id="importBtn" onclick="doImport()">この内容で一括登録する</button>
+            </div>
+          </div>
+          <div id="importErrors" style="display:none;background:#FFF3F0;border-radius:6px;padding:.75rem;margin-bottom:.875rem;font-size:11px;color:#D85A30;line-height:1.7;"></div>
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:600px;">
+              <thead id="previewHead"></thead>
+              <tbody id="previewBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- 議事録 -->
+    <div id="sec-minutes" class="sec">
+      <!-- sec-minutesキャラ -->
+      <div style="position:fixed;bottom:20px;right:20px;z-index:50;display:none;" id="char_sec-minutes">
+        <div style="text-align:right;margin-bottom:4px;">
+          <div style="display:inline-block;background:#1a1a1a;color:#fff;border-radius:10px 10px 2px 10px;padding:5px 9px;font-size:10px;font-weight:500;margin-bottom:4px;">議事録チェック！</div>
+        </div>
+        <img src="assets/koala-good-small.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px;">
+        <div>
+          <h2 style="font-size:14px;font-weight:600;">議事録</h2>
+          <p style="font-size:11px;color:#aaa;margin-top:2px;">MTGごとの議事録とタスクを記録します</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select id="minutesClientFilter" onchange="renderMinutes()" style="display:none;padding:6px 10px;border:1.5px solid #378ADD;border-radius:8px;font-size:11px;font-family:inherit;background:#f0f6ff;color:#185FA5;font-weight:600;">
+            <option value="">全クライアント</option>
+          </select>
+          <div style="display:flex;align-items:center;gap:4px;">
+              <button onclick="shiftMonth('calMonth','renderMinutes',-1)" style="padding:5px 10px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:#fafafa;cursor:pointer;line-height:1;" title="前月">‹</button>
+              <input type="month" id="calMonth" onchange="renderMinutes()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fafafa;">
+              <button onclick="shiftMonth('calMonth','renderMinutes',1)" style="padding:5px 10px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:#fafafa;cursor:pointer;line-height:1;" title="次月">›</button>
+            </div>
+          <button class="btn btn-s" onclick="showMinutesFormForDate()">＋ 日付指定で追加</button>
+          <button class="btn btn-p" onclick="showMinutesForm()">＋ 新規議事録</button>
+        </div>
+      </div>
+      <!-- ミニカレンダー -->
+      <div id="minutesCalendar" style="margin-bottom:1rem;"></div>
+
+      <!-- 新規議事録フォーム -->
+      <div id="minutesForm" style="display:none;background:#f8f8f7;border-radius:10px;padding:1.25rem;margin-bottom:1.25rem;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:1rem;">新規議事録</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div class="fg"><label>日付<span class="req">*</span></label><input type="date" id="mDate"></div>
+          <div class="fg"><label>議事録URL</label><input type="url" id="mUrl" placeholder="https://docs.google.com/..."></div>
+          <div class="fg full"><label>タイトル・メモ</label><input type="text" id="mTitle" placeholder="例: 4月度定例MTG"></div>
+        </div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #e8e8e6;">タスク</div>
+        <div id="mTaskList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+        <div style="display:grid;grid-template-columns:120px 1fr 120px 100px auto;gap:6px;align-items:end;background:#fff;padding:8px;border-radius:8px;border:1px solid #e8e8e6;">
+          <div class="fg"><label style="font-size:10px;">担当</label>
+            <select id="tOwner" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;background:#fff;">
+            </select>
+          </div>
+          <div class="fg"><label style="font-size:10px;">タスク内容</label><input type="text" id="tContent" placeholder="タスク内容を入力" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;"></div>
+          <div class="fg"><label style="font-size:10px;">期限</label><input type="date" id="tDue" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;"></div>
+          <div class="fg"><label style="font-size:10px;">優先度</label>
+            <select id="tPriority" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;background:#fff;">
+              <option value="中">中</option>
+              <option value="高">高</option>
+              <option value="低">低</option>
+            </select>
+          </div>
+          <button class="btn btn-s" style="padding:6px 12px;font-size:11px;align-self:end;" onclick="addTaskToMinutes()">追加</button>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+          <button class="btn btn-s" onclick="hideMinutesForm()">キャンセル</button>
+          <button class="btn btn-p" onclick="saveMinutes()">保存する</button>
+        </div>
+      </div>
+
+      <!-- 議事録一覧 -->
+      <div id="minutesList"></div>
+    </div>
+
+    <!-- タスク -->
+    <div id="sec-tasks" class="sec">
+      <!-- sec-tasksキャラ -->
+      <div style="position:fixed;bottom:20px;right:20px;z-index:50;display:none;" id="char_sec-tasks">
+        <div style="text-align:right;margin-bottom:4px;">
+          <div style="display:inline-block;background:#1a1a1a;color:#fff;border-radius:10px 10px 2px 10px;padding:5px 9px;font-size:10px;font-weight:500;margin-bottom:4px;">タスク管理！</div>
+        </div>
+        <img src="assets/koala-pc-small.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px;">
+        <div>
+          <h2 style="font-size:14px;font-weight:600;">タスク管理</h2>
+          <p style="font-size:11px;color:#aaa;margin-top:2px;">期限・担当・完了状況を一覧で管理します</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select id="taskClientFilter" onchange="renderTasks();renderTaskCalendar();" style="display:none;padding:6px 10px;border:1.5px solid #378ADD;border-radius:8px;font-size:11px;font-family:inherit;background:#f0f6ff;color:#185FA5;font-weight:600;">
+            <option value="">全クライアント</option>
+          </select>
+          <select id="taskFilter" onchange="renderTasks()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;">
+            <option value="all">全て</option>
+            <option value="pending">未完了のみ</option>
+            <option value="done">完了のみ</option>
+          </select>
+          <div style="display:flex;align-items:center;gap:4px;">
+              <button onclick="shiftMonth('taskCalMonth','renderTaskCalendar',-1)" style="padding:5px 10px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:#fafafa;cursor:pointer;line-height:1;" title="前月">‹</button>
+              <input type="month" id="taskCalMonth" onchange="renderTaskCalendar()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fafafa;">
+              <button onclick="shiftMonth('taskCalMonth','renderTaskCalendar',1)" style="padding:5px 10px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:#fafafa;cursor:pointer;line-height:1;" title="次月">›</button>
+            </div>
+          <button class="btn btn-p" onclick="showManualTaskForm()">＋ 手動追加</button>
+        </div>
+      </div>
+      <!-- タスクカレンダー -->
+      <div id="taskCalendar" style="margin-bottom:1rem;"></div>
+
+      <!-- 手動タスク追加フォーム -->
+      <div id="manualTaskForm" style="display:none;background:#f8f8f7;border-radius:10px;padding:1.125rem;margin-bottom:1rem;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:10px;">タスク手動追加</div>
+        <div style="display:grid;grid-template-columns:120px 1fr 130px 130px 100px auto;gap:8px;align-items:end;">
+          <div class="fg"><label style="font-size:10px;">担当</label>
+            <select id="mtOwner" style="padding:7px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;background:#fff;">
+            </select>
+          </div>
+          <div class="fg"><label style="font-size:10px;">タスク内容<span class="req">*</span></label><input type="text" id="mtContent" placeholder="タスク内容" style="padding:7px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;"></div>
+          <div class="fg"><label style="font-size:10px;">依頼日</label><input type="date" id="mtStart" style="padding:7px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;"></div>
+          <div class="fg"><label style="font-size:10px;">期限<span class="req">*</span></label><input type="date" id="mtDue" style="padding:7px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;"></div>
+          <div class="fg"><label style="font-size:10px;">優先度</label>
+            <select id="mtPriority" style="padding:7px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;background:#fff;">
+              <option value="中">中</option><option value="高">高</option><option value="低">低</option>
+            </select>
+          </div>
+          <button class="btn btn-p" style="align-self:end;padding:7px 14px;font-size:12px;" onclick="saveManualTask()">追加</button>
+        </div>
+        <button class="btn btn-s" style="margin-top:8px;font-size:11px;" onclick="hideManualTaskForm()">キャンセル</button>
+      </div>
+
+      <div id="taskList"></div>
+    </div>
+
+    <!-- 分析 -->
+    <div id="sec-analytics" class="sec" style="padding:0;background:transparent;box-shadow:none;">
+      <!-- sec-analyticsキャラ -->
+      <div style="position:fixed;bottom:20px;right:20px;z-index:50;display:none;" id="char_sec-analytics">
+        <div style="text-align:right;margin-bottom:4px;">
+          <div style="display:inline-block;background:#1a1a1a;color:#fff;border-radius:10px 10px 2px 10px;padding:5px 9px;font-size:10px;font-weight:500;margin-bottom:4px;">データ分析中！</div>
+        </div>
+        <img src="assets/koala-pc-small.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
+      </div>
+
+      <!-- 上部固定：フィルター＋KPI＋ファネル -->
+      <div style="background:#fff;border-radius:10px;padding:1.125rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+
+        <!-- フィルター行 -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:.75rem;">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+            <label style="font-size:11px;color:#666;font-weight:500;">期間A：</label>
+            <input type="date" id="anFrom" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;">
+            <span style="font-size:10px;color:#aaa;">〜</span>
+            <input type="date" id="anTo" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;">
+            <button class="btn-sm" onclick="setPeriod('month')">今月</button>
+            <button class="btn-sm" onclick="setPeriod('quarter')">3ヶ月</button>
+            <button class="btn-sm" onclick="setPeriod('year')">1年</button>
+            <button class="btn-sm" onclick="setPeriod('all')">累計</button>
+            <select id="anClient" onchange="renderAn()" style="display:none;padding:5px 8px;border:1.5px solid #378ADD;border-radius:8px;font-size:11px;font-family:inherit;background:#f0f6ff;color:#185FA5;font-weight:600;">
+              <option value="">全クライアント</option>
+            </select>
+            <select id="anDept" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;">
+              <option value="">部署（全て）</option>
+            </select>
+            <select id="anJob" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;">
+              <option value="">職種（全て）</option>
+            </select>
+          </div>
+          <button class="btn-exp" onclick="exportPDF()">PDF出力</button>
+          <button class="btn-exp" onclick="openMonthlyReportDialog()" style="background:#1D9E75;color:#fff;border-color:#1D9E75;">📊 月次レポート</button>
+        </div>
+
+        <!-- 比較期間 -->
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:.625rem .75rem;background:#f0f6ff;border-radius:8px;margin-bottom:.75rem;">
+          <label style="font-size:11px;color:#378ADD;font-weight:600;">比較B：</label>
+          <input type="date" id="anFrom2" onchange="renderAn()" style="padding:4px 7px;border:1px solid #c8ddf5;border-radius:6px;font-size:11px;font-family:inherit;">
+          <span style="font-size:10px;color:#aaa;">〜</span>
+          <input type="date" id="anTo2" onchange="renderAn()" style="padding:4px 7px;border:1px solid #c8ddf5;border-radius:6px;font-size:11px;font-family:inherit;">
+          <button class="btn-sm" onclick="setCompare('lastMonth')">先月</button>
+          <button class="btn-sm" onclick="setCompare('last3m')">前3ヶ月</button>
+          <button class="btn-sm" onclick="setCompare('lastYear')">前年同期</button>
+          <button class="btn-sm" onclick="clearCompare()">クリア</button>
+          <span id="compareStatus" style="font-size:11px;color:#378ADD;font-weight:500;"></span>
+        </div>
+
+        <!-- コアラコーチ（分析結果からの改善提案） -->
+        <div id="koalaCoachBox" style="display:none;margin-bottom:.875rem;background:linear-gradient(135deg,#E1F5EE 0%,#FAEEDA 100%);border-radius:12px;padding:14px 16px;border:1px solid #5DCAA5;">
+          <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;">
+            <img src="assets/koala-think.png" style="width:54px;height:54px;object-fit:contain;flex-shrink:0;">
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:600;color:#0F6E56;margin-bottom:2px;">🐨 コアラからのアドバイス</div>
+              <div id="koalaCoachIntro" style="font-size:12px;color:#0F6E56;line-height:1.5;"></div>
+            </div>
+          </div>
+          <div id="koalaCoachAdvices" style="display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+
+        <!-- KPI -->
+        <div class="metric-grid" id="anMetrics" style="margin-bottom:.875rem;"></div>
+
+        <!-- 逆ピラミッドファネル -->
+        <div id="anFunnelBar"></div>
+      </div>
+
+      <!-- 平均リードタイム（月別集計の直前） -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:.25rem;">
+          <span style="font-size:12px;font-weight:600;color:#1a1a1a;">⏱ 平均リードタイム</span>
+          <span class="lt-info-btn" data-tip="選考ステータスごとの平均所要日数&#10;・events履歴から各到達日を算出&#10;・両端の日付がある応募者だけが対象&#10;・期間/部署/職種フィルタに連動">i</span>
+        </div>
+        <div style="font-size:10.5px;color:#888;margin-bottom:.75rem;">選考ステータスごとの平均所要日数</div>
+        <div id="anLeadTime" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;"></div>
+      </div>
+
+      <!-- 月別リードタイム集計 -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:.75rem;display:flex;align-items:center;gap:6px;">
+          ⏱ 月別リードタイム
+          <span style="font-size:10px;color:#aaa;font-weight:400;">応募月ベース</span>
+        </div>
+        <div id="anLeadTimeMonthly"></div>
+      </div>
+
+      <!-- 常時表示：月別集計（全体） -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:.75rem;display:flex;align-items:center;gap:6px;">
+          📊 月別集計（全体）
+          <span style="font-size:10px;color:#aaa;font-weight:400;">常時表示</span>
+        </div>
+        <div id="anMonthlyFixed"></div>
+      </div>
+
+      <!-- 分析ビルダー（シンプル化） -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+
+        <!-- クイック追加 -->
+        <div style="margin-bottom:.875rem;">
+          <div style="font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;">分析を追加</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn-sm" onclick="addSection('media')">📡 媒体別</button>
+            <button class="btn-sm" onclick="addSection('job')">💼 職種別</button>
+            <button class="btn-sm" onclick="addSection('dept')">🏢 部署別</button>
+            <button class="btn-sm" onclick="addSection('age')">👥 年代別</button>
+            <button class="btn-sm" onclick="addSection('gender')">⚧ 性別</button>
+            <button class="btn-sm" onclick="addSection('agency')">🏛️ 紹介会社別</button>
+            <button class="btn-sm" onclick="addSection('ai')" style="background:#f0faf6;color:#3B6D11;border-color:#c8e6c9;">🤖 AI分析</button>
+          </div>
+        </div>
+
+        <!-- 複数軸ネスト型クロス集計 -->
+        <div style="padding-top:.75rem;border-top:1px solid #f0f0ee;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.625rem;">
+            <div style="font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.06em;">🔀 複数軸クロス集計（ネスト型・2〜3軸）</div>
+            <span style="font-size:10px;color:#aaa;">クリック順に①親 ②子 ③孫</span>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+            <button id="maxis_media"    class="btn-sm" onclick="toggleMultiAxis('media')"    style="background:#fafafa;">媒体</button>
+            <button id="maxis_jobType"  class="btn-sm" onclick="toggleMultiAxis('jobType')"  style="background:#fafafa;">職種</button>
+            <button id="maxis_dept"     class="btn-sm" onclick="toggleMultiAxis('dept')"     style="background:#fafafa;">部署</button>
+            <button id="maxis_ageGroup" class="btn-sm" onclick="toggleMultiAxis('ageGroup')" style="background:#fafafa;">年代</button>
+            <button id="maxis_agency"   class="btn-sm" onclick="toggleMultiAxis('agency')"   style="background:#fafafa;">紹介会社</button>
+            <button id="maxis_gender"   class="btn-sm" onclick="toggleMultiAxis('gender')"   style="background:#fafafa;">性別</button>
+            <button id="maxis_status"   class="btn-sm" onclick="toggleMultiAxis('status')"   style="background:#fafafa;">ステータス</button>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span id="multiAxisPreview" style="font-size:11px;color:#aaa;">軸を選択してください（最大3軸・2軸以上で追加可能）</span>
+            <button class="btn btn-p" style="padding:6px 14px;font-size:12px;flex-shrink:0;" onclick="addMultiAxisSection()">追加</button>
+          </div>
+        </div>
+
+        <!-- 全クリア -->
+        <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid #f0f0ee;display:flex;justify-content:flex-end;">
+          <button class="btn-sm" onclick="activeSections=[];renderCustomSections();" style="color:#D85A30;border-color:#D85A30;">全セクションをクリア</button>
+        </div>
+      </div>
+
+      <!-- カスタムセクション表示エリア -->
+      <div id="anCustomSections" style="display:flex;flex-direction:column;gap:.75rem;margin-top:1rem;"></div>
+    </div>
+
+
+    <!-- 予算管理 -->
+    <div id="sec-budget" class="sec" style="padding:0;background:transparent;box-shadow:none;">
+      <!-- sec-budgetキャラ -->
+      <div style="position:fixed;bottom:20px;right:20px;z-index:50;display:none;" id="char_sec-budget">
+        <div style="text-align:right;margin-bottom:4px;">
+          <div style="display:inline-block;background:#1a1a1a;color:#fff;border-radius:10px 10px 2px 10px;padding:5px 9px;font-size:10px;font-weight:500;margin-bottom:4px;">費用を計算！</div>
+        </div>
+        <img src="assets/koala-good-small.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
+      </div>
+
+      <!-- 上部：期間選択・フィルター -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:.75rem;">
+          <h2 style="font-size:14px;font-weight:700;margin:0;">💰 予算管理・費用対効果分析</h2>
+          <div style="display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap;">
+            <!-- 単月/期間 切り替え -->
+            <div style="display:flex;border:1px solid #ddd;border-radius:8px;overflow:hidden;font-size:11px;">
+              <button id="budgetModeSingle" onclick="setBudgetMode('single')" style="padding:5px 10px;border:none;background:#1a1a1a;color:#fff;cursor:pointer;font-family:inherit;font-size:11px;">単月</button>
+              <button id="budgetModeRange" onclick="setBudgetMode('range')" style="padding:5px 10px;border:none;background:#fafafa;color:#666;cursor:pointer;font-family:inherit;font-size:11px;">期間</button>
+            </div>
+            <!-- 単月モード -->
+            <div id="budgetSingleMode" style="display:flex;align-items:center;gap:4px;">
+              <input type="month" id="budgetSingle" onchange="syncBudgetPeriod()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;">
+            </div>
+            <!-- 期間モード -->
+            <div id="budgetRangeMode" style="display:none;align-items:center;gap:4px;">
+              <input type="month" id="budgetFrom" onchange="renderBudget()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;">
+              <span style="font-size:11px;color:#aaa;">〜</span>
+              <input type="month" id="budgetTo" onchange="renderBudget()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;">
+            </div>
+            <select id="budgetClientFilter" onchange="renderBudget()" style="display:none;padding:6px 10px;border:1.5px solid #378ADD;border-radius:8px;font-size:11px;font-family:inherit;background:#f0f6ff;color:#185FA5;font-weight:600;">
+              <option value="">全クライアント</option>
+            </select>
+            <select id="budgetDeptFilter" onchange="renderBudget()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;"><option value="">部署（全て）</option></select>
+            <select id="budgetJobFilter" onchange="renderBudget()" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;"><option value="">職種（全て）</option></select>
+            <button class="btn-sm" onclick="exportBudgetCSV()">CSV出力</button>
+            <button class="btn btn-p" style="padding:6px 12px;font-size:12px;" onclick="showBudgetForm()">＋ 予算入力</button>
+          </div>
+        </div>
+        <!-- KPIサマリー -->
+        <div class="metric-grid" id="budgetKpi"></div>
+      </div>
+
+      <!-- コアラのコスト診断（提案5） -->
+      <div id="budgetKoalaCoach" style="display:none;background:linear-gradient(135deg,#f0faf6,#fdf8f0);border:1px solid #c8e6c9;border-radius:12px;padding:1rem;margin-bottom:.75rem;">
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <img src="assets/koala-good.png" style="width:56px;height:56px;object-fit:contain;flex-shrink:0;background:#d8eee5;border-radius:50%;padding:4px;">
+          <div style="flex:1;">
+            <div style="font-size:12px;font-weight:600;color:#0F6E56;margin-bottom:4px;">🐨 コアラのコスト診断</div>
+            <div id="budgetKoalaCoachAdvices" style="font-size:11.5px;line-height:1.7;color:#1a1a1a;display:flex;flex-direction:column;gap:4px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 採用ファネル × コスト（提案3） -->
+      <div id="budgetFunnelSection" style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:.75rem;">🎯 採用ファネル × コスト</div>
+        <div id="budgetFunnel"></div>
+      </div>
+
+      <!-- 予算入力フォーム（複数行入力対応） -->
+      <div id="budgetForm" style="display:none;background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+          <div style="font-size:12px;font-weight:600;">予算・実績データを入力（複数行まとめて登録）</div>
+          <button class="btn-sm" onclick="addBudgetRow()" style="background:#f0faf6;color:#3B6D11;border-color:#c8e6c9;">＋ 行を追加</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:800px;">
+            <thead>
+              <tr style="background:#f8f8f7;">
+                <th id="budgetThClient" style="padding:7px 8px;text-align:left;font-weight:600;white-space:nowrap;display:none;">クライアント<span class="req">*</span></th>
+                <th style="padding:7px 8px;text-align:left;font-weight:600;white-space:nowrap;">月<span class="req">*</span></th>
+                <th style="padding:7px 8px;text-align:left;font-weight:600;white-space:nowrap;">媒体・紹介会社<span class="req">*</span></th>
+                <th style="padding:7px 8px;text-align:left;font-weight:600;white-space:nowrap;">種別</th>
+                <th style="padding:7px 8px;text-align:left;font-weight:600;white-space:nowrap;">部署</th>
+                <th style="padding:7px 8px;text-align:left;font-weight:600;white-space:nowrap;">職種</th>
+                <th style="padding:7px 8px;text-align:right;font-weight:600;white-space:nowrap;">広告費（円）<span class="req">*</span></th>
+                <th style="padding:7px 8px;"></th>
+              </tr>
+            </thead>
+            <tbody id="budgetInputRows"></tbody>
+          </table>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:.75rem;">
+          <button class="btn btn-s" onclick="hideBudgetForm()">キャンセル</button>
+          <button class="btn btn-p" style="padding:7px 18px;" onclick="saveAllBudgets()">まとめて登録</button>
+        </div>
+      </div>
+
+      <!-- 月別×媒体ダッシュボードテーブル -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:.75rem;">月別 広告費・効果サマリー</div>
+        <div style="overflow-x:auto;"><table id="budgetMonthTable" style="width:100%;border-collapse:collapse;font-size:12px;min-width:600px;"></table></div>
+      </div>
+
+      <!-- 媒体別集計テーブル -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:.75rem;">媒体別 費用対効果</div>
+        <div style="overflow-x:auto;"><table id="budgetTable" style="width:100%;border-collapse:collapse;font-size:12px;min-width:700px;"></table></div>
+      </div>
+
+      <!-- 月別推移グラフ -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:.75rem;">月別推移グラフ</div>
+        <div style="position:relative;height:260px;"><canvas id="budgetTrendChart"></canvas></div>
+      </div>
+
+      <!-- 採用シミュレーター（強化版：2モード） -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.875rem;flex-wrap:wrap;gap:8px;">
+          <div style="font-size:12px;font-weight:600;">🎯 シミュレーター</div>
+          <div style="display:flex;border:1px solid #ddd;border-radius:8px;overflow:hidden;font-size:11px;">
+            <button id="simModeBasic" onclick="setSimMode('basic')" style="padding:5px 12px;border:none;background:#1a1a1a;color:#fff;cursor:pointer;font-family:inherit;font-size:11px;">採用人数→必要予算</button>
+            <button id="simModeAlloc" onclick="setSimMode('alloc')" style="padding:5px 12px;border:none;background:#fafafa;color:#666;cursor:pointer;font-family:inherit;font-size:11px;">媒体配分シミュレーション</button>
+          </div>
+        </div>
+        <!-- モード1：採用目標から必要予算を逆算 -->
+        <div id="simBasicMode">
+          <div style="font-size:11px;color:#888;margin-bottom:.625rem;">採用目標から必要予算を逆算</div>
+          <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:.75rem;">
+            <div class="fg"><label style="font-size:10px;font-weight:600;">採用目標人数</label>
+              <input type="number" id="simHireTarget" value="1" min="1" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;width:100px;">
+            </div>
+            <div class="fg"><label style="font-size:10px;font-weight:600;">部署</label>
+              <select id="simDept" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;"><option value="">全部署</option></select>
+            </div>
+            <div class="fg"><label style="font-size:10px;font-weight:600;">職種</label>
+              <select id="simJob" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;"><option value="">全職種</option></select>
+            </div>
+            <button class="btn btn-p" style="padding:7px 16px;font-size:12px;" onclick="runSimulation()">シミュレーション</button>
+          </div>
+          <div id="simResult"></div>
+        </div>
+        <!-- モード2：媒体配分（What-If） -->
+        <div id="simAllocMode" style="display:none;">
+          <div style="font-size:11px;color:#888;margin-bottom:.625rem;">予算を媒体ごとにどう配分すると採用人数が変わるかを試算</div>
+          <div style="background:#f8f8f7;border-radius:8px;padding:.875rem;margin-bottom:.75rem;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
+              <label style="font-size:11px;color:#666;font-weight:600;">総予算（円）</label>
+              <input type="number" id="simTotalBudget" value="1000000" min="0" step="10000" style="padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;width:140px;" oninput="recalcAllocSim()">
+              <span style="font-size:11px;color:#aaa;">過去実績から各媒体のCPOを算出して試算します</span>
+            </div>
+            <div id="simAllocSliders" style="display:flex;flex-direction:column;gap:10px;margin-top:12px;"></div>
+          </div>
+          <div id="simAllocResult"></div>
+        </div>
+      </div>
+
+      <!-- 予算データ一覧 -->
+      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+        <div style="font-size:12px;font-weight:600;margin-bottom:.75rem;">入力済み予算データ</div>
+        <div id="budgetDataList"></div>
+      </div>
+    </div>
+
+    <!-- マスター管理 -->
+    <div id="sec-master" class="sec">
+      <!-- sec-masterキャラ -->
+      <div style="position:fixed;bottom:20px;right:20px;z-index:50;display:none;" id="char_sec-master">
+        <div style="text-align:right;margin-bottom:4px;">
+          <div style="display:inline-block;background:#1a1a1a;color:#fff;border-radius:10px 10px 2px 10px;padding:5px 9px;font-size:10px;font-weight:500;margin-bottom:4px;">マスター設定！</div>
+        </div>
+        <img src="assets/koala-good-small.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
+      </div>
+      <!-- マスター管理（媒体・部署・人材紹介会社のみ編集可能） -->
+      <div style="background:#fff8f0;border-radius:8px;padding:.75rem 1rem;margin-bottom:.75rem;font-size:11px;color:#854F0B;border-left:3px solid #EF9F27;">
+        📌 各マスターは左メニューで切り替え。項目は名前をクリックでリネーム、⋮⋮でドラッグ並べ替え、削除後5秒間「元に戻す」可。
+      </div>
+
+      <!-- 左タブ式レイアウト -->
+      <div class="mm-shell">
+        <!-- 左サイドナビ -->
+        <aside class="mm-side">
+          <button class="mm-side-btn active" data-mm-tab="media" onclick="switchMmTab('media')">
+            <span class="mm-side-icon">📡</span>
+            <span class="mm-side-label">媒体</span>
+            <span class="mm-side-count" id="mmCountMedia">0</span>
+          </button>
+          <button class="mm-side-btn" data-mm-tab="dept" onclick="switchMmTab('dept')">
+            <span class="mm-side-icon">🏢</span>
+            <span class="mm-side-label">部署</span>
+            <span class="mm-side-count" id="mmCountDept">0</span>
+          </button>
+          <button class="mm-side-btn" data-mm-tab="agency" onclick="switchMmTab('agency')">
+            <span class="mm-side-icon">🏛️</span>
+            <span class="mm-side-label">紹介会社</span>
+            <span class="mm-side-count" id="mmCountAgency">0</span>
+          </button>
+          <button class="mm-side-btn" data-mm-tab="assignee" onclick="switchMmTab('assignee')">
+            <span class="mm-side-icon">👥</span>
+            <span class="mm-side-label">担当者</span>
+            <span class="mm-side-count" id="mmCountAssignee">0</span>
+          </button>
+          <div class="mm-side-divider"></div>
+          <button class="mm-side-btn" data-mm-tab="status" onclick="switchMmTab('status')">
+            <span class="mm-side-icon">📋</span>
+            <span class="mm-side-label">ステータス</span>
+            <span class="mm-side-count" id="mmCountStatus">0</span>
+          </button>
+          <button class="mm-side-btn" data-mm-tab="paste-template" onclick="switchMmTab('paste-template')">
+            <span class="mm-side-icon">📨</span>
+            <span class="mm-side-label">メールテンプレ</span>
+            <span class="mm-side-count" id="mmCountPasteTemplate">0</span>
+          </button>
+          <button class="mm-side-btn" data-mm-tab="email-template" onclick="switchMmTab('email-template')">
+            <span class="mm-side-icon">📧</span>
+            <span class="mm-side-label">送信メールテンプレ</span>
+            <span class="mm-side-count" id="mmCountEmailTemplate">0</span>
+          </button>
+          <button class="mm-side-btn" data-mm-tab="settings" onclick="switchMmTab('settings')">
+            <span class="mm-side-icon">⚙️</span>
+            <span class="mm-side-label">パスワード</span>
+          </button>
+        </aside>
+
+        <!-- メインエリア -->
+        <section class="mm-main">
+
+          <!-- 媒体・部署・紹介会社・担当者 共通テンプレ -->
+          <div class="mm-pane" id="mmPane-media">
+            <div class="mm-pane-header">
+              <h3>📡 媒体マスター</h3>
+              <input type="text" class="mm-search" placeholder="🔍 絞り込み" oninput="filterMmList('media', this.value)">
+            </div>
+            <ul class="mm-list" id="mlMed"></ul>
+            <div class="mm-add">
+              <input type="text" id="miMed" placeholder="媒体名を追加" onkeydown="if(event.key==='Enter') addM('media')">
+              <button onclick="addM('media')">＋ 追加</button>
+            </div>
+          </div>
+
+          <div class="mm-pane" id="mmPane-dept" style="display:none;">
+            <div class="mm-pane-header">
+              <h3>🏢 部署マスター</h3>
+              <input type="text" class="mm-search" placeholder="🔍 絞り込み" oninput="filterMmList('dept', this.value)">
+            </div>
+            <ul class="mm-list" id="mlDept"></ul>
+            <div class="mm-add">
+              <input type="text" id="miDept" placeholder="例: 営業部" onkeydown="if(event.key==='Enter') addM('dept')">
+              <button onclick="addM('dept')">＋ 追加</button>
+            </div>
+          </div>
+
+          <div class="mm-pane" id="mmPane-agency" style="display:none;">
+            <div class="mm-pane-header">
+              <h3>🏛️ 人材紹介会社マスター</h3>
+              <input type="text" class="mm-search" placeholder="🔍 絞り込み" oninput="filterMmList('agency', this.value)">
+            </div>
+            <ul class="mm-list" id="mlAg"></ul>
+            <div class="mm-add">
+              <input type="text" id="miAg" placeholder="会社名を追加" onkeydown="if(event.key==='Enter') addM('agency')">
+              <button onclick="addM('agency')">＋ 追加</button>
+            </div>
+          </div>
+
+          <div class="mm-pane" id="mmPane-assignee" style="display:none;">
+            <div class="mm-pane-header">
+              <h3>👥 担当者マスター</h3>
+              <input type="text" class="mm-search" placeholder="🔍 絞り込み" oninput="filterMmList('assignee', this.value)">
+            </div>
+            <ul class="mm-list" id="mlAssignee"></ul>
+            <div class="mm-add">
+              <input type="text" id="miAssignee" placeholder="例: 橋本" onkeydown="if(event.key==='Enter') addM('assignee')">
+              <button onclick="addM('assignee')">＋ 追加</button>
+            </div>
+          </div>
+
+          <!-- ステータスマスター（既存維持） -->
+          <div class="mm-pane" id="mmPane-status" style="display:none;">
+            <div id="statusMasterSection">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem;">
+                <div>
+                  <div style="font-size:13px;font-weight:600;">📋 ステータスマスター管理</div>
+                  <div style="font-size:11px;color:#aaa;margin-top:2px;">詳細ステータスと分析用コアステータスの紐づけを管理します</div>
+                </div>
+                <button class="btn btn-p" style="font-size:12px;padding:6px 12px;" onclick="addDetailStatus()">＋ 追加</button>
+              </div>
+              <!-- コアステータス凡例 -->
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem;padding:.75rem;background:#f8f8f7;border-radius:8px;">
+                <span style="font-size:10px;color:#666;font-weight:600;width:100%;margin-bottom:4px;">コアステータス（固定・分析に使用）：</span>
+                <span id="coreStatusLegend"></span>
+              </div>
+              <!-- 詳細ステータス一覧 -->
+              <div id="detailStatusList"></div>
+              <!-- 追加フォーム -->
+              <div id="addDetailStatusForm" style="display:none;background:#f0faf6;border-radius:8px;padding:.875rem;margin-top:.75rem;border:1px solid #c8e6c9;">
+                <div style="font-size:12px;font-weight:600;margin-bottom:.75rem;">詳細ステータスを追加</div>
+                <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
+                  <div class="fg" style="flex:1;min-width:150px;">
+                    <label style="font-size:10px;font-weight:600;">ステータス名<span class="req">*</span></label>
+                    <input type="text" id="newDetailStatusName" placeholder="例: 書類審査中" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;">
+                  </div>
+                  <div class="fg" style="min-width:150px;">
+                    <label style="font-size:10px;font-weight:600;">コアステータス<span class="req">*</span></label>
+                    <select id="newDetailStatusCore" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;">
+                      <option value="">選択してください</option>
+                    </select>
+                  </div>
+                  <button class="btn btn-p" style="padding:7px 14px;font-size:12px;" onclick="saveDetailStatus()">保存</button>
+                  <button class="btn-sm" onclick="document.getElementById('addDetailStatusForm').style.display='none'">キャンセル</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- メールテンプレ -->
+          <div class="mm-pane" id="mmPane-paste-template" style="display:none;">
+            <div class="mm-pane-header">
+              <h3>📨 メールテンプレ管理</h3>
+            </div>
+            <div style="background:#EEEDFE;border-left:3px solid #534AB7;padding:10px 12px;border-radius:0 6px 6px 0;font-size:11px;color:#3C3489;line-height:1.7;margin-bottom:14px;">
+              💡 媒体ごとのメール本文の取り込みルールを管理します。<br>
+              新規登録 → AIペースト時にここで登録したテンプレを使って自動抽出されます。
+            </div>
+            <div id="ptList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
+            <button onclick="openTemplateEditorForNew()" style="width:100%;padding:11px;background:#fff;border:1.5px dashed #AFA9EC;border-radius:8px;font-size:12px;cursor:pointer;color:#534AB7;font-family:inherit;font-weight:600;">＋ 新しいテンプレを追加</button>
+          </div>
+
+          <!-- 送信メールテンプレ -->
+          <div class="mm-pane" id="mmPane-email-template" style="display:none;">
+            <div class="mm-pane-header">
+              <h3>📧 送信メールテンプレ管理</h3>
+            </div>
+            <div style="background:#E6F1FB;border-left:3px solid #185FA5;padding:10px 12px;border-radius:0 6px 6px 0;font-size:11px;color:#0C447C;line-height:1.7;margin-bottom:14px;">
+              💡 応募者へのメール送信時に使うテンプレを管理します。<br>
+              本文に <code style="background:#fff;padding:1px 4px;border-radius:2px;font-size:10.5px;">{name}</code> などの変数を入れると、応募者ごとに自動置換されます。<br>
+              <span style="font-size:10px;">使える変数: {name} {kana} {email} {tel} {job_name} {job_no} {job_type} {dept} {media} {status} {app_date} {staff_name} {client_name}</span>
+            </div>
+            <div id="etList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
+            <button onclick="openEmailTemplateEditorForNew()" style="width:100%;padding:11px;background:#fff;border:1.5px dashed #B6D4F0;border-radius:8px;font-size:12px;cursor:pointer;color:#185FA5;font-family:inherit;font-weight:600;">＋ 新しいテンプレを追加</button>
+          </div>
+
+          <!-- パスワード（既存維持） -->
+          <div class="mm-pane" id="mmPane-settings" style="display:none;">
+            <h3 style="font-size:13px;font-weight:600;margin-bottom:12px;">⚙️ パスワード変更</h3>
+            <div class="pw-row" style="max-width:520px;">
+              <input type="password" id="np1" placeholder="新しいパスワード">
+              <input type="password" id="np2" placeholder="確認">
+              <button class="btn btn-s" onclick="chgPw()">変更</button>
+              <span id="pwOk" style="font-size:11px;color:#3B6D11;display:none;">✓ 変更しました</span>
+            </div>
+          </div>
+
+        </section>
+      </div>
+
+      <!-- Undoトースト（提案6） -->
+      <div id="mmToast" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;border-radius:8px;padding:10px 14px;align-items:center;gap:12px;font-size:12px;z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,.25);min-width:280px;">
+        <span id="mmToastMsg"></span>
+        <button id="mmToastUndo" onclick="undoMmDelete()" style="background:transparent;border:none;color:#5DCAA5;text-decoration:underline;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;">元に戻す</button>
+      </div>
+
+</div>
+
+    <!-- 担当者管理 -->
+    <div id="sec-staff" class="sec">
+      <h2 style="font-size:14px;font-weight:600;margin-bottom:6px;">担当者管理</h2>
+      <p style="font-size:11px;color:#888;margin-bottom:1rem;">クライアントごとに担当者（社内メンバー）を管理します。担当者は応募者編集画面などで紐付けに使用されます。</p>
+
+      <!-- フィルタ行 -->
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;">
+        <select id="staffClientFilter" style="display:none;padding:6px 10px;border:2px solid #378ADD;border-radius:6px;font-size:12px;background:#f0f6ff;color:#185FA5;font-weight:600;" onchange="renderStaff()">
+          <option value="">全クライアント</option>
+        </select>
+        <select id="staffActiveFilter" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff;" onchange="renderStaff()">
+          <option value="active">在籍中のみ</option>
+          <option value="all">在籍中＋退職済み</option>
+          <option value="inactive">退職済みのみ</option>
+        </select>
+      </div>
+
+      <table class="client-table">
+        <thead>
+          <tr>
+            <th id="staffThClient" style="display:none;">クライアント</th>
+            <th>名前</th>
+            <th>メールアドレス</th>
+            <th>状態</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="staffTableBody"></tbody>
+      </table>
+
+      <!-- 新規追加フォーム -->
+      <div class="add-client-form" style="grid-template-columns:1fr 1fr 1fr auto;">
+        <div class="fg" id="staffAddClientWrap" style="display:none;">
+          <label>クライアント</label>
+          <select id="newSClient"></select>
+        </div>
+        <div class="fg"><label>名前</label><input type="text" id="newSName" placeholder="例：田中 太郎"></div>
+        <div class="fg"><label>メールアドレス（任意）</label><input type="email" id="newSEmail" placeholder="任意（連絡先用）"></div>
+        <button class="btn btn-p" onclick="addStaff()" style="align-self:end;">追加</button>
+      </div>
+
+      <!-- 編集ダイアログ -->
+      <div id="editStaffForm" style="display:none;background:#f0f6ff;border:1px solid #c8ddf5;border-radius:10px;padding:1rem;margin-top:1rem;">
+        <div style="font-size:13px;font-weight:600;color:#185FA5;margin-bottom:.75rem;">担当者情報を編集</div>
+        <input type="hidden" id="editSRowId">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:8px;align-items:end;flex-wrap:wrap;">
+          <div class="fg"><label>名前</label><input type="text" id="editSName"></div>
+          <div class="fg"><label>メールアドレス（任意）</label><input type="email" id="editSEmail"></div>
+          <div class="fg"><label>状態</label>
+            <select id="editSActive">
+              <option value="true">在籍中</option>
+              <option value="false">退職</option>
+            </select>
+          </div>
+          <button class="btn btn-p" onclick="saveStaffEdit()" style="align-self:end;">保存</button>
+          <button class="btn btn-s" onclick="cancelStaffEdit()" style="align-self:end;">キャンセル</button>
+        </div>
+      </div>
+
+      <p style="font-size:10px;color:#aaa;margin-top:8px;">※ 担当者を削除する際、応募者と紐付いている場合は自動的に「退職」フラグに変わり履歴は維持されます</p>
+    </div>
+
+    <!-- クライアント管理（管理者のみ） -->
+    <div id="sec-admin" class="sec">
+      <h2 style="font-size:14px;font-weight:600;margin-bottom:6px;">クライアント管理</h2>
+      <p style="font-size:11px;color:#888;margin-bottom:1rem;">クライアントごとにメールアドレスとパスワードを発行します。各クライアントは自社の応募者データのみ閲覧できます。</p>
+
+      <!-- 自動連携のお知らせ（5/10改修） -->
+      <div style="background:#f0fbf5;border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;font-size:11px;color:#15693C;border-left:3px solid #5aaa8e;line-height:1.7;">
+        ✅ <strong>クライアント情報は自動連携されます。</strong>追加・編集・削除すると、Supabase Authユーザーも自動で同期されます。<br>
+        ・パスワードを忘れたクライアントには、各行の「🔑 リセット」から新しいパスワードを設定して直接お知らせしてください。
+      </div>
+
+      <table class="client-table">
+        <thead><tr><th>クライアント名</th><th>メールアドレス</th><th>パスワード</th><th>応募者数 / 採用数</th><th>操作</th></tr></thead>
+        <tbody id="clientTableBody"></tbody>
+      </table>
+
+      <!-- 新規追加フォーム -->
+      <div class="add-client-form">
+        <div class="fg"><label>クライアント名</label><input type="text" id="newCName" placeholder="株式会社〇〇"></div>
+        <div class="fg"><label>メールアドレス</label><input type="email" id="newCId" placeholder="example@company.com"></div>
+        <div class="fg"><label>パスワード（6文字以上）</label><input type="text" id="newCPw" placeholder="6文字以上のパスワード"></div>
+        <button class="btn btn-p" onclick="addClient()" style="align-self:end;">追加</button>
+      </div>
+
+      <!-- 編集ダイアログ -->
+      <div id="editClientForm" style="display:none;background:#f0f6ff;border:1px solid #c8ddf5;border-radius:10px;padding:1rem;margin-top:1rem;">
+        <div style="font-size:13px;font-weight:600;color:#185FA5;margin-bottom:.75rem;">クライアント情報を編集</div>
+        <input type="hidden" id="editCRowId">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:8px;align-items:end;flex-wrap:wrap;">
+          <div class="fg"><label>クライアント名</label><input type="text" id="editCName"></div>
+          <div class="fg"><label>メールアドレス</label><input type="email" id="editCId"></div>
+          <div class="fg"><label>パスワード（変更しない場合は空欄）</label><input type="text" id="editCPw" placeholder="変更しない場合は空欄"></div>
+          <button class="btn btn-p" onclick="saveClientEdit()" style="align-self:end;">保存</button>
+          <button class="btn btn-s" onclick="cancelClientEdit()" style="align-self:end;">キャンセル</button>
+        </div>
+        <div style="font-size:10px;color:#15693C;margin-top:8px;line-height:1.6;">
+          💡 メールアドレス・パスワードを変更すると、Authユーザーにも自動で反映されます。
+        </div>
+      </div>
+
+      <p style="font-size:10px;color:#aaa;margin-top:8px;">※管理者(admin)は全クライアントのデータを横断して閲覧・操作できます</p>
+    </div>
+  </div>
+</div>
+
+<!-- パスワードリセットモーダル（5/10新規） -->
+<div id="resetPwModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:10000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:1.5rem;width:460px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
+    <!-- 入力フェーズ -->
+    <div id="resetPwInputPhase">
+      <h3 style="margin:0 0 .5rem 0;font-size:16px;color:#B85C00;display:flex;align-items:center;gap:6px;">🔑 パスワードリセット</h3>
+      <div style="background:#fff8f0;border-left:3px solid #EF9F27;padding:.5rem .75rem;border-radius:6px;font-size:12px;color:#854F0B;margin-bottom:1rem;line-height:1.6;">
+        対象クライアント：<strong id="resetPwTargetName"></strong><br>
+        メールアドレス：<strong id="resetPwTargetEmail"></strong>
+      </div>
+      <div style="margin-bottom:.75rem;">
+        <label style="display:block;font-size:11px;color:#666;margin-bottom:4px;font-weight:500;">新しいパスワード（6文字以上）</label>
+        <input type="text" id="resetPwNew" placeholder="例: NewPass2026" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:monospace;">
+      </div>
+      <div style="margin-bottom:.75rem;">
+        <label style="display:block;font-size:11px;color:#666;margin-bottom:4px;font-weight:500;">もう一度入力（確認用）</label>
+        <input type="text" id="resetPwConfirm" placeholder="同じパスワードを再入力" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:monospace;">
+      </div>
+      <div id="resetPwError" style="display:none;font-size:11px;color:#D85A30;margin-bottom:.5rem;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem;">
+        <button class="btn btn-s" id="resetPwCancelBtn">キャンセル</button>
+        <button class="btn btn-p" id="resetPwExecuteBtn" style="background:#B85C00;color:#fff;border-color:#B85C00;">リセット実行</button>
+      </div>
+    </div>
+    <!-- 成功フェーズ -->
+    <div id="resetPwSuccessPhase" style="display:none;">
+      <h3 style="margin:0 0 .5rem 0;font-size:16px;color:#15693C;">✅ パスワードを更新しました</h3>
+      <div style="background:#f0fbf5;border-left:3px solid #5aaa8e;padding:.75rem 1rem;border-radius:6px;font-size:12px;color:#15693C;margin-bottom:1rem;line-height:1.7;">
+        対象：<strong id="resetPwResultName"></strong><br>
+        新しいパスワード：<code id="resetPwResultPw" style="font-size:13px;background:#fff;padding:3px 8px;border-radius:4px;border:1px solid #5aaa8e;"></code>
+        <button class="btn-sm" id="resetPwCopyBtn" style="margin-left:8px;padding:2px 8px;font-size:10px;border:1px solid #ccc;background:#fff;cursor:pointer;border-radius:4px;">📋 コピー</button>
+      </div>
+      <p style="font-size:11px;color:#666;line-height:1.6;margin-bottom:1rem;">
+        このパスワードをクライアントにお伝えください。<br>
+        このダイアログを閉じると再表示できないので、必要ならコピーしておいてください。
+      </p>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem;">
+        <button class="btn btn-p" id="resetPwCloseBtn">閉じる</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/router.js?v=20260510a"></script>
+<script src="js/app.js?v=20260510a"></script>
+<script src="js/paste-feature.js?v=20260510a"></script>
+<script src="js/email-feature.js?v=20260510a"></script>
+<script src="js/chip-feature.js?v=20260510a"></script>
+</body>
+</html>
