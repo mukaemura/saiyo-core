@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260508i">
+<link rel="stylesheet" href="css/style.css?v=20260510a">
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
   if (location.protocol === 'file:') {
@@ -2013,11 +2013,10 @@
       <h2 style="font-size:14px;font-weight:600;margin-bottom:6px;">クライアント管理</h2>
       <p style="font-size:11px;color:#888;margin-bottom:1rem;">クライアントごとにメールアドレスとパスワードを発行します。各クライアントは自社の応募者データのみ閲覧できます。</p>
 
-      <!-- 重要な運用上の注意 -->
-      <div style="background:#fff8f0;border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;font-size:11px;color:#854F0B;border-left:3px solid #EF9F27;line-height:1.7;">
-        📌 <strong>重要：</strong>クライアント追加・編集後は、必ず Supabase の Authentication → Users で<strong>同じメールアドレスとパスワード</strong>でAuthユーザーも作成・更新してください。<br>
-        ・新規追加時：Supabase で「Add user」→ 同じメアド・パスワードを入力<br>
-        ・パスワード変更時：Supabase でパスワード再設定 or 当人がアプリのマスター管理から変更
+      <!-- 自動連携のお知らせ（5/10改修） -->
+      <div style="background:#f0fbf5;border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;font-size:11px;color:#15693C;border-left:3px solid #5aaa8e;line-height:1.7;">
+        ✅ <strong>クライアント情報は自動連携されます。</strong>追加・編集・削除すると、Supabase Authユーザーも自動で同期されます。<br>
+        ・パスワードを忘れたクライアントには、各行の「🔑 リセット」から新しいパスワードを設定して直接お知らせしてください。
       </div>
 
       <table class="client-table">
@@ -2044,8 +2043,8 @@
           <button class="btn btn-p" onclick="saveClientEdit()" style="align-self:end;">保存</button>
           <button class="btn btn-s" onclick="cancelClientEdit()" style="align-self:end;">キャンセル</button>
         </div>
-        <div style="font-size:10px;color:#666;margin-top:8px;line-height:1.6;">
-          ※ ここで変更した内容を反映するには、Supabase の Authentication → Users でも同じメールアドレス・パスワードに更新してください。
+        <div style="font-size:10px;color:#15693C;margin-top:8px;line-height:1.6;">
+          💡 メールアドレス・パスワードを変更すると、Authユーザーにも自動で反映されます。
         </div>
       </div>
 
@@ -2054,10 +2053,53 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260508i"></script>
-<script src="js/app.js?v=20260508i"></script>
-<script src="js/paste-feature.js?v=20260508i"></script>
-<script src="js/email-feature.js?v=20260508i"></script>
-<script src="js/chip-feature.js?v=20260508i"></script>
+<!-- パスワードリセットモーダル（5/10新規） -->
+<div id="resetPwModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:10000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:1.5rem;width:460px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
+    <!-- 入力フェーズ -->
+    <div id="resetPwInputPhase">
+      <h3 style="margin:0 0 .5rem 0;font-size:16px;color:#B85C00;display:flex;align-items:center;gap:6px;">🔑 パスワードリセット</h3>
+      <div style="background:#fff8f0;border-left:3px solid #EF9F27;padding:.5rem .75rem;border-radius:6px;font-size:12px;color:#854F0B;margin-bottom:1rem;line-height:1.6;">
+        対象クライアント：<strong id="resetPwTargetName"></strong><br>
+        メールアドレス：<strong id="resetPwTargetEmail"></strong>
+      </div>
+      <div style="margin-bottom:.75rem;">
+        <label style="display:block;font-size:11px;color:#666;margin-bottom:4px;font-weight:500;">新しいパスワード（6文字以上）</label>
+        <input type="text" id="resetPwNew" placeholder="例: NewPass2026" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:monospace;">
+      </div>
+      <div style="margin-bottom:.75rem;">
+        <label style="display:block;font-size:11px;color:#666;margin-bottom:4px;font-weight:500;">もう一度入力（確認用）</label>
+        <input type="text" id="resetPwConfirm" placeholder="同じパスワードを再入力" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:monospace;">
+      </div>
+      <div id="resetPwError" style="display:none;font-size:11px;color:#D85A30;margin-bottom:.5rem;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem;">
+        <button class="btn btn-s" id="resetPwCancelBtn">キャンセル</button>
+        <button class="btn btn-p" id="resetPwExecuteBtn" style="background:#B85C00;color:#fff;border-color:#B85C00;">リセット実行</button>
+      </div>
+    </div>
+    <!-- 成功フェーズ -->
+    <div id="resetPwSuccessPhase" style="display:none;">
+      <h3 style="margin:0 0 .5rem 0;font-size:16px;color:#15693C;">✅ パスワードを更新しました</h3>
+      <div style="background:#f0fbf5;border-left:3px solid #5aaa8e;padding:.75rem 1rem;border-radius:6px;font-size:12px;color:#15693C;margin-bottom:1rem;line-height:1.7;">
+        対象：<strong id="resetPwResultName"></strong><br>
+        新しいパスワード：<code id="resetPwResultPw" style="font-size:13px;background:#fff;padding:3px 8px;border-radius:4px;border:1px solid #5aaa8e;"></code>
+        <button class="btn-sm" id="resetPwCopyBtn" style="margin-left:8px;padding:2px 8px;font-size:10px;border:1px solid #ccc;background:#fff;cursor:pointer;border-radius:4px;">📋 コピー</button>
+      </div>
+      <p style="font-size:11px;color:#666;line-height:1.6;margin-bottom:1rem;">
+        このパスワードをクライアントにお伝えください。<br>
+        このダイアログを閉じると再表示できないので、必要ならコピーしておいてください。
+      </p>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem;">
+        <button class="btn btn-p" id="resetPwCloseBtn">閉じる</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/router.js?v=20260510a"></script>
+<script src="js/app.js?v=20260510a"></script>
+<script src="js/paste-feature.js?v=20260510a"></script>
+<script src="js/email-feature.js?v=20260510a"></script>
+<script src="js/chip-feature.js?v=20260510a"></script>
 </body>
 </html>
