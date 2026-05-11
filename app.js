@@ -977,17 +977,16 @@ async function startApp() {
     if (window.SaiyoRouter && typeof window.SaiyoRouter.onLoginComplete === 'function') {
       try { window.SaiyoRouter.onLoginComplete(); } catch(e) { console.warn('[startApp] router連携エラー', e); }
     }
-    // ログインローディング演出：モード別の最低時間待ってからフェードアウト
-    //  jump（admin or 自動担当者復元）：2秒
-    //  walk（担当者選択後）：5秒
-    // ※リロード時のセッション自動復元では演出は走らない（オーバーレイ非表示のため）
+    // v2.8：演出時間を短縮
+    //  jump（ログインボタン押下後）：最低500msだけ（ちらつき防止程度）
+    //  walk（担当者選択後）：廃止（即遷移）
     const ovEl = document.getElementById('loginLoadingOverlay');
     const ovActive = ovEl && ovEl.style.display === 'flex' && window.__loginLoadingStartedAt;
     if (ovActive && window.__saiyoLoginLoading && window.__saiyoLoginLoading.show) {
       try {
         const ll = window.__saiyoLoginLoading;
-        const minMs = (window.__loginLoadingMode === 'walk') ? 5000 : 2000;
-        await ll.waitMin(minMs);
+        const minMs = (window.__loginLoadingMode === 'walk') ? 0 : 500;
+        if (minMs > 0) await ll.waitMin(minMs);
         ll.hide();
         window.__loginLoadingStartedAt = 0;
       } catch(e) { console.warn('[startApp] loading演出エラー', e); }
@@ -7989,11 +7988,11 @@ function renderStaffSelect() {
     const safeName = escapeHtml(s.name || '');
     return `
       <div class="staff-card" onclick="selectStaff('${escapeHtml(String(s.id))}', '${escapeHtml(s.name || '').replace(/'/g, "\\'")}')"
-        style="cursor:pointer;background:#fff;border:1.5px solid #deeee9;border-radius:14px;padding:1rem .75rem;text-align:center;transition:all .2s;"
-        onmouseover="this.style.borderColor='#6ab49a';this.style.transform='translateY(-3px)';this.style.boxShadow='0 6px 18px rgba(106,180,154,.18)'"
-        onmouseout="this.style.borderColor='#deeee9';this.style.transform='translateY(0)';this.style.boxShadow='none'">
-        <div style="width:54px;height:54px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;margin:0 auto .5rem;letter-spacing:.02em;">${initial}</div>
-        <div style="font-size:13px;font-weight:600;color:#1a1a1a;line-height:1.3;word-break:break-word;">${safeName}</div>
+        style="cursor:pointer;background:#fff;border:1px solid #e3e3e0;border-radius:10px;padding:.9rem .75rem;text-align:center;transition:all .2s;"
+        onmouseover="this.style.borderColor='#5a8a48';this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(90,138,72,.12)'"
+        onmouseout="this.style.borderColor='#e3e3e0';this.style.transform='translateY(0)';this.style.boxShadow='none'">
+        <div style="width:48px;height:48px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:500;margin:0 auto .5rem;letter-spacing:.02em;">${initial}</div>
+        <div style="font-size:13px;font-weight:500;color:#1a1a1a;line-height:1.3;word-break:break-word;">${safeName}</div>
       </div>
     `;
   }).join('');
@@ -8005,10 +8004,7 @@ async function selectStaff(staffId, staffName) {
   currentStaffName = staffName;
   saveStaffSelection(staffId);
   console.log('[selectStaff] 担当者選択:', staffName);
-  // ローディング演出を歩くモードで再表示（5秒）
-  if (window.__saiyoLoginLoading && window.__saiyoLoginLoading.showWalk) {
-    try { window.__saiyoLoginLoading.showWalk(); } catch(e) {}
-  }
+  // v2.8：5秒のwalkモード演出を廃止 → 即トップページへ遷移
   // 担当者選択画面を非表示
   const staffSel = document.getElementById('staffSelectScreen');
   if (staffSel) staffSel.style.display = 'none';
@@ -8020,10 +8016,7 @@ async function continueWithoutStaff() {
   currentStaffId = null;
   currentStaffName = '';
   saveStaffSelection(null);
-  // ローディング演出を歩くモードで再表示
-  if (window.__saiyoLoginLoading && window.__saiyoLoginLoading.showWalk) {
-    try { window.__saiyoLoginLoading.showWalk(); } catch(e) {}
-  }
+  // v2.8：5秒のwalkモード演出を廃止 → 即トップページへ遷移
   const staffSel = document.getElementById('staffSelectScreen');
   if (staffSel) staffSel.style.display = 'none';
   await startApp();

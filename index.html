@@ -14,7 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260511b">
+<link rel="stylesheet" href="css/style.css?v=20260511c">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -89,6 +89,113 @@
   textarea, select {
     border-radius:8px !important;
   }
+
+  /* ===== v2.8 グローバルホバー演出（F案：浮上＋拡大＋緑グロー） ===== */
+  /* バウンスeasing：行き過ぎてから戻る → 「ポコッ」感 */
+  .nav-btn,
+  .card, .panel, .kpi-card, .stat-card, .data-card,
+  .applicant-row, .applicant-card, .staff-card,
+  .task-row, .task-card, .schedule-row, .schedule-card,
+  .minute-row, .minute-card,
+  .btn-primary, .btn-secondary, button.primary, .submit-btn,
+  .logout-btn {
+    transition:transform .22s cubic-bezier(.34,1.56,.64,1),
+               box-shadow .22s cubic-bezier(.34,1.56,.64,1),
+               border-color .18s ease,
+               background .18s ease !important;
+  }
+
+  /* === ナビボタン === */
+  .nav-btn:hover:not(.active):not(:disabled) {
+    transform:translateY(-4px) scale(1.03) !important;
+    box-shadow:
+      0 0 0 3px rgba(90,138,72,.16),
+      0 12px 24px rgba(90,138,72,.20),
+      0 3px 6px rgba(0,0,0,.05) !important;
+    border-color:#5a8a48 !important;
+    background:#f7faf4 !important;
+  }
+  /* アクティブ状態のナビは「押し込まれた感」で動かない */
+  .nav-btn.active { transform:none !important; }
+
+  /* === カード／パネル類 === */
+  .card:hover, .panel:hover, .kpi-card:hover, .stat-card:hover, .data-card:hover {
+    transform:translateY(-5px) scale(1.015) !important;
+    box-shadow:
+      0 0 0 3px rgba(90,138,72,.14),
+      0 14px 28px rgba(90,138,72,.18),
+      0 4px 8px rgba(0,0,0,.05) !important;
+    border-color:#5a8a48 !important;
+  }
+
+  /* === 担当者カード（カスタム上書き：JSのinline styleより強く効かせる） === */
+  .staff-card:hover {
+    transform:translateY(-5px) scale(1.03) !important;
+    box-shadow:
+      0 0 0 4px rgba(90,138,72,.16),
+      0 16px 32px rgba(90,138,72,.22),
+      0 4px 8px rgba(0,0,0,.06) !important;
+    border-color:#5a8a48 !important;
+    background:#f7faf4 !important;
+  }
+
+  /* === 応募者一覧・タスク・スケジュール・議事録の行 === */
+  .applicant-row:hover, .task-row:hover, .schedule-row:hover, .minute-row:hover,
+  .applicant-card:hover, .task-card:hover, .schedule-card:hover, .minute-card:hover {
+    transform:translateY(-3px) scale(1.005) !important;
+    box-shadow:
+      0 0 0 2px rgba(90,138,72,.12),
+      0 10px 20px rgba(90,138,72,.14),
+      0 2px 4px rgba(0,0,0,.04) !important;
+    border-color:#5a8a48 !important;
+    background:#fafdf7 !important;
+    z-index:5;
+    position:relative;
+  }
+
+  /* === テーブル行（応募者一覧などのtr） === */
+  table.applicant-table tbody tr:hover,
+  table tbody tr.row-hover-fx:hover {
+    background:#fafdf7 !important;
+    transform:translateY(-2px);
+    box-shadow:0 6px 14px rgba(90,138,72,.12), 0 0 0 2px rgba(90,138,72,.10);
+    position:relative;
+    z-index:3;
+  }
+
+  /* === ボタン全般 === */
+  .btn-primary:hover:not(:disabled), button.primary:hover:not(:disabled), .submit-btn:hover:not(:disabled) {
+    transform:translateY(-3px) scale(1.03) !important;
+    box-shadow:
+      0 0 0 4px rgba(90,138,72,.20),
+      0 12px 24px rgba(90,138,72,.30),
+      0 3px 6px rgba(0,0,0,.06) !important;
+    background:#4a7339 !important;
+  }
+  .btn-secondary:hover:not(:disabled) {
+    transform:translateY(-3px) scale(1.02) !important;
+    box-shadow:
+      0 0 0 3px rgba(90,138,72,.14),
+      0 10px 20px rgba(0,0,0,.10) !important;
+    border-color:#5a8a48 !important;
+  }
+  .logout-btn:hover {
+    transform:translateY(-3px) scale(1.02) !important;
+    box-shadow:
+      0 0 0 3px rgba(216,90,48,.16),
+      0 10px 20px rgba(216,90,48,.18) !important;
+    background:#fae4dc !important;
+  }
+
+  /* === クリック時：少し沈み込む === */
+  .nav-btn:active,
+  .card:active, .staff-card:active,
+  .applicant-row:active, .task-row:active, .schedule-row:active,
+  .btn-primary:active, button.primary:active, .submit-btn:active,
+  .btn-secondary:active, .logout-btn:active {
+    transform:translateY(-1px) scale(.99) !important;
+    transition:transform .08s ease !important;
+  }
 </style>
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
@@ -111,11 +218,11 @@
 <div id="loginScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f7f6f1;position:relative;overflow:hidden;padding:48px 16px;box-sizing:border-box;">
 
   <!-- カード全体 -->
-  <div style="position:relative;width:100%;max-width:420px;">
+  <div style="position:relative;width:100%;max-width:460px;">
 
     <!-- ロゴ（カード外・上部に配置） -->
     <div style="text-align:center;margin-bottom:28px;">
-      <img id="loginLogoImg" src="assets/logo-v2.png" alt="採用コア" style="width:260px;max-width:100%;height:auto;object-fit:contain;display:inline-block;">
+      <img id="loginLogoImg" src="assets/logo-v2.png" alt="採用コア" style="width:420px;max-width:100%;height:auto;object-fit:contain;display:inline-block;">
     </div>
 
     <!-- ログインカード本体 -->
@@ -2077,10 +2184,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260511b"></script>
-<script src="js/app.js?v=20260511b"></script>
-<script src="js/paste-feature.js?v=20260511b"></script>
-<script src="js/email-feature.js?v=20260511b"></script>
-<script src="js/chip-feature.js?v=20260511b"></script>
+<script src="js/router.js?v=20260511c"></script>
+<script src="js/app.js?v=20260511c"></script>
+<script src="js/paste-feature.js?v=20260511c"></script>
+<script src="js/email-feature.js?v=20260511c"></script>
+<script src="js/chip-feature.js?v=20260511c"></script>
 </body>
 </html>
