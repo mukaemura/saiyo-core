@@ -10625,8 +10625,8 @@ async function adsConfirmUpload() {
     const p = adsPendingUpload;
 
     // 1. uploaded_files に1行 INSERT（status='processing'）
-    const uploadedByName = (currentStaff && currentStaff.name) ? currentStaff.name : (isAdmin ? '管理者' : '');
-    const uploadedBy = isAdmin ? 'admin' : (currentStaff?.id || '');
+    const uploadedByName = currentStaffName || (isAdmin ? '管理者' : '');
+    const uploadedBy = isAdmin ? 'admin' : (currentStaffId ? String(currentStaffId) : '');
     const { data: fileRow, error: fileErr } = await sb.from('ad_uploaded_files').insert({
       client_id: currentClientId,
       media_type: p.mediaType,
