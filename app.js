@@ -937,8 +937,7 @@ async function doLogin() {
       return;
     }
     // 担当者選択画面を表示
-    // ※ジャンプ演出を最低2秒見せてから閉じる（担当者選択後にwalk演出が再開される）
-    await waitMinDuration(2000);
+    // v2.9：jump演出の2秒最低待機を廃止 → ローディングを即消して担当者選択へ
     hideLoadingOverlay();
     showStaffSelectScreen();
 
@@ -953,6 +952,16 @@ async function doLogin() {
 
 async function startApp() {
   console.log('[startApp] 開始 (isAdmin=' + isAdmin + ', client=' + currentClientName + ', staff=' + currentStaffName + ')');
+  // v2.9：startApp呼び出し時点で即ローディング非表示（メッセージ切替タイマーも全停止）
+  try {
+    if (window.__loadingMsgTimers) {
+      window.__loadingMsgTimers.forEach(t => clearTimeout(t));
+      window.__loadingMsgTimers = [];
+    }
+    const ov0 = document.getElementById('loginLoadingOverlay');
+    if (ov0) { ov0.style.display = 'none'; ov0.style.opacity = '0'; }
+    window.__loginLoadingStartedAt = 0;
+  } catch(e) {}
   try {
     document.getElementById('loginScreen').style.display = 'none';
     const staffSel = document.getElementById('staffSelectScreen');
@@ -977,20 +986,20 @@ async function startApp() {
     if (window.SaiyoRouter && typeof window.SaiyoRouter.onLoginComplete === 'function') {
       try { window.SaiyoRouter.onLoginComplete(); } catch(e) { console.warn('[startApp] router連携エラー', e); }
     }
-    // v2.8：演出時間を短縮
-    //  jump（ログインボタン押下後）：最低500msだけ（ちらつき防止程度）
-    //  walk（担当者選択後）：廃止（即遷移）
-    const ovEl = document.getElementById('loginLoadingOverlay');
-    const ovActive = ovEl && ovEl.style.display === 'flex' && window.__loginLoadingStartedAt;
-    if (ovActive && window.__saiyoLoginLoading && window.__saiyoLoginLoading.show) {
-      try {
-        const ll = window.__saiyoLoginLoading;
-        const minMs = (window.__loginLoadingMode === 'walk') ? 0 : 500;
-        if (minMs > 0) await ll.waitMin(minMs);
-        ll.hide();
-        window.__loginLoadingStartedAt = 0;
-      } catch(e) { console.warn('[startApp] loading演出エラー', e); }
-    }
+    // v2.9：演出時間を完全廃止（5秒も500msも0msに）
+    // データロードが終わった瞬間にローディングオーバーレイを消す
+    try {
+      if (window.__loadingMsgTimers) {
+        window.__loadingMsgTimers.forEach(t => clearTimeout(t));
+        window.__loadingMsgTimers = [];
+      }
+      if (window.__saiyoLoginLoading && window.__saiyoLoginLoading.hide) {
+        window.__saiyoLoginLoading.hide();
+      }
+      const ov = document.getElementById('loginLoadingOverlay');
+      if (ov) { ov.style.display = 'none'; ov.style.opacity = '0'; }
+      window.__loginLoadingStartedAt = 0;
+    } catch(e) { console.warn('[startApp] loading解除エラー', e); }
     console.log('[startApp] 完了');
   } catch (e) {
     console.error('[startApp] エラー発生', e);
@@ -8000,11 +8009,25 @@ function renderStaffSelect() {
 
 // 担当者選択（クリック時）
 async function selectStaff(staffId, staffName) {
+  // v2.9：万が一ローディングが残っていても確実に消す（多重防御）
+  try {
+    if (window.__saiyoLoginLoading && window.__saiyoLoginLoading.hide) {
+      window.__saiyoLoginLoading.hide();
+    }
+    const ov = document.getElementById('loginLoadingOverlay');
+    if (ov) { ov.style.display = 'none'; ov.style.opacity = '0'; }
+    // メッセージ切替タイマーが残ってたら全部止める
+    if (window.__loadingMsgTimers) {
+      window.__loadingMsgTimers.forEach(t => clearTimeout(t));
+      window.__loadingMsgTimers = [];
+    }
+    window.__loginLoadingStartedAt = 0;
+  } catch(e) { console.warn('[selectStaff] ローディング解除失敗', e); }
+
   currentStaffId = staffId;
   currentStaffName = staffName;
   saveStaffSelection(staffId);
   console.log('[selectStaff] 担当者選択:', staffName);
-  // v2.8：5秒のwalkモード演出を廃止 → 即トップページへ遷移
   // 担当者選択画面を非表示
   const staffSel = document.getElementById('staffSelectScreen');
   if (staffSel) staffSel.style.display = 'none';
@@ -8013,10 +8036,23 @@ async function selectStaff(staffId, staffName) {
 
 // 担当者なしで続行（担当者ゼロ時）
 async function continueWithoutStaff() {
+  // v2.9：万が一ローディングが残っていても確実に消す
+  try {
+    if (window.__saiyoLoginLoading && window.__saiyoLoginLoading.hide) {
+      window.__saiyoLoginLoading.hide();
+    }
+    const ov = document.getElementById('loginLoadingOverlay');
+    if (ov) { ov.style.display = 'none'; ov.style.opacity = '0'; }
+    if (window.__loadingMsgTimers) {
+      window.__loadingMsgTimers.forEach(t => clearTimeout(t));
+      window.__loadingMsgTimers = [];
+    }
+    window.__loginLoadingStartedAt = 0;
+  } catch(e) {}
+
   currentStaffId = null;
   currentStaffName = '';
   saveStaffSelection(null);
-  // v2.8：5秒のwalkモード演出を廃止 → 即トップページへ遷移
   const staffSel = document.getElementById('staffSelectScreen');
   if (staffSel) staffSel.style.display = 'none';
   await startApp();

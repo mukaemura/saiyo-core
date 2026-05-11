@@ -14,7 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260511c">
+<link rel="stylesheet" href="css/style.css?v=20260511d">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -90,7 +90,7 @@
     border-radius:8px !important;
   }
 
-  /* ===== v2.8 グローバルホバー演出（F案：浮上＋拡大＋緑グロー） ===== */
+  /* ===== v2.9 グローバルホバー演出（F案：浮上＋拡大＋緑グロー）拡大版 ===== */
   /* バウンスeasing：行き過ぎてから戻る → 「ポコッ」感 */
   .nav-btn,
   .card, .panel, .kpi-card, .stat-card, .data-card,
@@ -98,11 +98,22 @@
   .task-row, .task-card, .schedule-row, .schedule-card,
   .minute-row, .minute-card,
   .btn-primary, .btn-secondary, button.primary, .submit-btn,
-  .logout-btn {
+  .logout-btn,
+  /* === v2.9 追加：期間切替・タブ・ドロップダウン === */
+  .period-btn, .tab-btn, .filter-btn, .toggle-btn, .chip, .badge-btn,
+  /* === v2.9 追加：すべての button 要素（汎用） === */
+  button:not(.no-hover-fx),
+  /* === v2.9 追加：クリックできる行・カード全般 === */
+  [onclick]:not(.no-hover-fx),
+  /* === v2.9 追加：選択肢・チェック === */
+  label.clickable, .selectable, .option-card,
+  /* === v2.9 追加：リンク全般 === */
+  a.btn, a.action-link {
     transition:transform .22s cubic-bezier(.34,1.56,.64,1),
                box-shadow .22s cubic-bezier(.34,1.56,.64,1),
                border-color .18s ease,
-               background .18s ease !important;
+               background .18s ease,
+               color .18s ease !important;
   }
 
   /* === ナビボタン === */
@@ -115,8 +126,23 @@
     border-color:#5a8a48 !important;
     background:#f7faf4 !important;
   }
-  /* アクティブ状態のナビは「押し込まれた感」で動かない */
   .nav-btn.active { transform:none !important; }
+
+  /* === 期間切替・タブ・チップ系（今日/今週/今月/累計などの細長ボタン） === */
+  .period-btn:hover:not(.active):not(:disabled),
+  .tab-btn:hover:not(.active):not(:disabled),
+  .filter-btn:hover:not(.active):not(:disabled),
+  .toggle-btn:hover:not(.active):not(:disabled),
+  .chip:hover:not(.active),
+  .badge-btn:hover:not(.active) {
+    transform:translateY(-3px) scale(1.04) !important;
+    box-shadow:
+      0 0 0 3px rgba(90,138,72,.16),
+      0 10px 20px rgba(90,138,72,.18),
+      0 2px 4px rgba(0,0,0,.04) !important;
+    border-color:#5a8a48 !important;
+    background:#f7faf4 !important;
+  }
 
   /* === カード／パネル類 === */
   .card:hover, .panel:hover, .kpi-card:hover, .stat-card:hover, .data-card:hover {
@@ -128,7 +154,7 @@
     border-color:#5a8a48 !important;
   }
 
-  /* === 担当者カード（カスタム上書き：JSのinline styleより強く効かせる） === */
+  /* === 担当者カード === */
   .staff-card:hover {
     transform:translateY(-5px) scale(1.03) !important;
     box-shadow:
@@ -153,18 +179,21 @@
     position:relative;
   }
 
-  /* === テーブル行（応募者一覧などのtr） === */
+  /* === テーブル行 === */
   table.applicant-table tbody tr:hover,
-  table tbody tr.row-hover-fx:hover {
+  table tbody tr.row-hover-fx:hover,
+  table tbody tr[onclick]:hover {
     background:#fafdf7 !important;
-    transform:translateY(-2px);
-    box-shadow:0 6px 14px rgba(90,138,72,.12), 0 0 0 2px rgba(90,138,72,.10);
+    transform:translateY(-2px) !important;
+    box-shadow:0 6px 14px rgba(90,138,72,.12), 0 0 0 2px rgba(90,138,72,.10) !important;
     position:relative;
     z-index:3;
   }
 
-  /* === ボタン全般 === */
-  .btn-primary:hover:not(:disabled), button.primary:hover:not(:disabled), .submit-btn:hover:not(:disabled) {
+  /* === ボタン全般（プライマリ） === */
+  .btn-primary:hover:not(:disabled),
+  button.primary:hover:not(:disabled),
+  .submit-btn:hover:not(:disabled) {
     transform:translateY(-3px) scale(1.03) !important;
     box-shadow:
       0 0 0 4px rgba(90,138,72,.20),
@@ -187,12 +216,48 @@
     background:#fae4dc !important;
   }
 
+  /* === 汎用button要素（クラス指定なし） === */
+  button:not(.no-hover-fx):not(.nav-btn):not(.btn-primary):not(.btn-secondary):not(.submit-btn):not(.logout-btn):not(.period-btn):not(.tab-btn):not(.filter-btn):not(.toggle-btn):not(.chip):not(.badge-btn):not(:disabled):hover {
+    transform:translateY(-2px) scale(1.02) !important;
+    box-shadow:
+      0 0 0 2px rgba(90,138,72,.12),
+      0 6px 14px rgba(90,138,72,.14) !important;
+    border-color:#5a8a48 !important;
+    filter:brightness(1.02);
+  }
+
+  /* === select / プルダウン === */
+  select:hover:not(:disabled) {
+    transform:translateY(-2px) !important;
+    box-shadow:
+      0 0 0 2px rgba(90,138,72,.12),
+      0 4px 10px rgba(90,138,72,.10) !important;
+    border-color:#5a8a48 !important;
+  }
+
+  /* === [onclick]属性が付いた任意の要素 === */
+  [onclick]:not(.no-hover-fx):not(button):not(.nav-btn):not(.card):not(.applicant-row):not(.task-row):not(.schedule-row):not(.minute-row):not(.staff-card):not(.kpi-card):hover {
+    transform:translateY(-2px) !important;
+    filter:brightness(1.04);
+    cursor:pointer;
+  }
+
+  /* === ラベル・選択肢 === */
+  label.clickable:hover, .selectable:hover, .option-card:hover {
+    transform:translateY(-2px) scale(1.02) !important;
+    box-shadow:0 0 0 2px rgba(90,138,72,.14), 0 6px 12px rgba(90,138,72,.12) !important;
+    background:#f7faf4 !important;
+    border-color:#5a8a48 !important;
+  }
+
   /* === クリック時：少し沈み込む === */
   .nav-btn:active,
   .card:active, .staff-card:active,
   .applicant-row:active, .task-row:active, .schedule-row:active,
   .btn-primary:active, button.primary:active, .submit-btn:active,
-  .btn-secondary:active, .logout-btn:active {
+  .btn-secondary:active, .logout-btn:active,
+  .period-btn:active, .tab-btn:active, .filter-btn:active, .toggle-btn:active,
+  button:active {
     transform:translateY(-1px) scale(.99) !important;
     transition:transform .08s ease !important;
   }
@@ -2184,10 +2249,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260511c"></script>
-<script src="js/app.js?v=20260511c"></script>
-<script src="js/paste-feature.js?v=20260511c"></script>
-<script src="js/email-feature.js?v=20260511c"></script>
-<script src="js/chip-feature.js?v=20260511c"></script>
+<script src="js/router.js?v=20260511d"></script>
+<script src="js/app.js?v=20260511d"></script>
+<script src="js/paste-feature.js?v=20260511d"></script>
+<script src="js/email-feature.js?v=20260511d"></script>
+<script src="js/chip-feature.js?v=20260511d"></script>
 </body>
 </html>
