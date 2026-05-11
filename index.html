@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
 <!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260511">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260511">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260511">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260511">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260511">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260512a">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260512a">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260512a">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260512a">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260512a">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260511e">
+<link rel="stylesheet" href="css/style.css?v=20260512a">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -525,7 +525,7 @@
   <div class="app" id="mainApp" style="display:none;">
     <div class="header">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <div style="display:flex;align-items:center;gap:6px;"><img src="assets/saiyo_mark.png?v=20260511" alt="採用コア" style="width:34px;height:34px;object-fit:contain;"></div>
+        <div style="display:flex;align-items:center;gap:6px;"><img src="assets/saiyo_mark.png?v=20260512a" alt="採用コア" style="width:34px;height:34px;object-fit:contain;"></div>
         <span class="client-badge" id="clientBadge"></span>
         <!-- 担当者表示エリア（Phase B-2） -->
         <div id="staffSwitcher" style="display:none;align-items:center;gap:6px;">
@@ -562,6 +562,7 @@
           <button class="nb" onclick="showSec('minutes')">議事録</button>
           <button class="nb" onclick="showSec('tasks')" id="taskNavBtn">タスク</button>
           <button class="nb" onclick="showSec('budget')">💰 予算管理</button>
+          <button class="nb" onclick="showSec('ads')">📣 有料広告実績</button>
           <button class="nb" onclick="showSec('master')">マスター管理</button>
           <button class="nb" onclick="showSec('staff')">担当者管理</button>
         </nav>
@@ -1942,6 +1943,195 @@
       </div>
     </div>
 
+    <!-- ===== 📣 有料広告実績（Indeed / AirWORK） ===== -->
+    <div id="sec-ads" class="sec" style="padding:0;background:transparent;box-shadow:none;">
+
+      <!-- サブタブ：分析 / アップロード管理 -->
+      <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:8px;margin-bottom:12px;display:flex;gap:4px;">
+        <button class="ads-subtab active" onclick="adsSwitchSubTab('analytics')" id="adsSubtabAnalytics" style="flex:1;padding:9px 14px;background:#5a8a48;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;">📊 分析</button>
+        <button class="ads-subtab" onclick="adsSwitchSubTab('upload')" id="adsSubtabUpload" style="flex:1;padding:9px 14px;background:#fff;color:#666;border:none;border-radius:6px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;">📁 アップロード管理</button>
+      </div>
+
+      <!-- ▼ 分析画面（フェーズ2で実装） -->
+      <div id="adsAnalyticsPane">
+        <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:48px 24px;text-align:center;">
+          <div style="font-size:36px;margin-bottom:10px;">📊</div>
+          <div style="font-size:14px;font-weight:500;color:#1a1a1a;margin-bottom:6px;">分析画面は次フェーズで実装予定</div>
+          <div style="font-size:11px;color:#888;line-height:1.7;">まずは「アップロード管理」からCSVファイルを取り込んでください。<br>取り込んだデータをもとに、コアラ診断や月別推移、ワーストランキングなどが表示されます。</div>
+          <button onclick="adsSwitchSubTab('upload')" style="margin-top:14px;padding:8px 18px;background:#5a8a48;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;">アップロード管理へ →</button>
+        </div>
+      </div>
+
+      <!-- ▼ アップロード管理画面 -->
+      <div id="adsUploadPane" style="display:none;">
+
+        <!-- 画面ヘッダー -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+          <div>
+            <h2 style="font-size:14px;font-weight:600;color:#1a1a1a;margin:0;">アップロード管理</h2>
+            <p style="font-size:11px;color:#888;margin:2px 0 0;">Indeed / AirWORK からエクスポートしたCSVを取り込み・管理</p>
+          </div>
+          <button onclick="adsOpenUploadModal()" style="padding:9px 18px;background:#5a8a48;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;letter-spacing:.04em;">
+            ＋ 新規アップロード
+          </button>
+        </div>
+
+        <!-- フィルタ行 -->
+        <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="adsFileSearch" placeholder="🔍 ファイル名で検索" oninput="adsRenderFileList()" style="padding:6px 10px;border:1px solid #e3e3e0;border-radius:6px;font-size:11px;width:200px;background:#fff;font-family:inherit;">
+          <select id="adsFilterMedia" onchange="adsRenderFileList()" style="padding:6px 10px;border:1px solid #e3e3e0;border-radius:6px;font-size:11px;background:#fff;font-family:inherit;">
+            <option value="">媒体：全て</option>
+            <option value="indeed">📘 Indeed</option>
+            <option value="airwork">📙 AirWORK</option>
+          </select>
+          <select id="adsFilterStatus" onchange="adsRenderFileList()" style="padding:6px 10px;border:1px solid #e3e3e0;border-radius:6px;font-size:11px;background:#fff;font-family:inherit;">
+            <option value="active">ステータス：分析対象のみ</option>
+            <option value="">全ステータス</option>
+            <option value="superseded">旧版のみ</option>
+          </select>
+          <span id="adsFileCount" style="margin-left:auto;font-size:11px;color:#888;"></span>
+        </div>
+
+        <!-- KPIサマリ -->
+        <div id="adsKpiRow" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px;"></div>
+
+        <!-- ファイル一覧テーブル -->
+        <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;overflow:hidden;">
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:900px;">
+              <thead>
+                <tr style="background:#fafaf8;border-bottom:1px solid #e8ebe9;">
+                  <th style="padding:10px 8px;text-align:left;font-weight:500;color:#555;">ファイル名</th>
+                  <th style="padding:10px 8px;text-align:left;font-weight:500;color:#555;width:80px;">媒体</th>
+                  <th style="padding:10px 8px;text-align:left;font-weight:500;color:#555;">対象期間</th>
+                  <th style="padding:10px 8px;text-align:right;font-weight:500;color:#555;width:80px;">件数</th>
+                  <th style="padding:10px 8px;text-align:left;font-weight:500;color:#555;width:90px;">ステータス</th>
+                  <th style="padding:10px 8px;text-align:left;font-weight:500;color:#555;">アップロード日時</th>
+                  <th style="padding:10px 8px;text-align:left;font-weight:500;color:#555;">アップロード者</th>
+                  <th style="padding:10px 8px;text-align:center;font-weight:500;color:#555;width:120px;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="adsFileTableBody"></tbody>
+            </table>
+          </div>
+          <div id="adsFileEmpty" style="display:none;padding:48px 24px;text-align:center;">
+            <div style="font-size:36px;margin-bottom:10px;opacity:.5;">📁</div>
+            <div style="font-size:13px;color:#666;margin-bottom:4px;">まだファイルがありません</div>
+            <div style="font-size:11px;color:#aaa;">右上の「＋ 新規アップロード」からCSVをアップロードしてください</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ===== 新規アップロードモーダル ===== -->
+    <div id="adsUploadModal" onclick="adsCloseUploadModalBg(event)" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.45);align-items:center;justify-content:center;padding:20px;">
+      <div onclick="event.stopPropagation()" style="background:#fff;border-radius:14px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.18);">
+
+        <!-- ヘッダー -->
+        <div style="padding:18px 24px;border-bottom:0.5px solid #e8ebe9;display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-size:15px;font-weight:500;color:#1a1a1a;letter-spacing:.04em;">
+            📤 有料広告実績データ アップロード
+          </div>
+          <button onclick="adsCloseUploadModal()" style="background:none;border:none;color:#888;cursor:pointer;font-size:20px;line-height:1;padding:0;">×</button>
+        </div>
+
+        <!-- 本体 -->
+        <div style="padding:22px 24px;">
+
+          <!-- 抽出方法の案内 -->
+          <div style="background:#f4f8f1;border-left:3px solid #5a8a48;border-radius:6px;padding:12px 14px;margin-bottom:16px;">
+            <div style="font-size:11px;font-weight:500;color:#1a1a1a;margin-bottom:6px;">📋 各媒体での抽出方法</div>
+            <div style="font-size:10.5px;color:#555;line-height:1.85;">
+              <strong style="color:#185FA5;font-weight:500;">📘 Indeed:</strong> アナリティクス → 求人とキャンペーン → 詳細レポート → 求人 → 全てをエクスポート<br>
+              <strong style="color:#BA7517;font-weight:500;">📙 AirWORK:</strong> 有料広告 → 効果を分析 → 有料広告実績データ/求人 → データを作成する
+            </div>
+            <div style="font-size:9.5px;color:#888;margin-top:6px;line-height:1.6;">※ ファイル名はそのまま（リネーム不要）でアップロードしてください。媒体・期間を自動判定します</div>
+          </div>
+
+          <!-- ドロップエリア -->
+          <div id="adsDropZone" onclick="document.getElementById('adsFileInput').click()" style="border:2px dashed #d6dbd2;border-radius:10px;padding:28px;text-align:center;background:#fafbf8;cursor:pointer;transition:all .15s;">
+            <div style="font-size:36px;margin-bottom:8px;color:#5a8a48;">📁</div>
+            <div style="font-size:13px;color:#1a1a1a;margin-bottom:4px;font-weight:500;">CSVファイルをドラッグ&ドロップ</div>
+            <div style="font-size:11px;color:#888;">またはクリックしてファイル選択</div>
+            <input type="file" id="adsFileInput" accept=".csv" style="display:none;" onchange="adsHandleFileSelect(event)">
+          </div>
+
+          <!-- 解析結果プレビュー（ファイル選択後に表示） -->
+          <div id="adsPreviewArea" style="display:none;margin-top:14px;">
+            <div style="background:#fafaf8;border-radius:8px;padding:14px;font-size:11px;">
+              <div style="color:#888;margin-bottom:8px;font-size:10px;letter-spacing:.04em;">📄 解析結果</div>
+              <table style="width:100%;border-collapse:collapse;">
+                <tr><td style="padding:4px 0;color:#666;width:35%;">ファイル名</td><td style="padding:4px 0;color:#1a1a1a;" id="adsPvFileName">—</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">媒体</td><td style="padding:4px 0;color:#1a1a1a;" id="adsPvMedia">—</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">対象期間</td><td style="padding:4px 0;color:#1a1a1a;" id="adsPvPeriod">—</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">取込件数</td><td style="padding:4px 0;color:#1a1a1a;" id="adsPvRows">—</td></tr>
+                <tr><td style="padding:4px 0;color:#666;">キャンペーン</td><td style="padding:4px 0;color:#1a1a1a;" id="adsPvCampaigns">—</td></tr>
+              </table>
+            </div>
+
+            <!-- 同月既存ファイル警告 -->
+            <div id="adsSupersedeWarning" style="display:none;margin-top:12px;background:#fef7e9;border-left:3px solid #BA7517;border-radius:6px;padding:10px 14px;font-size:11px;line-height:1.7;color:#854F0B;">
+              <div style="font-weight:500;margin-bottom:3px;">⚠ 同月の既存ファイルがあります</div>
+              <div id="adsSupersedeMsg" style="font-size:10.5px;color:#555;"></div>
+            </div>
+
+            <!-- 重複ファイル警告 -->
+            <div id="adsDuplicateError" style="display:none;margin-top:12px;background:#fdf2ee;border-left:3px solid #D85A30;border-radius:6px;padding:10px 14px;font-size:11px;line-height:1.7;color:#712B13;">
+              <div style="font-weight:500;margin-bottom:3px;">⛔ 完全に同じ内容のファイルが既に登録されています</div>
+              <div id="adsDuplicateMsg" style="font-size:10.5px;color:#555;"></div>
+            </div>
+
+            <!-- パースエラー -->
+            <div id="adsParseError" style="display:none;margin-top:12px;background:#fdf2ee;border-left:3px solid #D85A30;border-radius:6px;padding:10px 14px;font-size:11px;line-height:1.7;color:#712B13;">
+              <div style="font-weight:500;margin-bottom:3px;">⛔ ファイルの解析に失敗しました</div>
+              <div id="adsParseErrorMsg" style="font-size:10.5px;color:#555;"></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- フッター -->
+        <div style="padding:14px 24px;background:#fafaf8;display:flex;justify-content:flex-end;gap:8px;border-top:0.5px solid #e8ebe9;">
+          <button onclick="adsCloseUploadModal()" style="padding:9px 16px;background:#fff;color:#666;border:1px solid #e3e3e0;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;">キャンセル</button>
+          <button id="adsUploadConfirmBtn" onclick="adsConfirmUpload()" disabled style="padding:9px 22px;background:#5a8a48;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;letter-spacing:.04em;opacity:.4;">取り込む</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 削除確認モーダル ===== -->
+    <div id="adsDeleteModal" onclick="adsCloseDeleteModalBg(event)" style="display:none;position:fixed;inset:0;z-index:9001;background:rgba(0,0,0,.45);align-items:center;justify-content:center;padding:20px;">
+      <div onclick="event.stopPropagation()" style="background:#fff;border-radius:14px;max-width:440px;width:100%;padding:28px 30px;box-shadow:0 12px 40px rgba(0,0,0,.18);">
+
+        <div style="text-align:center;margin-bottom:14px;">
+          <div style="width:56px;height:56px;background:#fdf2ee;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:28px;">🗑</div>
+        </div>
+
+        <div style="text-align:center;font-size:16px;font-weight:500;color:#1a1a1a;margin-bottom:6px;letter-spacing:.04em;">このファイルを完全削除しますか？</div>
+        <div style="text-align:center;font-size:12px;color:#666;margin-bottom:18px;line-height:1.7;">
+          このファイル由来の<strong id="adsDelRowCount" style="color:#D85A30;font-weight:500;">—</strong>行のデータが<br>
+          分析対象から完全に削除されます
+        </div>
+
+        <div style="background:#f7f6f1;border-radius:8px;padding:11px 14px;margin-bottom:16px;font-size:11px;color:#555;line-height:1.8;">
+          <div><strong style="color:#1a1a1a;font-weight:500;">ファイル名：</strong><span id="adsDelFileName">—</span></div>
+          <div><strong style="color:#1a1a1a;font-weight:500;">媒体：</strong><span id="adsDelMedia">—</span></div>
+          <div><strong style="color:#1a1a1a;font-weight:500;">期間：</strong><span id="adsDelPeriod">—</span></div>
+          <div><strong style="color:#1a1a1a;font-weight:500;">取込件数：</strong><span id="adsDelRowCountText">—</span></div>
+        </div>
+
+        <div style="background:#fdf2ee;border-left:3px solid #D85A30;padding:8px 12px;font-size:10.5px;color:#712B13;line-height:1.6;margin-bottom:18px;border-radius:4px;">
+          ⚠ <strong style="font-weight:500;">削除は即座に実行され、復元できません。</strong>誤って削除した場合は、再アップロードしてください。
+        </div>
+
+        <div style="display:flex;gap:8px;">
+          <button onclick="adsCloseDeleteModal()" style="flex:1;padding:11px;background:#fff;color:#666;border:1px solid #e3e3e0;border-radius:8px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;">キャンセル</button>
+          <button onclick="adsExecuteDelete()" id="adsExecDelBtn" style="flex:2;padding:11px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;letter-spacing:.04em;">削除する</button>
+        </div>
+      </div>
+    </div>
+
     <!-- マスター管理 -->
     <div id="sec-master" class="sec">
       <!-- sec-masterキャラ -->
@@ -2249,10 +2439,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260511e"></script>
-<script src="js/app.js?v=20260511e"></script>
-<script src="js/paste-feature.js?v=20260511e"></script>
-<script src="js/email-feature.js?v=20260511e"></script>
-<script src="js/chip-feature.js?v=20260511e"></script>
+<script src="js/router.js?v=20260512a"></script>
+<script src="js/app.js?v=20260512a"></script>
+<script src="js/paste-feature.js?v=20260512a"></script>
+<script src="js/email-feature.js?v=20260512a"></script>
+<script src="js/chip-feature.js?v=20260512a"></script>
 </body>
 </html>
