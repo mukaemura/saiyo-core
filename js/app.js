@@ -733,18 +733,16 @@ async function doLogin() {
     }
   }
 
-  // ===== ログインローディング演出 =====
+  // ===== ログインローディング演出（v2.4 ロゴベース） =====
   // 2モード:
-  //  jump: ログインボタン押下後（2秒、ジャンプ＋手フリ＋「ログイン中...」）
-  //  walk: 担当者選択後（5秒、トコトコ歩く＋メッセージ4本）
+  //  jump: ログインボタン押下後（2秒、ロゴのパルス＋「ログイン中...」）
+  //  walk: 担当者選択後（5秒、ロゴ＋スピナー＋メッセージ4本）
   function showLoadingOverlay(mode) {
     mode = mode || 'walk';
     const ov = document.getElementById('loginLoadingOverlay');
     if (!ov) return;
     const jumpStage = document.getElementById('loadingJumpStage');
     const walkStage = document.getElementById('loadingWalkStage');
-    const jumper = document.getElementById('loadingKoalaJumper');
-    const hand = document.getElementById('loadingHand');
     const msg = document.getElementById('loadingMessage');
     // 既存タイマーがあればクリア
     if (window.__loadingMsgTimers) {
@@ -753,38 +751,21 @@ async function doLogin() {
     window.__loadingMsgTimers = [];
 
     if (mode === 'jump') {
-      // ジャンプモード
+      // ジャンプ相当：ロゴパルス
       if (jumpStage) jumpStage.style.display = 'flex';
       if (walkStage) walkStage.style.display = 'none';
       if (msg) {
         msg.textContent = 'ログイン中...';
-        msg.style.color = '#3D4A42';
+        msg.style.color = '#666';
         msg.style.opacity = '1';
       }
-      // ジャンプアニメをリセット → 再起動
-      if (jumper) {
-        jumper.classList.remove('koala-jumping');
-        void jumper.offsetWidth; // reflow trigger
-        jumper.classList.add('koala-jumping');
-      }
-      if (hand) {
-        hand.classList.remove('hand-waving');
-        hand.style.opacity = '0';
-        // 600ms後に手フリ開始
-        const t = setTimeout(() => {
-          if (!hand) return;
-          hand.style.opacity = '1';
-          hand.classList.add('hand-waving');
-        }, 600);
-        window.__loadingMsgTimers.push(t);
-      }
     } else {
-      // 歩くモード
+      // 歩く相当：ロゴ＋スピナー＋メッセージ切替
       if (jumpStage) jumpStage.style.display = 'none';
-      if (walkStage) walkStage.style.display = 'block';
+      if (walkStage) walkStage.style.display = 'flex';
       if (msg) {
         msg.textContent = 'もうちょっと待ってね';
-        msg.style.color = '#3D4A42';
+        msg.style.color = '#666';
         msg.style.opacity = '1';
       }
       // メッセージ切替（1.2秒間隔で4本）
@@ -7740,23 +7721,11 @@ async function renderAdmin() {
       <td>${pwDisplay}</td>
       <td>${s.total} 件 / 採用 ${s.hired} 件</td>
       <td>
-        <button class="btn btn-s btn-reset-pw" data-cid="${rowId}" style="background:#fff5e6;color:#B85C00;border:1px solid #EF9F27;margin-right:4px;">🔑 リセット</button>
-        <button class="btn btn-s btn-edit-client" data-cid="${rowId}" style="background:#378ADD;color:#fff;border-color:#378ADD;margin-right:4px;">編集</button>
-        <button class="btn btn-s btn-delete-client" data-cid="${rowId}" style="background:#fff;color:#D85A30;border:1px solid #D85A30;">削除</button>
+        <button class="btn btn-s" onclick="deleteClient('${rowId}')" style="margin-right:4px;">削除</button>
+        <button class="btn btn-s" onclick="editClient('${rowId}')" style="background:#378ADD;color:#fff;border-color:#378ADD;">編集</button>
       </td>
     </tr>`;
   }).join('');
-
-  // 各操作ボタンを addEventListener 方式で紐付け（落とし穴14対策）
-  tbody.querySelectorAll('.btn-reset-pw').forEach(btn => {
-    btn.addEventListener('click', () => openResetPwModal(btn.dataset.cid));
-  });
-  tbody.querySelectorAll('.btn-edit-client').forEach(btn => {
-    btn.addEventListener('click', () => editClient(btn.dataset.cid));
-  });
-  tbody.querySelectorAll('.btn-delete-client').forEach(btn => {
-    btn.addEventListener('click', () => deleteClient(btn.dataset.cid));
-  });
 }
 
 function togglePwVisible(rowId) {
@@ -7824,107 +7793,21 @@ async function saveClientEdit() {
   const dup = clients.find(c => c.client_id === newEmail && String(c.id) !== String(rowId));
   if (dup) { setStatus('そのメールアドレスは他のクライアントで使用されています', 'err'); return; }
 
-  // 対象データを取得
-  const target = clients.find(c => String(c.id) === String(rowId));
-  if (!target) { setStatus('対象クライアントが見つかりません', 'err'); return; }
+  // 更新内容を構築
+  const updateObj = { name, client_id: newEmail };
+  if (newPw) updateObj.password = newPw;
 
-  // 変更項目を判定
-  const emailChanged = (target.client_id !== newEmail);
-  const pwChanged = !!newPw;
-  const nameChanged = (target.name !== name);
-
-  setStatus('更新中...', 'info');
-
-  // ステップ1: Auth側のメアド更新（必要な場合）
-  if (emailChanged) {
-    if (!target.auth_user_id) {
-      setStatus('このクライアントはAuthユーザーと紐付いていません。Supabase上で個別に更新してください', 'err');
-      return;
-    }
-    try {
-      await callAdminUserManager('update_email', {
-        user_id: target.auth_user_id,
-        new_email: newEmail,
-      });
-    } catch (e) {
-      setStatus('メアド更新失敗: ' + e.message, 'err');
-      return;
-    }
-  }
-
-  // ステップ2: Auth側のパスワード更新（必要な場合）
-  if (pwChanged) {
-    if (!target.auth_user_id) {
-      setStatus('このクライアントはAuthユーザーと紐付いていません。Supabase上で個別に更新してください', 'err');
-      return;
-    }
-    try {
-      await callAdminUserManager('reset_password', {
-        user_id: target.auth_user_id,
-        new_password: newPw,
-      });
-    } catch (e) {
-      setStatus('パスワード更新失敗: ' + e.message, 'err');
-      return;
-    }
-  }
-
-  // ステップ3: name のみ変更（Auth側に存在しないので clients 直接更新）
-  if (nameChanged) {
-    try {
-      const { error } = await sb.from('clients').update({ name }).eq('id', rowId);
-      if (error) { setStatus('クライアント名の更新失敗: ' + error.message, 'err'); return; }
-    } catch (e) {
-      setStatus('クライアント名の更新失敗: ' + (e.message || e), 'err');
-      return;
-    }
-  }
-
-  if (!emailChanged && !pwChanged && !nameChanged) {
-    setStatus('変更内容がありません', 'info');
+  try {
+    const { error } = await sb.from('clients').update(updateObj).eq('id', rowId);
+    if (error) { setStatus('更新に失敗しました: ' + error.message, 'err'); return; }
+  } catch(e) {
+    setStatus('更新に失敗しました: ' + (e.message || e), 'err');
     return;
   }
 
-  setStatus('クライアント情報を更新しました（Auth側も自動同期済み）', 'ok');
+  setStatus('クライアント情報を更新しました（Supabase Auth側も同じメアド・パスワードに更新してください）', 'ok');
   cancelClientEdit();
   await renderAdmin();
-}
-
-// ========================================
-// Edge Function 呼び出しヘルパー（5/10新規）
-// admin-user-manager 用
-// ========================================
-const ADMIN_USER_MANAGER_URL = 'https://jhnxvcqgwpidkfteqkdr.supabase.co/functions/v1/admin-user-manager';
-
-async function callAdminUserManager(action, params = {}) {
-  const { data: sessData, error: sessErr } = await sb.auth.getSession();
-  if (sessErr || !sessData?.session?.access_token) {
-    throw new Error('未ログインまたはセッション切れ。再ログインしてください。');
-  }
-  const jwt = sessData.session.access_token;
-  let res;
-  try {
-    res = await fetch(ADMIN_USER_MANAGER_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${jwt}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ action, ...params }),
-    });
-  } catch (e) {
-    throw new Error('通信エラー: ' + (e.message || e));
-  }
-  let json;
-  try {
-    json = await res.json();
-  } catch {
-    throw new Error('サーバー応答の解析に失敗（HTTP ' + res.status + '）');
-  }
-  if (!res.ok || !json.ok) {
-    throw new Error(json.error || `HTTP ${res.status}`);
-  }
-  return json;
 }
 
 async function addClient() {
@@ -7949,148 +7832,23 @@ async function addClient() {
     setStatus('パスワードは6文字以上にしてください', 'err');
     return;
   }
-  // メアド重複チェック（フロント側でも軽くチェック、最終判定はEdge Function）
+  // メアド重複チェック
   const dup = clients.find(c => c.client_id === cid);
   if (dup) {
     setStatus('そのメールアドレスは既に登録されています', 'err');
     return;
   }
 
-  setStatus('クライアントを作成中...', 'info');
-  try {
-    await callAdminUserManager('create', {
-      email: cid,
-      password: pw,
-      client_name: name,
-    });
-  } catch (e) {
-    setStatus('追加に失敗しました: ' + e.message, 'err');
+  const { error } = await sb.from('clients').insert({ client_id: cid, password: pw, name: name });
+  if (error) {
+    setStatus('追加に失敗しました: ' + error.message, 'err');
     return;
   }
-
-  setStatus('クライアントを追加しました（Authユーザーも自動作成済み）', 'ok');
+  setStatus('クライアントを追加しました（Supabase Authでも同じメアド・パスワードでユーザーを作成してください）', 'ok');
   if (nameEl) nameEl.value = '';
   if (idEl) idEl.value = '';
   if (pwEl) pwEl.value = '';
   await renderAdmin();
-}
-
-// ========================================
-// パスワードリセット モーダル（5/10新規）
-// ========================================
-let _resetPwTargetClient = null;
-
-function openResetPwModal(rowId) {
-  if (!isAdmin) { setStatus('管理者のみ実行できます', 'err'); return; }
-  const target = clients.find(c => String(c.id) === String(rowId));
-  if (!target) { setStatus('対象のクライアントが見つかりません', 'err'); return; }
-  if (!target.auth_user_id) {
-    setStatus('このクライアントはAuthユーザーと紐付いていません。Supabase上で個別に対応してください', 'err');
-    return;
-  }
-  _resetPwTargetClient = target;
-
-  // モーダル初期化
-  const modal = document.getElementById('resetPwModal');
-  if (!modal) { setStatus('モーダルが見つかりません', 'err'); return; }
-
-  // 表示内容セット
-  document.getElementById('resetPwTargetName').textContent = target.name || '(無名)';
-  document.getElementById('resetPwTargetEmail').textContent = target.client_id || '';
-  document.getElementById('resetPwNew').value = '';
-  document.getElementById('resetPwConfirm').value = '';
-  const errEl = document.getElementById('resetPwError');
-  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
-
-  // 入力フェーズ表示
-  document.getElementById('resetPwInputPhase').style.display = 'block';
-  document.getElementById('resetPwSuccessPhase').style.display = 'none';
-
-  modal.style.display = 'flex';
-
-  // フォーカス
-  setTimeout(() => {
-    const inp = document.getElementById('resetPwNew');
-    if (inp) inp.focus();
-  }, 50);
-}
-
-function closeResetPwModal() {
-  const modal = document.getElementById('resetPwModal');
-  if (modal) modal.style.display = 'none';
-  _resetPwTargetClient = null;
-}
-
-async function executeResetPw() {
-  if (!_resetPwTargetClient) { setStatus('対象クライアントが取得できません', 'err'); return; }
-  const newPw = (document.getElementById('resetPwNew').value || '').trim();
-  const confirmPw = (document.getElementById('resetPwConfirm').value || '').trim();
-  const errEl = document.getElementById('resetPwError');
-
-  const showErr = (m) => {
-    if (errEl) { errEl.textContent = m; errEl.style.display = 'block'; }
-  };
-
-  if (!newPw || !confirmPw) { showErr('パスワードを2回入力してください'); return; }
-  if (newPw.length < 6) { showErr('パスワードは6文字以上にしてください'); return; }
-  if (newPw !== confirmPw) { showErr('確認用パスワードが一致しません'); return; }
-
-  // 実行
-  if (errEl) errEl.style.display = 'none';
-  const execBtn = document.getElementById('resetPwExecuteBtn');
-  if (execBtn) { execBtn.disabled = true; execBtn.textContent = '実行中...'; }
-
-  try {
-    await callAdminUserManager('reset_password', {
-      user_id: _resetPwTargetClient.auth_user_id,
-      new_password: newPw,
-    });
-  } catch (e) {
-    showErr('リセット失敗: ' + e.message);
-    if (execBtn) { execBtn.disabled = false; execBtn.textContent = 'リセット実行'; }
-    return;
-  }
-
-  // 成功フェーズへ
-  document.getElementById('resetPwResultName').textContent = _resetPwTargetClient.name || '';
-  document.getElementById('resetPwResultPw').textContent = newPw;
-  document.getElementById('resetPwInputPhase').style.display = 'none';
-  document.getElementById('resetPwSuccessPhase').style.display = 'block';
-
-  if (execBtn) { execBtn.disabled = false; execBtn.textContent = 'リセット実行'; }
-
-  // 一覧を再描画（パスワード列が新しい値に）
-  await renderAdmin();
-}
-
-function copyResetPwResult() {
-  const pwEl = document.getElementById('resetPwResultPw');
-  if (!pwEl) return;
-  const pw = pwEl.textContent || '';
-  if (!pw) return;
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(pw)
-      .then(() => setStatus('パスワードをコピーしました', 'ok'))
-      .catch(() => setStatus('コピーに失敗しました', 'err'));
-  }
-}
-
-// モーダルのボタン群を addEventListener で紐付け（DOMContentLoaded後に1回だけ）
-function initResetPwModalListeners() {
-  const cancelBtn = document.getElementById('resetPwCancelBtn');
-  const executeBtn = document.getElementById('resetPwExecuteBtn');
-  const closeBtn = document.getElementById('resetPwCloseBtn');
-  const copyBtn = document.getElementById('resetPwCopyBtn');
-  if (cancelBtn && !cancelBtn._bound) { cancelBtn.addEventListener('click', closeResetPwModal); cancelBtn._bound = true; }
-  if (executeBtn && !executeBtn._bound) { executeBtn.addEventListener('click', executeResetPw); executeBtn._bound = true; }
-  if (closeBtn && !closeBtn._bound) { closeBtn.addEventListener('click', closeResetPwModal); closeBtn._bound = true; }
-  if (copyBtn && !copyBtn._bound) { copyBtn.addEventListener('click', copyResetPwResult); copyBtn._bound = true; }
-}
-// 初期化（即時 + DOMContentLoaded保険）
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initResetPwModalListeners);
-} else {
-  initResetPwModalListeners();
 }
 
 async function deleteClient(id) {
@@ -8106,27 +7864,15 @@ async function deleteClient(id) {
   if (cnt > 0) {
     msg += `\n\n⚠ このクライアントには ${cnt} 件の応募者データが紐付いています。\nクライアントを削除しても応募者データは残りますが、ログインできなくなり閲覧できなくなります。`;
   }
-  msg += '\n\n※ 削除するとAuthユーザーとclientsレコードの両方が即削除されます（自動連携）。';
+  msg += '\n\n※ Supabase Auth側のユーザーは別途手動で削除してください。';
   if (!confirm(msg)) return;
 
-  // auth_user_id 存在確認
-  if (!target.auth_user_id) {
-    setStatus('このクライアントはAuthユーザーと紐付いていません。Supabase上で個別に削除してください', 'err');
+  const { error } = await sb.from('clients').delete().eq('id', id);
+  if (error) {
+    setStatus('削除に失敗しました: ' + error.message, 'err');
     return;
   }
-
-  setStatus('削除中...', 'info');
-  try {
-    await callAdminUserManager('delete', {
-      user_id: target.auth_user_id,
-      clients_row_id: target.id,
-    });
-  } catch (e) {
-    setStatus('削除に失敗しました: ' + e.message, 'err');
-    return;
-  }
-
-  setStatus('クライアントを削除しました（Authユーザーも自動削除済み）', 'ok');
+  setStatus('クライアントを削除しました（Supabase Authでも同じユーザーを削除してください）', 'ok');
   await renderAdmin();
 }
 
@@ -8243,11 +7989,11 @@ function renderStaffSelect() {
     const safeName = escapeHtml(s.name || '');
     return `
       <div class="staff-card" onclick="selectStaff('${escapeHtml(String(s.id))}', '${escapeHtml(s.name || '').replace(/'/g, "\\'")}')"
-        style="cursor:pointer;background:#fff;border:1.5px solid #deeee9;border-radius:14px;padding:1rem .75rem;text-align:center;transition:all .2s;"
-        onmouseover="this.style.borderColor='#6ab49a';this.style.transform='translateY(-3px)';this.style.boxShadow='0 6px 18px rgba(106,180,154,.18)'"
-        onmouseout="this.style.borderColor='#deeee9';this.style.transform='translateY(0)';this.style.boxShadow='none'">
-        <div style="width:54px;height:54px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;margin:0 auto .5rem;letter-spacing:.02em;">${initial}</div>
-        <div style="font-size:13px;font-weight:600;color:#1a1a1a;line-height:1.3;word-break:break-word;">${safeName}</div>
+        style="cursor:pointer;background:#fff;border:1px solid #e3e3e0;border-radius:10px;padding:.9rem .75rem;text-align:center;transition:all .2s;"
+        onmouseover="this.style.borderColor='#5a8a48';this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(90,138,72,.12)'"
+        onmouseout="this.style.borderColor='#e3e3e0';this.style.transform='translateY(0)';this.style.boxShadow='none'">
+        <div style="width:48px;height:48px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:500;margin:0 auto .5rem;letter-spacing:.02em;">${initial}</div>
+        <div style="font-size:13px;font-weight:500;color:#1a1a1a;line-height:1.3;word-break:break-word;">${safeName}</div>
       </div>
     `;
   }).join('');
@@ -10050,27 +9796,6 @@ async function chgPw() {
     return;
   }
 
-  // 5/10追加：クライアントが自分自身のパスワードを変更した場合、
-  // clients.password も同期更新する（admin側で正しい値を確認できるように）
-  // RLS: clients_self_update ポリシーで auth_user_id = auth.uid() のレコードのみ更新可能
-  if (!isAdmin) {
-    try {
-      const { data: { user } } = await sb.auth.getUser();
-      if (user && user.id) {
-        // RLSで自分のレコードしか更新できないので auth_user_id 条件で安全にUPDATE
-        const { error: syncErr } = await sb.from('clients')
-          .update({ password: p1 })
-          .eq('auth_user_id', user.id);
-        if (syncErr) {
-          // ここで失敗してもAuth側は成功しているのでログイン自体には支障なし
-          console.warn('[chgPw] clients.password 同期失敗:', syncErr.message);
-        }
-      }
-    } catch (e) {
-      console.warn('[chgPw] clients.password 同期で例外:', e);
-    }
-  }
-
   np1.value = ''; np2.value = '';
   if (pwOk) {
     pwOk.style.display = 'inline';
@@ -10425,11 +10150,6 @@ if (typeof window !== 'undefined') {
   window.cancelClientEdit = cancelClientEdit;
   window.togglePwVisible = togglePwVisible;
   window.copyClientPw = copyClientPw;
-  // 5/10新規：クライアントパスワードリセット
-  window.openResetPwModal = openResetPwModal;
-  window.closeResetPwModal = closeResetPwModal;
-  window.executeResetPw = executeResetPw;
-  window.copyResetPwResult = copyResetPwResult;
   // 担当者管理（Phase B-1で追加）
   window.renderStaff = renderStaff;
   window.addStaff = addStaff;
