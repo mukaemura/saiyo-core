@@ -1631,9 +1631,9 @@ function showSec(s) {
   const charEl = document.getElementById('char_' + 'sec-' + s);
   if (charEl && s !== 'dashboard') charEl.style.display = 'block';
   document.getElementById('sec-' + s).classList.add('active');
-  // navMapはサイドバーボタンの位置インデックス。Phase E で「スケジュール」を追加
-  // 順番：ダッシュボード(0) / 応募者一覧(1) / スケジュール(2) / 分析(3) / 議事録(4) / タスク(5) / 予算(6) / マスター(7) / 担当者(8)
-  const navMap = { dashboard: 0, list: 1, schedule: 2, analytics: 3, minutes: 4, tasks: 5, budget: 6, master: 7, staff: 8 };
+  // navMapはサイドバーボタンの位置インデックス。
+  // 順番：ダッシュボード(0) / 応募者一覧(1) / スケジュール(2) / 分析(3) / 議事録(4) / タスク(5) / 予算(6) / 有料広告実績(7) / マスター(8) / 担当者(9)
+  const navMap = { dashboard: 0, list: 1, schedule: 2, analytics: 3, minutes: 4, tasks: 5, budget: 6, ads: 7, master: 8, staff: 9 };
   if (navMap[s] !== undefined) {
     const navBtns = document.querySelectorAll('.nb');
     if (navBtns[navMap[s]]) navBtns[navMap[s]].classList.add('active');
@@ -1671,6 +1671,10 @@ function showSec(s) {
     if (tcInput && !tcInput.value) tcInput.value = new Date().toISOString().slice(0,7);
     renderTasks();
     renderTaskCalendar();
+  }
+  if (s === 'ads') {
+    // 初回表示はアップロード管理タブから開始（分析画面は後フェーズ）
+    if (typeof adsLoadFiles === 'function') adsLoadFiles();
   }
 }
 
@@ -10217,6 +10221,650 @@ if (typeof window !== 'undefined') {
   window.deleteFile = deleteFile;
   // 上記以外の関数は function宣言により既にグローバルだが、
   // 万一のミニファイ等に備えて主要関数も明示しておく
+}
+
+// ============================================================================
+// 📣 有料広告実績機能（Indeed / AirWORK）- フェーズ1：DB + アップロード管理
+// 2026/05/12 追加
+// ============================================================================
+
+// --- 状態管理 ---
+let adsFiles = [];                  // 現在のクライアントのファイル一覧
+let adsPendingUpload = null;        // アップロード待ちのファイル解析結果
+let adsPendingDelete = null;        // 削除待ちのファイル情報
+
+// --- サブタブ切替 ---
+function adsSwitchSubTab(tab) {
+  const a = document.getElementById('adsSubtabAnalytics');
+  const u = document.getElementById('adsSubtabUpload');
+  const ap = document.getElementById('adsAnalyticsPane');
+  const up = document.getElementById('adsUploadPane');
+  if (!a || !u || !ap || !up) return;
+  if (tab === 'analytics') {
+    a.style.background = '#5a8a48'; a.style.color = '#fff';
+    u.style.background = '#fff';    u.style.color = '#666';
+    ap.style.display = 'block';
+    up.style.display = 'none';
+  } else {
+    a.style.background = '#fff';    a.style.color = '#666';
+    u.style.background = '#5a8a48'; u.style.color = '#fff';
+    ap.style.display = 'none';
+    up.style.display = 'block';
+    adsLoadFiles();
+  }
+}
+
+// --- ファイル一覧読み込み ---
+async function adsLoadFiles() {
+  if (!sb || !currentClientId) return;
+  try {
+    let query = sb.from('ad_uploaded_files').select('*').order('uploaded_at', { ascending: false });
+    if (!isAdmin) query = query.eq('client_id', currentClientId);
+    const { data, error } = await query;
+    if (error) {
+      console.error('[adsLoadFiles] error', error);
+      setStatus('ファイル一覧の読み込みに失敗しました', 'err');
+      return;
+    }
+    adsFiles = data || [];
+    adsRenderFileList();
+  } catch (e) {
+    console.error('[adsLoadFiles] 例外', e);
+  }
+}
+
+// --- ファイル一覧描画 ---
+function adsRenderFileList() {
+  const tbody = document.getElementById('adsFileTableBody');
+  const empty = document.getElementById('adsFileEmpty');
+  const cntEl = document.getElementById('adsFileCount');
+  const kpiRow = document.getElementById('adsKpiRow');
+  if (!tbody || !empty) return;
+
+  // フィルタ
+  const q = (document.getElementById('adsFileSearch')?.value || '').toLowerCase();
+  const fMedia = document.getElementById('adsFilterMedia')?.value || '';
+  const fStatus = document.getElementById('adsFilterStatus')?.value;
+  // ステータスフィルタ：空＝全て、'active'＝activeのみ、'superseded'＝supersededのみ
+  const filtered = adsFiles.filter(f => {
+    if (q && !(f.file_name || '').toLowerCase().includes(q)) return false;
+    if (fMedia && f.media_type !== fMedia) return false;
+    if (fStatus === 'active' && f.status !== 'active') return false;
+    if (fStatus === 'superseded' && f.status !== 'superseded') return false;
+    return true;
+  });
+
+  // 件数表示
+  if (cntEl) cntEl.textContent = `${filtered.length}件 / 全${adsFiles.length}件`;
+
+  // KPIサマリ計算
+  if (kpiRow) {
+    const activeFiles = adsFiles.filter(f => f.status === 'active');
+    const totalRows = activeFiles.reduce((s, f) => s + (f.row_count || 0), 0);
+    const indeedCount = activeFiles.filter(f => f.media_type === 'indeed').length;
+    const airworkCount = activeFiles.filter(f => f.media_type === 'airwork').length;
+    const supersededCount = adsFiles.filter(f => f.status === 'superseded').length;
+    kpiRow.innerHTML = `
+      <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:8px;padding:10px 12px;">
+        <div style="font-size:10px;color:#888;letter-spacing:.04em;">分析対象ファイル</div>
+        <div style="font-size:18px;font-weight:500;color:#1a1a1a;margin-top:1px;">${activeFiles.length}<span style="font-size:10px;color:#888;margin-left:2px;font-weight:400;">件</span></div>
+      </div>
+      <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:8px;padding:10px 12px;">
+        <div style="font-size:10px;color:#888;letter-spacing:.04em;">取込総行数</div>
+        <div style="font-size:18px;font-weight:500;color:#1a1a1a;margin-top:1px;">${totalRows.toLocaleString()}<span style="font-size:10px;color:#888;margin-left:2px;font-weight:400;">行</span></div>
+      </div>
+      <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:8px;padding:10px 12px;">
+        <div style="font-size:10px;color:#888;letter-spacing:.04em;">📘 Indeed</div>
+        <div style="font-size:18px;font-weight:500;color:#185FA5;margin-top:1px;">${indeedCount}<span style="font-size:10px;color:#888;margin-left:2px;font-weight:400;">件</span></div>
+      </div>
+      <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:8px;padding:10px 12px;">
+        <div style="font-size:10px;color:#888;letter-spacing:.04em;">📙 AirWORK</div>
+        <div style="font-size:18px;font-weight:500;color:#BA7517;margin-top:1px;">${airworkCount}<span style="font-size:10px;color:#888;margin-left:2px;font-weight:400;">件</span></div>
+      </div>
+      <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:8px;padding:10px 12px;">
+        <div style="font-size:10px;color:#888;letter-spacing:.04em;">旧版（自動置換済）</div>
+        <div style="font-size:18px;font-weight:500;color:#888;margin-top:1px;">${supersededCount}<span style="font-size:10px;color:#888;margin-left:2px;font-weight:400;">件</span></div>
+      </div>
+    `;
+  }
+
+  // テーブル行描画
+  if (filtered.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = filtered.map(f => {
+    const mediaBadge = f.media_type === 'indeed'
+      ? '<span style="background:#e6f1fb;color:#185FA5;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;">📘 Indeed</span>'
+      : '<span style="background:#fef7e9;color:#BA7517;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;">📙 AirWORK</span>';
+    let statusBadge, rowStyle = '';
+    if (f.status === 'active') {
+      statusBadge = '<span style="background:#eaf3de;color:#3B6D11;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;">✓ 分析対象</span>';
+    } else if (f.status === 'superseded') {
+      statusBadge = '<span style="background:#f5f5f3;color:#888;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;">旧版（置換済）</span>';
+      rowStyle = 'opacity:.65;';
+    } else if (f.status === 'processing') {
+      statusBadge = '<span style="background:#faeeda;color:#854F0B;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;">⏳ 処理中</span>';
+    } else if (f.status === 'failed') {
+      statusBadge = '<span style="background:#fdf2ee;color:#D85A30;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;">⛔ 失敗</span>';
+    } else {
+      statusBadge = `<span style="background:#f5f5f3;color:#888;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;">${f.status}</span>`;
+    }
+    const uploadedAt = f.uploaded_at ? new Date(f.uploaded_at).toLocaleString('ja-JP', { year:'numeric', month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+    const period = `${f.date_range_start} 〜 ${f.date_range_end}`;
+    return `<tr style="border-bottom:0.5px solid #f0f0ee;${rowStyle}">
+      <td style="padding:9px 8px;color:#1a1a1a;font-family:ui-monospace,monospace;font-size:10.5px;">${escapeHtml(f.file_name)}</td>
+      <td style="padding:9px 8px;">${mediaBadge}</td>
+      <td style="padding:9px 8px;color:#555;">${period}</td>
+      <td style="padding:9px 8px;text-align:right;color:#1a1a1a;font-weight:500;">${(f.row_count || 0).toLocaleString()}</td>
+      <td style="padding:9px 8px;">${statusBadge}</td>
+      <td style="padding:9px 8px;color:#666;">${uploadedAt}</td>
+      <td style="padding:9px 8px;color:#666;">${escapeHtml(f.uploaded_by_name || f.uploaded_by || '—')}</td>
+      <td style="padding:9px 8px;text-align:center;">
+        <button onclick="adsOpenDeleteModal('${f.file_id}')" style="background:none;border:none;color:#D85A30;cursor:pointer;font-size:11px;font-family:inherit;padding:2px 6px;">削除</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// --- アップロードモーダルの開閉 ---
+function adsOpenUploadModal() {
+  const modal = document.getElementById('adsUploadModal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  // リセット
+  adsPendingUpload = null;
+  document.getElementById('adsFileInput').value = '';
+  document.getElementById('adsPreviewArea').style.display = 'none';
+  document.getElementById('adsSupersedeWarning').style.display = 'none';
+  document.getElementById('adsDuplicateError').style.display = 'none';
+  document.getElementById('adsParseError').style.display = 'none';
+  const btn = document.getElementById('adsUploadConfirmBtn');
+  btn.disabled = true; btn.style.opacity = '.4';
+}
+function adsCloseUploadModal() {
+  document.getElementById('adsUploadModal').style.display = 'none';
+  adsPendingUpload = null;
+}
+function adsCloseUploadModalBg(e) {
+  if (e && e.target && e.target.id === 'adsUploadModal') adsCloseUploadModal();
+}
+
+// --- ファイル名からの媒体・期間自動判定 ---
+function adsDetectMediaFromFileName(fileName) {
+  if (!fileName) return null;
+  // Indeed: JobsCampaigns_YYYYMMDD_YYYYMMDD*.csv
+  if (/^JobsCampaigns_\d{8}_\d{8}/i.test(fileName)) return 'indeed';
+  // AirWORK: all_Job_*_YYYYMMDD-YYYYMMDD_*.csv
+  if (/^all_Job_/i.test(fileName)) return 'airwork';
+  return null;
+}
+
+function adsExtractPeriodFromFileName(fileName, mediaType) {
+  if (!fileName) return null;
+  let m;
+  if (mediaType === 'indeed') {
+    m = fileName.match(/^JobsCampaigns_(\d{4})(\d{2})(\d{2})_(\d{4})(\d{2})(\d{2})/i);
+    if (m) return {
+      start: `${m[1]}-${m[2]}-${m[3]}`,
+      end:   `${m[4]}-${m[5]}-${m[6]}`,
+    };
+  } else if (mediaType === 'airwork') {
+    m = fileName.match(/_(\d{4})(\d{2})(\d{2})-(\d{4})(\d{2})(\d{2})_/i);
+    if (m) return {
+      start: `${m[1]}-${m[2]}-${m[3]}`,
+      end:   `${m[4]}-${m[5]}-${m[6]}`,
+    };
+  }
+  return null;
+}
+
+// --- SHA-256 ハッシュ計算 ---
+async function adsCalcFileHash(arrayBuffer) {
+  const hashBuf = await crypto.subtle.digest('SHA-256', arrayBuffer);
+  return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// --- CSVテキストを行に分解（BOM除去・改行対応） ---
+function adsParseCsvText(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.substring(1);
+  const lines = text.split(/\r\n|\r|\n/).filter(l => l.length > 0);
+  return lines.map(line => adsSplitCsvLine(line));
+}
+function adsSplitCsvLine(line) {
+  const out = [];
+  let cur = '', inQuote = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQuote) {
+      if (c === '"' && line[i+1] === '"') { cur += '"'; i++; }
+      else if (c === '"') inQuote = false;
+      else cur += c;
+    } else {
+      if (c === '"') inQuote = true;
+      else if (c === ',') { out.push(cur); cur = ''; }
+      else cur += c;
+    }
+  }
+  out.push(cur);
+  return out.map(s => s.trim());
+}
+
+// --- ファイル選択ハンドラ ---
+async function adsHandleFileSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // UIリセット
+  document.getElementById('adsPreviewArea').style.display = 'block';
+  document.getElementById('adsSupersedeWarning').style.display = 'none';
+  document.getElementById('adsDuplicateError').style.display = 'none';
+  document.getElementById('adsParseError').style.display = 'none';
+  const btn = document.getElementById('adsUploadConfirmBtn');
+  btn.disabled = true; btn.style.opacity = '.4';
+
+  // 媒体判定
+  const mediaType = adsDetectMediaFromFileName(file.name);
+  if (!mediaType) {
+    adsShowParseError('対応していないファイル名形式です。<br>Indeed の場合：<code>JobsCampaigns_YYYYMMDD_YYYYMMDD....csv</code><br>AirWORK の場合：<code>all_Job_....csv</code> をそのままアップロードしてください。');
+    return;
+  }
+
+  // 期間抽出
+  const period = adsExtractPeriodFromFileName(file.name, mediaType);
+  if (!period) {
+    adsShowParseError('ファイル名から期間を抽出できませんでした。<br>ファイル名はリネームせず、そのままアップロードしてください。');
+    return;
+  }
+
+  // ファイル読み込み＆ハッシュ計算
+  try {
+    const arrBuf = await file.arrayBuffer();
+    const fileHash = await adsCalcFileHash(arrBuf);
+    const decoder = new TextDecoder('utf-8');
+    const text = decoder.decode(arrBuf);
+
+    // CSVパース
+    const allLines = adsParseCsvText(text);
+    if (allLines.length < 2) {
+      adsShowParseError('CSVにデータがありません（ヘッダー行のみ、またはからのファイルです）。');
+      return;
+    }
+    const headers = allLines[0];
+    const dataLines = allLines.slice(1).filter(line => line.length >= 3 && line.some(c => c && c.length > 0));
+
+    // 媒体ごとの必須カラム検証
+    const requiredIndeed = ['求人', '表示回数', 'クリック数', '応募開始数', '応募数', '費用', 'キャンペーン'];
+    const requiredAirwork = ['求人タイトル', '表示回数', 'クリック数', '応募開始数', '応募数', '利用金額', 'キャンペーン'];
+    const required = mediaType === 'indeed' ? requiredIndeed : requiredAirwork;
+    const missing = required.filter(c => !headers.includes(c));
+    if (missing.length > 0) {
+      adsShowParseError(`必須カラムが見つかりません：<strong>${missing.join(', ')}</strong><br>媒体の管理画面から正しい形式でエクスポートしてください。`);
+      return;
+    }
+
+    // キャンペーン一覧抽出（プレビュー用）
+    const campaignCol = headers.indexOf('キャンペーン');
+    const campaignSet = new Set();
+    dataLines.forEach(row => {
+      const cp = (row[campaignCol] || '').trim();
+      if (cp && cp !== '-') campaignSet.add(cp);
+    });
+    const campaigns = Array.from(campaignSet);
+
+    // 重複チェック（同じハッシュのアクティブファイルが既に存在するか）
+    const dup = adsFiles.find(f => f.file_hash === fileHash && (f.status === 'active' || f.status === 'superseded'));
+    if (dup) {
+      document.getElementById('adsDuplicateMsg').textContent = `「${dup.file_name}」と完全に同じ内容です。重複登録はできません。`;
+      document.getElementById('adsDuplicateError').style.display = 'block';
+      // プレビューだけは見せる
+      adsFillPreview(file.name, mediaType, period, dataLines.length, campaigns);
+      return;
+    }
+
+    // 同月内既存ファイル検出（同media_typeで月が重なる活性ファイル）
+    const monthKey = period.start.slice(0, 7);  // YYYY-MM
+    const sameMedia = adsFiles.filter(f =>
+      f.media_type === mediaType && f.status === 'active'
+    );
+    // 同月のファイル：開始日のYYYY-MMが一致するもの
+    const sameMonth = sameMedia.filter(f => (f.date_range_start || '').slice(0,7) === monthKey);
+
+    let supersedeAction = null; // 'will_become_active' or 'will_become_superseded'
+    if (sameMonth.length > 0) {
+      // 期間の長さ比較
+      const newDays = (new Date(period.end) - new Date(period.start)) / 86400000 + 1;
+      const others = sameMonth.map(f => ({
+        ...f,
+        days: (new Date(f.date_range_end) - new Date(f.date_range_start)) / 86400000 + 1
+      }));
+      const maxOther = Math.max(...others.map(x => x.days));
+      if (newDays > maxOther) {
+        // 新ファイルがactiveに、既存をsupersededに
+        supersedeAction = 'become_active';
+        document.getElementById('adsSupersedeMsg').innerHTML =
+          `${monthKey}の既存ファイル <strong>${others.length}件</strong>（期間最長 ${maxOther}日分）は「旧版」扱いになり、今回アップロードする${newDays}日分のファイルが分析対象になります。`;
+      } else if (newDays < maxOther) {
+        supersedeAction = 'become_superseded';
+        document.getElementById('adsSupersedeMsg').innerHTML =
+          `${monthKey}には既により長い期間（${maxOther}日分）のファイルが登録されています。今回のファイル（${newDays}日分）は「旧版」として保管されます。`;
+      } else {
+        // 期間同じ → 既存をsuperseded、新ファイルがactive（より新しいので）
+        supersedeAction = 'become_active';
+        document.getElementById('adsSupersedeMsg').innerHTML =
+          `${monthKey}には同じ期間のファイルが既に登録されています。既存ファイル <strong>${others.length}件</strong>は「旧版」になり、今回のファイルが最新の分析対象になります。`;
+      }
+      document.getElementById('adsSupersedeWarning').style.display = 'block';
+    }
+
+    // プレビュー表示
+    adsFillPreview(file.name, mediaType, period, dataLines.length, campaigns);
+
+    // アップロード待ち情報を保存
+    adsPendingUpload = {
+      file,
+      fileName: file.name,
+      fileHash,
+      mediaType,
+      period,
+      headers,
+      dataLines,
+      rowCount: dataLines.length,
+      campaigns,
+      supersedeAction,
+      sameMonthFiles: sameMonth,
+    };
+
+    // 取り込みボタン有効化
+    btn.disabled = false; btn.style.opacity = '1';
+
+  } catch (err) {
+    console.error('[adsHandleFileSelect] エラー', err);
+    adsShowParseError('ファイルの読み込み中にエラーが発生しました：' + (err.message || err));
+  }
+}
+
+function adsShowParseError(html) {
+  document.getElementById('adsParseErrorMsg').innerHTML = html;
+  document.getElementById('adsParseError').style.display = 'block';
+}
+
+function adsFillPreview(fileName, mediaType, period, rowCount, campaigns) {
+  document.getElementById('adsPvFileName').textContent = fileName;
+  document.getElementById('adsPvMedia').textContent = mediaType === 'indeed' ? '📘 Indeed' : '📙 AirWORK';
+  document.getElementById('adsPvPeriod').textContent = `${period.start} 〜 ${period.end}`;
+  document.getElementById('adsPvRows').textContent = `${rowCount.toLocaleString()} 件`;
+  document.getElementById('adsPvCampaigns').innerHTML = campaigns.length > 0
+    ? `<span style="display:inline-block;background:#f4f8f1;color:#3B6D11;padding:1px 6px;border-radius:8px;font-size:10px;margin-right:4px;">${escapeHtml(campaigns.slice(0,3).join(' / '))}${campaigns.length > 3 ? ` 他${campaigns.length-3}件` : ''}</span>`
+    : '<span style="color:#888;">なし</span>';
+}
+
+// --- 数値変換ヘルパー（"¥1,234" や "%" や "-" 対応） ---
+function adsToNum(v, isPercent) {
+  if (v === undefined || v === null) return null;
+  const s = String(v).trim();
+  if (s === '' || s === '-' || s === 'N/A' || s === '∞%' || s === '∞') return null;
+  // ¥記号・カンマ・%を除去
+  const cleaned = s.replace(/[¥$,]/g, '').replace(/%$/, '');
+  const n = parseFloat(cleaned);
+  if (isNaN(n)) return null;
+  // CSVが既に小数表現なら%変換不要（このCSVは小数表現）
+  return n;
+}
+
+// --- 取り込み実行 ---
+async function adsConfirmUpload() {
+  if (!adsPendingUpload || !sb || !currentClientId) return;
+  const btn = document.getElementById('adsUploadConfirmBtn');
+  btn.disabled = true; btn.style.opacity = '.6'; btn.textContent = '取り込み中...';
+
+  try {
+    const p = adsPendingUpload;
+
+    // 1. uploaded_files に1行 INSERT（status='processing'）
+    const uploadedByName = (currentStaff && currentStaff.name) ? currentStaff.name : (isAdmin ? '管理者' : '');
+    const uploadedBy = isAdmin ? 'admin' : (currentStaff?.id || '');
+    const { data: fileRow, error: fileErr } = await sb.from('ad_uploaded_files').insert({
+      client_id: currentClientId,
+      media_type: p.mediaType,
+      file_name: p.fileName,
+      file_hash: p.fileHash,
+      date_range_start: p.period.start,
+      date_range_end: p.period.end,
+      row_count: p.rowCount,
+      status: 'processing',
+      uploaded_by: uploadedBy,
+      uploaded_by_name: uploadedByName,
+    }).select().single();
+
+    if (fileErr) {
+      console.error('[adsConfirmUpload] ファイル登録エラー', fileErr);
+      setStatus('ファイル登録に失敗しました：' + fileErr.message, 'err');
+      btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '取り込む';
+      return;
+    }
+
+    const fileId = fileRow.file_id;
+
+    // 2. CSV行をperformance_rowsに一括INSERT
+    const rowsToInsert = p.dataLines.map(line => adsMapCsvRowToDb(p.headers, line, p.mediaType, fileId, currentClientId));
+    // バッチに分割（Supabaseは1回1000行まで推奨）
+    const BATCH = 500;
+    for (let i = 0; i < rowsToInsert.length; i += BATCH) {
+      const chunk = rowsToInsert.slice(i, i + BATCH);
+      const { error: insErr } = await sb.from('ad_performance_rows').insert(chunk);
+      if (insErr) {
+        console.error('[adsConfirmUpload] データ行登録エラー', insErr, 'chunk', i);
+        // ファイルレコードのstatusをfailedに更新
+        await sb.from('ad_uploaded_files').update({ status: 'failed', error_message: insErr.message }).eq('file_id', fileId);
+        setStatus('データ行の取り込みに失敗しました：' + insErr.message, 'err');
+        btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '取り込む';
+        return;
+      }
+    }
+
+    // 3. 同月内置換ロジック
+    let newStatus = 'active';
+    if (p.supersedeAction === 'become_superseded') {
+      // 自分はsupersededに、既存はactiveのまま
+      newStatus = 'superseded';
+    } else if (p.supersedeAction === 'become_active') {
+      // 自分がactiveに、既存をsupersededに
+      const oldIds = p.sameMonthFiles.map(f => f.file_id);
+      if (oldIds.length > 0) {
+        await sb.from('ad_uploaded_files').update({ status: 'superseded' }).in('file_id', oldIds);
+      }
+    }
+    await sb.from('ad_uploaded_files').update({ status: newStatus }).eq('file_id', fileId);
+
+    setStatus(`✓ ${p.fileName} を取り込みました（${p.rowCount.toLocaleString()}件）`, 'ok');
+    adsCloseUploadModal();
+    await adsLoadFiles();
+
+  } catch (err) {
+    console.error('[adsConfirmUpload] 例外', err);
+    setStatus('取り込み中にエラー：' + (err.message || err), 'err');
+    btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '取り込む';
+  }
+}
+
+// --- CSV行をDBレコードにマッピング ---
+function adsMapCsvRowToDb(headers, row, mediaType, fileId, clientId) {
+  // 列名→indexの逆引き
+  const idx = {};
+  headers.forEach((h, i) => { idx[h] = i; });
+  const get = (col) => idx[col] !== undefined ? row[idx[col]] : null;
+
+  const base = {
+    file_id: fileId,
+    client_id: clientId,
+    media_type: mediaType,
+    country: get('国'),
+    prefecture: get('都道府県'),
+    city: get('市区町村'),
+    company: get('企業名'),
+    reference_no: get('参照番号'),
+    job_status: get('求人のステータス'),
+    campaign: get('キャンペーン'),
+    source_site: get('掲載元サイト'),
+    url: get('求人URL'),
+    imp: adsToNum(get('表示回数')) || 0,
+    click: adsToNum(get('クリック数')) || 0,
+    apply_start: adsToNum(get('応募開始数')) || 0,
+    apply: adsToNum(get('応募数')) || 0,
+    cpc: adsToNum(get('クリック単価（CPC）')),
+    cpas: adsToNum(get('応募開始単価（CPAS）')),
+    cpa: adsToNum(get('応募単価（CPA）')),
+    ctr: adsToNum(get('クリック率（CTR）')),
+    ar: adsToNum(get('応募率 (AR)')),
+  };
+
+  if (mediaType === 'indeed') {
+    // Indeed固有
+    base.job_title = get('求人');
+    base.cost = adsToNum(get('費用')) || 0;
+    base.category = get('カテゴリー');
+    base.posted_at = adsParseDate(get('作成日'));
+    base.updated_at_external = adsParseDate(get('最終更新日'));
+    base.asr = adsToNum(get('応募開始率 (ASR)'));
+    base.completion_rate = adsToNum(get('応募完了率'));
+  } else {
+    // AirWORK固有
+    base.job_title = get('求人タイトル');
+    base.cost = adsToNum(get('利用金額')) || 0;
+    base.employment_type = get('雇用形態');
+    base.posted_at = adsParseDate(get('初回掲載日時'));
+    base.updated_at_external = adsParseDate(get('最終更新日'));
+    base.asr = adsToNum(get('応募開始率（ASR）'));
+    base.completion_rate = adsToNum(get('応募完了率（ACR）'));
+  }
+
+  return base;
+}
+
+// 日付文字列を YYYY-MM-DD に正規化
+function adsParseDate(s) {
+  if (!s) return null;
+  s = String(s).trim();
+  // YYYY-MM-DD or YYYY/MM/DD
+  let m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  return null;
+}
+
+// --- 削除モーダル ---
+function adsOpenDeleteModal(fileId) {
+  const f = adsFiles.find(x => x.file_id === fileId);
+  if (!f) return;
+  adsPendingDelete = f;
+  document.getElementById('adsDelFileName').textContent = f.file_name || '';
+  document.getElementById('adsDelMedia').textContent = f.media_type === 'indeed' ? '📘 Indeed' : '📙 AirWORK';
+  document.getElementById('adsDelPeriod').textContent = `${f.date_range_start} 〜 ${f.date_range_end}`;
+  document.getElementById('adsDelRowCount').textContent = (f.row_count || 0).toLocaleString();
+  document.getElementById('adsDelRowCountText').textContent = (f.row_count || 0).toLocaleString() + ' 件';
+  document.getElementById('adsDeleteModal').style.display = 'flex';
+}
+function adsCloseDeleteModal() {
+  document.getElementById('adsDeleteModal').style.display = 'none';
+  adsPendingDelete = null;
+}
+function adsCloseDeleteModalBg(e) {
+  if (e && e.target && e.target.id === 'adsDeleteModal') adsCloseDeleteModal();
+}
+
+async function adsExecuteDelete() {
+  if (!adsPendingDelete || !sb) return;
+  const btn = document.getElementById('adsExecDelBtn');
+  btn.disabled = true; btn.textContent = '削除中...';
+
+  try {
+    const fileId = adsPendingDelete.file_id;
+    const wasActive = adsPendingDelete.status === 'active';
+    const sameMediaSameMonth = adsFiles.filter(f =>
+      f.media_type === adsPendingDelete.media_type
+      && (f.date_range_start || '').slice(0,7) === (adsPendingDelete.date_range_start || '').slice(0,7)
+      && f.file_id !== fileId
+    );
+
+    // 物理削除（ON DELETE CASCADE で performance_rows も削除される）
+    const { error } = await sb.from('ad_uploaded_files').delete().eq('file_id', fileId);
+    if (error) {
+      console.error('[adsExecuteDelete] エラー', error);
+      setStatus('削除に失敗しました：' + error.message, 'err');
+      btn.disabled = false; btn.textContent = '削除する';
+      return;
+    }
+
+    // 削除したのが「active」で、同月にsupersededファイルがある場合、最長期間のものをactiveに昇格
+    if (wasActive && sameMediaSameMonth.length > 0) {
+      const supersededInMonth = sameMediaSameMonth.filter(f => f.status === 'superseded');
+      if (supersededInMonth.length > 0) {
+        // 期間最長のものを選ぶ
+        const sorted = supersededInMonth
+          .map(f => ({ ...f, days: (new Date(f.date_range_end) - new Date(f.date_range_start)) / 86400000 + 1 }))
+          .sort((a, b) => b.days - a.days);
+        const promote = sorted[0];
+        await sb.from('ad_uploaded_files').update({ status: 'active' }).eq('file_id', promote.file_id);
+      }
+    }
+
+    setStatus(`✓ ${adsPendingDelete.file_name} を削除しました`, 'ok');
+    adsCloseDeleteModal();
+    await adsLoadFiles();
+  } catch (err) {
+    console.error('[adsExecuteDelete] 例外', err);
+    setStatus('削除中にエラー：' + (err.message || err), 'err');
+    btn.disabled = false; btn.textContent = '削除する';
+  }
+}
+
+// --- ドラッグ&ドロップ対応 ---
+(function attachAdsDragDrop(){
+  document.addEventListener('DOMContentLoaded', function() {
+    const zone = document.getElementById('adsDropZone');
+    if (!zone) return;
+    zone.addEventListener('dragover', e => {
+      e.preventDefault();
+      zone.style.borderColor = '#5a8a48';
+      zone.style.background = '#f4f8f1';
+    });
+    zone.addEventListener('dragleave', e => {
+      zone.style.borderColor = '#d6dbd2';
+      zone.style.background = '#fafbf8';
+    });
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.style.borderColor = '#d6dbd2';
+      zone.style.background = '#fafbf8';
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      // ファイルをinputにセットしてhandleを発動
+      const inp = document.getElementById('adsFileInput');
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      inp.files = dt.files;
+      adsHandleFileSelect({ target: inp });
+    });
+  });
+})();
+
+// グローバル公開
+if (typeof window !== 'undefined') {
+  window.adsSwitchSubTab = adsSwitchSubTab;
+  window.adsLoadFiles = adsLoadFiles;
+  window.adsRenderFileList = adsRenderFileList;
+  window.adsOpenUploadModal = adsOpenUploadModal;
+  window.adsCloseUploadModal = adsCloseUploadModal;
+  window.adsCloseUploadModalBg = adsCloseUploadModalBg;
+  window.adsHandleFileSelect = adsHandleFileSelect;
+  window.adsConfirmUpload = adsConfirmUpload;
+  window.adsOpenDeleteModal = adsOpenDeleteModal;
+  window.adsCloseDeleteModal = adsCloseDeleteModal;
+  window.adsCloseDeleteModalBg = adsCloseDeleteModalBg;
+  window.adsExecuteDelete = adsExecuteDelete;
 }
 
 // 起動完了ログ
