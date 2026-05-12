@@ -8,9 +8,11 @@
 //   - /applicants/:id ⇔ openApplicantEdit(id)
 //
 // base path 対応：
-//   - GitHub Pages（mukaemura.github.io/saiyo-core）→ base = '/saiyo-core'
-//   - カスタムドメイン（app.link-core.co.jp）→ base = '' （ルート）
+//   - GitHub Pages (mukaemura.github.io/saiyo-core) → base = '/saiyo-core'
+//   - カスタムドメイン (app.link-core.co.jp) → base = '' （ルート）
 //   - ローカル開発 → base = ''
+//
+// 2026/5/12 修正：有料広告実績タブ用に /ads ルートを追加
 // ===========================================================
 
 (function() {
@@ -37,26 +39,27 @@
 
   // ===== ルート定義 =====
   const routes = [
-    { path: '/login',                    section: null,         action: 'showLogin' },
-    { path: '/reset-password',           section: null,         action: 'resetPassword' },
-    { path: '/dashboard',                section: 'dashboard' },
-    { path: '/applicants',               section: 'list' },
-    { path: '/applicants/new',           section: 'add',        action: 'newApplicant' },
-    { path: '/applicants/import',        section: 'import' },
-    { path: '/applicants/choice',        section: 'add-choice' },
-    { path: '/applicants/paste',         section: 'add-paste' },
-    { path: '/applicants/:id',           section: 'add',        action: 'editApplicant' },
-    { path: '/schedule',                 section: 'schedule' },
-    { path: '/analytics',                section: 'analytics' },
-    { path: '/minutes',                  section: 'minutes' },
-    { path: '/tasks',                    section: 'tasks' },
-    { path: '/budget',                   section: 'budget' },
-    { path: '/master',                   section: 'master' },
-    { path: '/staff',                    section: 'staff' },
-    { path: '/admin',                    section: 'admin' },
+    { path: '/login',              section: null,         action: 'showLogin' },
+    { path: '/reset-password',     section: null,         action: 'resetPassword' },
+    { path: '/dashboard',          section: 'dashboard' },
+    { path: '/applicants',         section: 'list' },
+    { path: '/applicants/new',     section: 'add',        action: 'newApplicant' },
+    { path: '/applicants/import',  section: 'import' },
+    { path: '/applicants/choice',  section: 'add-choice' },
+    { path: '/applicants/paste',   section: 'add-paste' },
+    { path: '/applicants/:id',     section: 'add',        action: 'editApplicant' },
+    { path: '/schedule',           section: 'schedule' },
+    { path: '/analytics',          section: 'analytics' },
+    { path: '/minutes',            section: 'minutes' },
+    { path: '/tasks',              section: 'tasks' },
+    { path: '/budget',             section: 'budget' },
+    { path: '/ads',                section: 'ads' },
+    { path: '/master',             section: 'master' },
+    { path: '/staff',              section: 'staff' },
+    { path: '/admin',              section: 'admin' },
   ];
 
-  // セクション → デフォルトパス
+  // セクションID → パス
   const sectionToPath = {
     'dashboard':  '/dashboard',
     'list':       '/applicants',
@@ -65,6 +68,7 @@
     'minutes':    '/minutes',
     'tasks':      '/tasks',
     'budget':     '/budget',
+    'ads':        '/ads',
     'master':     '/master',
     'staff':      '/staff',
     'admin':      '/admin',
@@ -74,10 +78,10 @@
     'import':     '/applicants/import',
   };
 
-  // 内部状態
+  // 内部遷移フラグ（無限ループ防止）
   let _routerInternal = false;
 
-  // ===== パスマッチング =====
+  // ===== ルートマッチング =====
   function matchRoute(pathOnly) {
     for (const r of routes) {
       if (r.path === pathOnly) return { route: r, params: {} };
@@ -95,7 +99,7 @@
     return null;
   }
 
-  // ===== 現在のパスを取得（base除去） =====
+  // ===== 現在のパス（base を除いた）を取得 =====
   function getCurrentPath() {
     let p = window.location.pathname;
     if (BASE && p.startsWith(BASE)) p = p.substring(BASE.length);
@@ -104,7 +108,7 @@
     return p || '/';
   }
 
-  // ===== URLを更新（pushState） =====
+  // ===== URLを更新（pushState or replaceState） =====
   function updateUrl(path, replace) {
     const fullPath = BASE + path;
     const current = window.location.pathname + window.location.search;
@@ -122,7 +126,7 @@
     }
   }
 
-  // ===== セクション切替時にURLを反映 =====
+  // ===== セクション切替時にURLを同期 =====
   function syncUrlFromSection(sectionId, options) {
     if (_routerInternal) return;
     options = options || {};
@@ -137,10 +141,10 @@
     updateUrl(path, options.replace);
   }
 
-  // ===== URLからセクションを復元 =====
+  // ===== URLからセクションを切替 =====
   function navigateFromUrl() {
     if (!isLoggedIn()) {
-      console.log('[router] 未ログイン → URLナビ保留');
+      console.log('[router] 未ログインのため URL ナビゲートスキップ');
       return;
     }
     const pathOnly = getCurrentPath();
@@ -156,7 +160,7 @@
 
     const matched = matchRoute(pathOnly);
     if (!matched) {
-      console.warn('[router] マッチしないパス:', pathOnly, '→ ダッシュボードへ');
+      console.warn('[router] マッチなし:', pathOnly, '→ ダッシュボードへ');
       _routerInternal = true;
       try { if (typeof showSec === 'function') showSec('dashboard'); } catch(e) {}
       _routerInternal = false;
@@ -181,13 +185,13 @@
         if (typeof showSec === 'function') showSec(route.section);
       }
     } catch(e) {
-      console.error('[router] ナビゲーション例外:', e);
+      console.error('[router] navigateFromUrl エラー:', e);
     } finally {
       _routerInternal = false;
     }
   }
 
-  // ===== ログインしているか =====
+  // ===== ログイン状態判定 =====
   function isLoggedIn() {
     const mainApp = document.getElementById('mainApp');
     if (mainApp && mainApp.style.display !== 'none' && mainApp.style.display !== '') {
@@ -199,7 +203,7 @@
     return false;
   }
 
-  // ===== ログイン直後にURL復元 =====
+  // ===== ログイン完了後に呼ばれる：保存していたURLへ復帰 =====
   function onLoginComplete() {
     const stored = sessionStorage.getItem('saiyoCoreRedirectAfterLogin');
     if (stored) {
@@ -219,32 +223,32 @@
     updateUrl('/dashboard', true);
   }
 
-  // ===== ログイン画面に来た時にURLを保存 =====
+  // ===== 未ログイン時のアクセス先を覚えておく =====
   function rememberRedirectIfNeeded() {
     if (isLoggedIn()) return;
     const pathOnly = getCurrentPath();
     if (!pathOnly || pathOnly === '/' || pathOnly === '/login' || pathOnly === '/reset-password') return;
     if (window.location.hash && window.location.hash.includes('type=recovery')) return;
     sessionStorage.setItem('saiyoCoreRedirectAfterLogin', pathOnly);
-    console.log('[router] 未ログイン → ログイン後に戻すURLを保存:', pathOnly);
+    console.log('[router] 未ログイン → リダイレクト先記憶:', pathOnly);
   }
 
-  // ===== popstate（戻る・進む） =====
+  // ===== popstate（ブラウザの戻る/進む） =====
   window.addEventListener('popstate', function(e) {
     console.log('[router] popstate event');
     if (!isLoggedIn()) return;
     navigateFromUrl();
   });
 
-  // ===== DOMContentLoaded時の初期化 =====
+  // ===== DOMContentLoaded：初期化 =====
   window.addEventListener('DOMContentLoaded', function() {
-    // 404.html フォールバック経由でこのページに来た場合、URLを本来のパスに戻す
+    // 404.html → SPAフォールバックでURLを復帰
     try {
       const fallback = sessionStorage.getItem('saiyoCoreSpaFallback');
       if (fallback) {
         sessionStorage.removeItem('saiyoCoreSpaFallback');
         history.replaceState(null, '', BASE + fallback);
-        console.log('[router] 404フォールバック経由 → URL復元:', BASE + fallback);
+        console.log('[router] 404フォールバック → URL復帰:', BASE + fallback);
       }
     } catch(e) {}
 
@@ -257,7 +261,7 @@
     }
   });
 
-  // ===== 公開API =====
+  // ===== 外部公開API =====
   window.SaiyoRouter = {
     BASE: BASE,
     navigate: function(path, options) {
@@ -277,5 +281,5 @@
     isLoggedIn: isLoggedIn
   };
 
-  console.log('[router] router.js 初期化完了');
+  console.log('[router] router.js 読み込み完了');
 })();
