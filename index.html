@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
 <!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260512s">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260512s">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260512s">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260512s">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260512s">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260512t">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260512t">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260512t">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260512t">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260512t">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260512s">
+<link rel="stylesheet" href="css/style.css?v=20260512t">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -1556,15 +1556,15 @@
 <div id="loginScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f7f6f1;position:relative;overflow:hidden;padding:48px 16px;box-sizing:border-box;">
 
   <!-- カード全体 -->
-  <div style="position:relative;width:100%;max-width:600px;">
+  <div style="position:relative;width:100%;max-width:680px;display:flex;flex-direction:column;align-items:center;">
 
-    <!-- ロゴ（カード外・上部に配置） -->
-    <div style="text-align:center;margin-bottom:28px;">
-      <img id="loginLogoImg" src="assets/logo-v2.png" alt="採用コア" style="width:600px;max-width:100%;height:auto;object-fit:contain;display:inline-block;">
+    <!-- ロゴ（カードより少し大きめに、幅いっぱい） -->
+    <div style="text-align:center;margin-bottom:24px;width:100%;">
+      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260512t" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;">
     </div>
 
-    <!-- ログインカード本体 -->
-    <div style="background:#fff;border-radius:14px;padding:36px 36px 28px;border:0.5px solid #e8ebe9;box-shadow:0 1px 3px rgba(0,0,0,.02);position:relative;z-index:1;">
+    <!-- ログインカード本体（少し狭め） -->
+    <div style="background:#fff;border-radius:14px;padding:36px 36px 28px;border:0.5px solid #e8ebe9;box-shadow:0 1px 3px rgba(0,0,0,.02);position:relative;z-index:1;width:100%;max-width:600px;box-sizing:border-box;">
 
       <!-- 見出し -->
       <div style="text-align:center;margin-bottom:24px;">
@@ -1823,7 +1823,7 @@
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <!-- ロゴ＋プラットフォームサブテキスト -->
         <a href="#" onclick="goHome();return false;" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;cursor:pointer;" title="ホームに戻る">
-          <img src="assets/saiyo_mark.png?v=20260512s" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
+          <img src="assets/saiyo_mark.png?v=20260512t" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
           <div style="line-height:1;">
             <div style="font-size:14px;font-weight:600;color:#1a1a1a;">採用コア</div>
             <div style="font-size:9px;color:#888;letter-spacing:0.08em;margin-top:3px;">RECRUITING PLATFORM</div>
@@ -4088,10 +4088,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260512s"></script>
-<script src="js/app.js?v=20260512s"></script>
-<script src="js/paste-feature.js?v=20260512s"></script>
-<script src="js/email-feature.js?v=20260512s"></script>
-<script src="js/chip-feature.js?v=20260512s"></script>
+<script src="js/router.js?v=20260512t"></script>
+<script src="js/app.js?v=20260512t"></script>
+<script src="js/paste-feature.js?v=20260512t"></script>
+<script src="js/email-feature.js?v=20260512t"></script>
+<script src="js/chip-feature.js?v=20260512t"></script>
 </body>
 </html>
