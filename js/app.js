@@ -984,16 +984,20 @@ async function startApp() {
     // Step 1: モードシステム初期化（前回モード復元、サブナビ表示など）
     try { await initModeSystem(); } catch(e) { console.warn('[startApp] initModeSystem失敗', e); }
     // Step 2: 起動時の画面決定
+    // - 担当者選択直後（window.__forceHomeAfterStaff）→ 必ずホーム
     // - localStorage に前回モードがあれば → そのモードのデフォルトセクションへ
     // - なければ → モード選択ホーム画面
     let savedMode = null;
     try { savedMode = localStorage.getItem(SAIYO_MODE_KEY); } catch(e) {}
-    if (savedMode && SAIYO_MODE_DEFS[savedMode]) {
-      // 前回モードがあれば、そのモードのデフォルトセクションへ
-      // setMode内で defaultSection に遷移する
+    if (window.__forceHomeAfterStaff) {
+      // 担当者選択経由：必ずホーム
+      window.__forceHomeAfterStaff = false;
+      showModeHome();
+    } else if (savedMode && SAIYO_MODE_DEFS[savedMode]) {
+      // ページリロードなど：前回モードへ
       setMode(savedMode);
     } else {
-      // ホーム画面表示
+      // 初回 or モード未設定：ホーム
       showModeHome();
     }
     // ルーター連携：URLから現在の画面を復元（直URL/リロード対応）
@@ -9300,6 +9304,8 @@ async function selectStaff(staffId, staffName) {
   // 担当者選択画面を非表示
   const staffSel = document.getElementById('staffSelectScreen');
   if (staffSel) staffSel.style.display = 'none';
+  // 担当者を選んだ直後は必ずホーム画面から始める
+  window.__forceHomeAfterStaff = true;
   await startApp();
 }
 
@@ -9324,6 +9330,8 @@ async function continueWithoutStaff() {
   saveStaffSelection(null);
   const staffSel = document.getElementById('staffSelectScreen');
   if (staffSel) staffSel.style.display = 'none';
+  // 担当者選択画面を経由した直後は必ずホーム画面から始める
+  window.__forceHomeAfterStaff = true;
   await startApp();
 }
 
