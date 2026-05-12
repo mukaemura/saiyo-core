@@ -1673,8 +1673,8 @@ function showSec(s) {
     renderTaskCalendar();
   }
   if (s === 'ads') {
-    // 初回表示はアップロード管理タブから開始（分析画面は後フェーズ）
-    if (typeof adsLoadFiles === 'function') adsLoadFiles();
+    // 初回表示は分析タブから（データがあれば表示、無ければ案内）
+    if (typeof adsLoadAnalytics === 'function') adsLoadAnalytics();
   }
 }
 
@@ -10245,6 +10245,7 @@ function adsSwitchSubTab(tab) {
     u.style.background = '#fff';    u.style.color = '#666';
     ap.style.display = 'block';
     up.style.display = 'none';
+    if (typeof adsLoadAnalytics === 'function') adsLoadAnalytics();
   } else {
     a.style.background = '#fff';    a.style.color = '#666';
     u.style.background = '#5a8a48'; u.style.color = '#fff';
@@ -10865,6 +10866,361 @@ if (typeof window !== 'undefined') {
   window.adsCloseDeleteModal = adsCloseDeleteModal;
   window.adsCloseDeleteModalBg = adsCloseDeleteModalBg;
   window.adsExecuteDelete = adsExecuteDelete;
+}
+
+// ============================================================================
+// 📊 フェーズ2：分析画面 - パート1（媒体タブ・期間切替・KPI・ファネル）
+// 2026/05/12 追加
+// ============================================================================
+
+// --- 分析画面の状態 ---
+let adsRows = [];                    // 現在ロード中の実績行（active のみ）
+let adsActiveMedia = 'all';          // 現在選択中の媒体（'all' / 'indeed' / 'airwork'）
+let adsPeriodMode = 'prev_month';    // 'prev_month' / 'single' / 'range' / 'compare'
+let adsAvailableMedias = [];         // 利用可能な媒体（['indeed','airwork'] など）
+
+// サブタブ切替時、分析タブ選択時に呼ばれる
+async function adsLoadAnalytics() {
+  if (!sb || !currentClientId) return;
+  // active ファイルのみ取得
+  let q = sb.from('ad_uploaded_files').select('file_id, media_type, date_range_start, date_range_end').eq('status', 'active');
+  if (!isAdmin) q = q.eq('client_id', currentClientId);
+  const { data: files, error: e1 } = await q;
+  if (e1) { console.error('[adsLoadAnalytics]', e1); return; }
+
+  if (!files || files.length === 0) {
+    document.getElementById('adsAnalyticsEmpty').style.display = 'block';
+    document.getElementById('adsAnalyticsContent').style.display = 'none';
+    return;
+  }
+  document.getElementById('adsAnalyticsEmpty').style.display = 'none';
+  document.getElementById('adsAnalyticsContent').style.display = 'block';
+
+  // 利用可能な媒体を判定
+  const medias = Array.from(new Set(files.map(f => f.media_type)));
+  adsAvailableMedias = medias;
+
+  // 実績行をまとめて取得
+  const fileIds = files.map(f => f.file_id);
+  let q2 = sb.from('ad_performance_rows').select('*').in('file_id', fileIds);
+  const { data: rows, error: e2 } = await q2;
+  if (e2) { console.error('[adsLoadAnalytics rows]', e2); return; }
+
+  // ファイル情報を行に注入（期間情報）
+  const fileMap = {};
+  files.forEach(f => { fileMap[f.file_id] = f; });
+  adsRows = (rows || []).map(r => ({
+    ...r,
+    _date_range_start: fileMap[r.file_id]?.date_range_start,
+    _date_range_end:   fileMap[r.file_id]?.date_range_end,
+    _month: (fileMap[r.file_id]?.date_range_start || '').slice(0,7),  // YYYY-MM
+  }));
+
+  // メディアタブを構築
+  adsBuildMediaTabs();
+  // 期間モード初期化
+  adsApplyDefaultPeriod();
+  // キャンペーンフィルタ更新
+  adsUpdateCampaignFilter();
+  // 描画
+  adsRefreshAnalytics();
+}
+
+// 媒体タブの構築（クライアントが使用してる媒体だけ表示）
+function adsBuildMediaTabs() {
+  const wrap = document.getElementById('adsMediaTabs');
+  if (!wrap) return;
+  const tabs = [];
+  const hasIndeed = adsAvailableMedias.includes('indeed');
+  const hasAirwork = adsAvailableMedias.includes('airwork');
+  if (hasIndeed && hasAirwork) {
+    tabs.push({ key: 'all', label: '📊 全媒体合算', color: '#5a8a48' });
+  }
+  if (hasIndeed) tabs.push({ key: 'indeed', label: '📘 Indeed', color: '#185FA5' });
+  if (hasAirwork) tabs.push({ key: 'airwork', label: '📙 AirWORK', color: '#BA7517' });
+
+  // 現在の選択がリストに無ければ最初のものに
+  if (!tabs.find(t => t.key === adsActiveMedia)) {
+    adsActiveMedia = tabs[0]?.key || 'all';
+  }
+
+  wrap.innerHTML = tabs.map(t => {
+    const active = t.key === adsActiveMedia;
+    return `<button onclick="adsSetMedia('${t.key}')" style="padding:8px 16px;border:1.5px solid ${active ? t.color : '#e3e3e0'};background:${active ? t.color : '#fff'};color:${active ? '#fff' : '#666'};border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;letter-spacing:.04em;">${t.label}</button>`;
+  }).join('');
+}
+
+function adsSetMedia(m) {
+  adsActiveMedia = m;
+  adsBuildMediaTabs();
+  adsUpdateCampaignFilter();
+  adsRefreshAnalytics();
+}
+
+// 期間モード設定
+function adsSetPeriodMode(mode) {
+  adsPeriodMode = mode;
+  // ボタン見た目
+  document.querySelectorAll('.ads-period-btn').forEach(b => {
+    if (b.dataset.period === mode) {
+      b.style.background = '#5a8a48'; b.style.color = '#fff'; b.style.fontWeight = '500';
+    } else {
+      b.style.background = 'transparent'; b.style.color = '#666'; b.style.fontWeight = '400';
+    }
+  });
+  // パネル切替
+  document.getElementById('adsPeriodSingle').style.display = mode === 'single' ? 'flex' : 'none';
+  document.getElementById('adsPeriodRange').style.display = mode === 'range' ? 'flex' : 'none';
+  document.getElementById('adsPeriodCompare').style.display = mode === 'compare' ? 'flex' : 'none';
+
+  // モード切替時の初期値設定
+  if (mode === 'single') {
+    const sel = document.getElementById('adsSingleMonth');
+    if (!sel.value) {
+      const latest = adsGetLatestMonth();
+      if (latest) sel.value = latest;
+    }
+  } else if (mode === 'range') {
+    const f = document.getElementById('adsRangeFrom');
+    const t = document.getElementById('adsRangeTo');
+    if (!f.value || !t.value) {
+      const months = adsGetAvailableMonths();
+      if (months.length > 0) { f.value = months[0]; t.value = months[months.length - 1]; }
+    }
+  } else if (mode === 'compare') {
+    const a = document.getElementById('adsCompareA');
+    const b = document.getElementById('adsCompareB');
+    if (!a.value || !b.value) {
+      const latest = adsGetLatestMonth();
+      const prev = adsGetPreviousMonth(latest);
+      if (latest) a.value = latest;
+      if (prev) b.value = prev;
+    }
+  }
+  adsRefreshAnalytics();
+}
+
+function adsApplyDefaultPeriod() {
+  // 初期は「前月」モード
+  adsSetPeriodMode(adsPeriodMode);
+}
+
+// データから利用可能な月一覧を取得（昇順）
+function adsGetAvailableMonths() {
+  const set = new Set(adsRows.map(r => r._month).filter(Boolean));
+  return Array.from(set).sort();
+}
+function adsGetLatestMonth() {
+  const ms = adsGetAvailableMonths();
+  return ms[ms.length - 1] || null;
+}
+function adsGetPreviousMonth(m) {
+  if (!m) return null;
+  const [y, mo] = m.split('-').map(Number);
+  const d = new Date(y, mo - 2, 1);  // 1月前
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`;
+}
+
+// キャンペーンフィルタの選択肢を更新
+function adsUpdateCampaignFilter() {
+  const sel = document.getElementById('adsCampaignFilter');
+  if (!sel) return;
+  const cur = sel.value;
+  const filtered = adsRows.filter(r => adsActiveMedia === 'all' || r.media_type === adsActiveMedia);
+  const set = new Set(filtered.map(r => r.campaign).filter(c => c && c !== '-'));
+  const opts = ['<option value="">キャンペーン：全て</option>']
+    .concat(Array.from(set).sort().map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`));
+  sel.innerHTML = opts.join('');
+  if (cur && Array.from(set).includes(cur)) sel.value = cur;
+}
+
+// 期間に応じて行をフィルタ
+function adsFilterRowsByPeriod() {
+  // 媒体・キャンペーンでまずフィルタ
+  const cp = document.getElementById('adsCampaignFilter')?.value || '';
+  let rows = adsRows.filter(r => {
+    if (adsActiveMedia !== 'all' && r.media_type !== adsActiveMedia) return false;
+    if (cp && r.campaign !== cp) return false;
+    return true;
+  });
+
+  // 期間でフィルタ
+  if (adsPeriodMode === 'prev_month') {
+    // 利用可能月のうち最新の1つ前
+    const ms = adsGetAvailableMonths();
+    let target = null;
+    if (ms.length >= 2) target = ms[ms.length - 2];
+    else if (ms.length === 1) target = ms[0];   // 1月分しかなければそれを使う
+    if (!target) return { rows: [], periodLabel: 'データなし' };
+    const r2 = rows.filter(r => r._month === target);
+    return { rows: r2, periodLabel: `${target.replace('-','年')}月`, compareWith: null };
+  }
+  if (adsPeriodMode === 'single') {
+    const m = document.getElementById('adsSingleMonth')?.value;
+    if (!m) return { rows, periodLabel: '全期間' };
+    const r2 = rows.filter(r => r._month === m);
+    return { rows: r2, periodLabel: `${m.replace('-','年')}月` };
+  }
+  if (adsPeriodMode === 'range') {
+    const f = document.getElementById('adsRangeFrom')?.value;
+    const t = document.getElementById('adsRangeTo')?.value;
+    if (!f || !t) return { rows, periodLabel: '全期間' };
+    const r2 = rows.filter(r => r._month >= f && r._month <= t);
+    return { rows: r2, periodLabel: `${f.replace('-','/')} 〜 ${t.replace('-','/')}` };
+  }
+  if (adsPeriodMode === 'compare') {
+    const a = document.getElementById('adsCompareA')?.value;
+    const b = document.getElementById('adsCompareB')?.value;
+    if (!a || !b) return { rows, periodLabel: '比較期間未指定' };
+    const rowsA = rows.filter(r => r._month === a);
+    const rowsB = rows.filter(r => r._month === b);
+    return {
+      rows: rowsA,
+      compareRows: rowsB,
+      periodLabel: `${a.replace('-','/')} vs ${b.replace('-','/')}`,
+      compareWith: b
+    };
+  }
+  return { rows, periodLabel: '全期間' };
+}
+
+// 行配列から指標を集計
+function adsAggregate(rows) {
+  const t = {
+    imp: 0, click: 0, apply_start: 0, apply: 0, cost: 0,
+    rowCount: rows.length,
+  };
+  rows.forEach(r => {
+    t.imp += r.imp || 0;
+    t.click += r.click || 0;
+    t.apply_start += r.apply_start || 0;
+    t.apply += r.apply || 0;
+    t.cost += Number(r.cost) || 0;
+  });
+  t.ctr = t.imp > 0 ? t.click / t.imp : 0;
+  t.cpc = t.click > 0 ? t.cost / t.click : 0;
+  t.asr = t.click > 0 ? t.apply_start / t.click : 0;
+  t.completion_rate = t.apply_start > 0 ? t.apply / t.apply_start : 0;
+  t.cpa = t.apply > 0 ? t.cost / t.apply : 0;
+  t.cpas = t.apply_start > 0 ? t.cost / t.apply_start : 0;
+  return t;
+}
+
+// 分析画面の全描画
+function adsRefreshAnalytics() {
+  if (!document.getElementById('adsAnalyticsContent')) return;
+  const result = adsFilterRowsByPeriod();
+  const main = adsAggregate(result.rows);
+  const compare = result.compareRows ? adsAggregate(result.compareRows) : null;
+
+  // 期間情報
+  const periodInfo = document.getElementById('adsPeriodInfo');
+  if (periodInfo) periodInfo.textContent = `${result.periodLabel} ／ 対象求人 ${main.rowCount.toLocaleString()}件`;
+
+  // KPI描画
+  adsRenderKpiMain(main, compare);
+  adsRenderKpiSub(main, compare);
+  // ファネル描画
+  adsRenderFunnel(main);
+}
+
+// メインKPI 5枚
+function adsRenderKpiMain(t, compare) {
+  const el = document.getElementById('adsKpiMain');
+  if (!el) return;
+  const items = [
+    { label: '表示回数', value: t.imp.toLocaleString(), key: 'imp' },
+    { label: 'クリック数', value: t.click.toLocaleString(), key: 'click' },
+    { label: '応募開始数', value: t.apply_start.toLocaleString(), key: 'apply_start' },
+    { label: '応募完了数', value: t.apply.toLocaleString(), key: 'apply', emphasis: true },
+    { label: '費用', value: '¥' + Math.round(t.cost).toLocaleString(), key: 'cost' },
+  ];
+  el.innerHTML = items.map(it => {
+    let diff = '';
+    if (compare) {
+      const prev = compare[it.key] || 0;
+      const cur = t[it.key] || 0;
+      if (prev > 0) {
+        const pct = ((cur - prev) / prev) * 100;
+        const isUp = pct >= 0;
+        // 費用だけは増加が悪いのでロジック反転（or 単純に差分表示でもいい）
+        const color = isUp ? '#3B6D11' : '#D85A30';
+        const arrow = isUp ? '▲' : '▼';
+        diff = `<div style="font-size:9px;color:${color};margin-top:2px;">${arrow} ${Math.abs(pct).toFixed(1)}%</div>`;
+      } else if (cur > 0) {
+        diff = `<div style="font-size:9px;color:#3B6D11;margin-top:2px;">新規発生</div>`;
+      }
+    }
+    const emphasisColor = it.emphasis ? '#5a8a48' : '#1a1a1a';
+    return `<div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:11px 13px;">
+      <div style="font-size:10px;color:#888;letter-spacing:.04em;">${it.label}</div>
+      <div style="font-size:20px;font-weight:500;color:${emphasisColor};margin-top:1px;">${it.value}</div>
+      ${diff}
+    </div>`;
+  }).join('');
+}
+
+// サブ指標 4枚
+function adsRenderKpiSub(t, compare) {
+  const el = document.getElementById('adsKpiSub');
+  if (!el) return;
+  const items = [
+    { label: 'CTR（クリック率）', value: (t.ctr * 100).toFixed(2) + '%' },
+    { label: 'CPC（クリック単価）', value: '¥' + Math.round(t.cpc).toLocaleString() },
+    { label: 'CPA（応募単価）', value: t.apply > 0 ? '¥' + Math.round(t.cpa).toLocaleString() : '—' },
+    { label: '応募完了率', value: (t.completion_rate * 100).toFixed(1) + '%' },
+  ];
+  el.innerHTML = items.map(it => `
+    <div style="background:#fafafa;border:0.5px solid #e8ebe9;border-radius:8px;padding:9px 12px;">
+      <div style="font-size:9px;color:#888;letter-spacing:.04em;">${it.label}</div>
+      <div style="font-size:15px;font-weight:500;color:#1a1a1a;">${it.value}</div>
+    </div>
+  `).join('');
+}
+
+// 応募ファネル
+function adsRenderFunnel(t) {
+  const el = document.getElementById('adsFunnel');
+  if (!el) return;
+  if (t.imp === 0) {
+    el.innerHTML = `<div style="font-size:12px;color:#888;text-align:center;padding:24px;">表示データなし</div>`;
+    return;
+  }
+  const ctrPct = (t.ctr * 100).toFixed(2);
+  const asrPct = (t.asr * 100).toFixed(2);
+  const compPct = (t.completion_rate * 100).toFixed(1);
+  // 表示幅は表示回数を1.0として比例配分
+  const clickW = t.imp > 0 ? Math.max(0.10, t.click / t.imp) : 0.10;
+  const startW = t.imp > 0 ? Math.max(0.06, t.apply_start / t.imp) : 0.06;
+  const applyW = t.imp > 0 ? Math.max(0.04, t.apply / t.imp) : 0.04;
+  el.innerHTML = `
+    <div style="font-size:12px;font-weight:500;color:#1a1a1a;margin-bottom:10px;">🎯 応募ファネル</div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:120px;">
+        <div style="background:#5a8a48;height:34px;border-radius:6px;display:flex;align-items:center;padding:0 14px;color:#fff;font-size:12px;font-weight:500;">表示 ${t.imp.toLocaleString()}</div>
+      </div>
+      <div style="font-size:10px;color:#888;width:55px;text-align:center;">CTR<br><strong style="color:#1a1a1a;font-weight:500;">${ctrPct}%</strong></div>
+      <div style="flex:${clickW.toFixed(3)};min-width:90px;">
+        <div style="background:#7da66a;height:34px;border-radius:6px;display:flex;align-items:center;padding:0 12px;color:#fff;font-size:12px;font-weight:500;">クリック ${t.click.toLocaleString()}</div>
+      </div>
+      <div style="font-size:10px;color:#888;width:55px;text-align:center;">ASR<br><strong style="color:#1a1a1a;font-weight:500;">${asrPct}%</strong></div>
+      <div style="flex:${startW.toFixed(3)};min-width:80px;">
+        <div style="background:#a8c596;height:34px;border-radius:6px;display:flex;align-items:center;padding:0 10px;color:#fff;font-size:11px;font-weight:500;">開始 ${t.apply_start.toLocaleString()}</div>
+      </div>
+      <div style="font-size:10px;color:#888;width:55px;text-align:center;">完了率<br><strong style="color:#1a1a1a;font-weight:500;">${compPct}%</strong></div>
+      <div style="flex:${applyW.toFixed(3)};min-width:70px;">
+        <div style="background:#c7dab6;height:34px;border-radius:6px;display:flex;align-items:center;padding:0 8px;color:#3B6D11;font-size:11px;font-weight:500;">完了 ${t.apply.toLocaleString()}</div>
+      </div>
+    </div>
+  `;
+}
+
+// グローバル公開
+if (typeof window !== 'undefined') {
+  window.adsLoadAnalytics = adsLoadAnalytics;
+  window.adsSetMedia = adsSetMedia;
+  window.adsSetPeriodMode = adsSetPeriodMode;
+  window.adsRefreshAnalytics = adsRefreshAnalytics;
 }
 
 // 起動完了ログ
