@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
 <!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260512b">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260512b">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260512b">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260512b">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260512b">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260512c">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260512c">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260512c">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260512c">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260512c">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260512b">
+<link rel="stylesheet" href="css/style.css?v=20260512c">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -525,7 +525,7 @@
   <div class="app" id="mainApp" style="display:none;">
     <div class="header">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <div style="display:flex;align-items:center;gap:6px;"><img src="assets/saiyo_mark.png?v=20260512b" alt="採用コア" style="width:34px;height:34px;object-fit:contain;"></div>
+        <div style="display:flex;align-items:center;gap:6px;"><img src="assets/saiyo_mark.png?v=20260512c" alt="採用コア" style="width:34px;height:34px;object-fit:contain;"></div>
         <span class="client-badge" id="clientBadge"></span>
         <!-- 担当者表示エリア（Phase B-2） -->
         <div id="staffSwitcher" style="display:none;align-items:center;gap:6px;">
@@ -1952,13 +1952,81 @@
         <button class="ads-subtab" onclick="adsSwitchSubTab('upload')" id="adsSubtabUpload" style="flex:1;padding:9px 14px;background:#fff;color:#666;border:none;border-radius:6px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;">📁 アップロード管理</button>
       </div>
 
-      <!-- ▼ 分析画面（フェーズ2で実装） -->
+      <!-- ▼ 分析画面 -->
       <div id="adsAnalyticsPane">
-        <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:48px 24px;text-align:center;">
+
+        <!-- データが無い場合のプレースホルダー -->
+        <div id="adsAnalyticsEmpty" style="display:none;background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:48px 24px;text-align:center;">
           <div style="font-size:36px;margin-bottom:10px;">📊</div>
-          <div style="font-size:14px;font-weight:500;color:#1a1a1a;margin-bottom:6px;">分析画面は次フェーズで実装予定</div>
-          <div style="font-size:11px;color:#888;line-height:1.7;">まずは「アップロード管理」からCSVファイルを取り込んでください。<br>取り込んだデータをもとに、コアラ診断や月別推移、ワーストランキングなどが表示されます。</div>
+          <div style="font-size:14px;font-weight:500;color:#1a1a1a;margin-bottom:6px;">まだ分析対象のデータがありません</div>
+          <div style="font-size:11px;color:#888;line-height:1.7;">「アップロード管理」からCSVファイルを取り込むと、ここに分析結果が表示されます。</div>
           <button onclick="adsSwitchSubTab('upload')" style="margin-top:14px;padding:8px 18px;background:#5a8a48;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;">アップロード管理へ →</button>
+        </div>
+
+        <!-- 分析画面本体（データがあるときに表示） -->
+        <div id="adsAnalyticsContent" style="display:none;">
+
+          <!-- 上部コントロール：媒体タブ・期間切替・フィルタ -->
+          <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:12px 14px;margin-bottom:12px;">
+
+            <!-- 媒体タブ -->
+            <div id="adsMediaTabs" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;"></div>
+
+            <!-- 期間 + キャンペーン フィルタ行 -->
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <span style="font-size:11px;color:#888;font-weight:500;">期間：</span>
+              <div style="background:#fafaf8;border:1px solid #e3e3e0;border-radius:8px;padding:2px;display:flex;gap:0;">
+                <button class="ads-period-btn" data-period="prev_month" onclick="adsSetPeriodMode('prev_month')" style="padding:5px 11px;background:#5a8a48;color:#fff;border:none;font-size:11px;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:500;">前月</button>
+                <button class="ads-period-btn" data-period="single" onclick="adsSetPeriodMode('single')" style="padding:5px 11px;background:transparent;color:#666;border:none;font-size:11px;border-radius:6px;cursor:pointer;font-family:inherit;">単月</button>
+                <button class="ads-period-btn" data-period="range" onclick="adsSetPeriodMode('range')" style="padding:5px 11px;background:transparent;color:#666;border:none;font-size:11px;border-radius:6px;cursor:pointer;font-family:inherit;">期間</button>
+                <button class="ads-period-btn" data-period="compare" onclick="adsSetPeriodMode('compare')" style="padding:5px 11px;background:transparent;color:#666;border:none;font-size:11px;border-radius:6px;cursor:pointer;font-family:inherit;">比較</button>
+              </div>
+
+              <!-- 単月モード -->
+              <div id="adsPeriodSingle" style="display:none;align-items:center;gap:4px;">
+                <input type="month" id="adsSingleMonth" onchange="adsRefreshAnalytics()" style="padding:5px 8px;border:1px solid #e3e3e0;border-radius:6px;font-size:11px;background:#fff;font-family:inherit;">
+              </div>
+
+              <!-- 期間モード -->
+              <div id="adsPeriodRange" style="display:none;align-items:center;gap:4px;">
+                <input type="month" id="adsRangeFrom" onchange="adsRefreshAnalytics()" style="padding:5px 8px;border:1px solid #e3e3e0;border-radius:6px;font-size:11px;background:#fff;font-family:inherit;">
+                <span style="font-size:11px;color:#aaa;">〜</span>
+                <input type="month" id="adsRangeTo" onchange="adsRefreshAnalytics()" style="padding:5px 8px;border:1px solid #e3e3e0;border-radius:6px;font-size:11px;background:#fff;font-family:inherit;">
+              </div>
+
+              <!-- 比較モード -->
+              <div id="adsPeriodCompare" style="display:none;align-items:center;gap:4px;flex-wrap:wrap;">
+                <span style="font-size:10px;color:#185FA5;font-weight:500;">A：</span>
+                <input type="month" id="adsCompareA" onchange="adsRefreshAnalytics()" style="padding:5px 8px;border:1px solid #185FA5;border-radius:6px;font-size:11px;background:#fff;font-family:inherit;">
+                <span style="font-size:11px;color:#aaa;">vs</span>
+                <span style="font-size:10px;color:#D85A30;font-weight:500;">B：</span>
+                <input type="month" id="adsCompareB" onchange="adsRefreshAnalytics()" style="padding:5px 8px;border:1px solid #D85A30;border-radius:6px;font-size:11px;background:#fff;font-family:inherit;">
+              </div>
+
+              <span style="margin-left:auto;font-size:11px;color:#888;" id="adsPeriodInfo"></span>
+
+              <select id="adsCampaignFilter" onchange="adsRefreshAnalytics()" style="padding:5px 10px;border:1px solid #e3e3e0;border-radius:6px;font-size:11px;background:#fff;font-family:inherit;">
+                <option value="">キャンペーン：全て</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- メインKPI 5枚 -->
+          <div id="adsKpiMain" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px;"></div>
+
+          <!-- サブ指標 4枚 -->
+          <div id="adsKpiSub" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;"></div>
+
+          <!-- 応募ファネル -->
+          <div id="adsFunnel" style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:14px 16px;margin-bottom:12px;"></div>
+
+          <!-- パート2以降のセクション -->
+          <div id="adsMonthlyTrend" style="margin-bottom:12px;"></div>
+          <div id="adsCampaignPerf" style="margin-bottom:12px;"></div>
+          <div id="adsPrefTop" style="margin-bottom:12px;"></div>
+          <div id="adsJobRanking" style="margin-bottom:12px;"></div>
+          <div id="adsWorstSections" style="margin-bottom:12px;"></div>
+
         </div>
       </div>
 
@@ -2439,10 +2507,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260512b"></script>
-<script src="js/app.js?v=20260512b"></script>
-<script src="js/paste-feature.js?v=20260512b"></script>
-<script src="js/email-feature.js?v=20260512b"></script>
-<script src="js/chip-feature.js?v=20260512b"></script>
+<script src="js/router.js?v=20260512c"></script>
+<script src="js/app.js?v=20260512c"></script>
+<script src="js/paste-feature.js?v=20260512c"></script>
+<script src="js/email-feature.js?v=20260512c"></script>
+<script src="js/chip-feature.js?v=20260512c"></script>
 </body>
 </html>
