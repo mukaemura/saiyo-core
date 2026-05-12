@@ -11599,6 +11599,9 @@ if (typeof window !== 'undefined') {
 
 let adsJobRankingMode = 'top';   // 'top' / 'cost' / 'click'
 let adsWorstActiveTab = 'cost';  // 'cost' / 'ctr' / 'start' / 'complete'
+// 全件表示モード（TOPだけ or 全件）
+let adsJobRankingShowAll = false;   // 求人別ランキング
+let adsWorstShowAll = { cost: false, ctr: false, start: false, complete: false }; // ワーストTAB別
 
 // パート2の adsRefreshAnalytics を拡張
 const _origAdsRefreshAnalytics_v3 = window.adsRefreshAnalytics;
@@ -11642,7 +11645,10 @@ function adsRenderJobRanking() {
   } else if (adsJobRankingMode === 'click') {
     sorted.sort((a, b) => (b.click || 0) - (a.click || 0));
   }
-  const top = sorted.slice(0, 10);
+  // 全件表示モードならスライスなし、そうでなければTOP10
+  const totalCount = sorted.length;
+  const displayRows = adsJobRankingShowAll ? sorted : sorted.slice(0, 10);
+  const top = displayRows;
 
   // CPシェア計算（シェア基準と該当行のCPが一致するときだけ計算）
   function calcShare(r) {
@@ -11697,7 +11703,7 @@ function adsRenderJobRanking() {
   el.innerHTML = `
     <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:14px 16px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-        <div style="font-size:12px;font-weight:500;color:#1a1a1a;">🏆 求人別ランキング（TOP10）</div>
+        <div style="font-size:12px;font-weight:500;color:#1a1a1a;">🏆 求人別ランキング${adsJobRankingShowAll ? `（全${totalCount}件）` : `（TOP10 / 全${totalCount}件）`}</div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
           <select onchange="adsSetJobRankingMode(this.value)" style="padding:4px 8px;border:1px solid #e3e3e0;border-radius:5px;font-size:10px;background:#fff;font-family:inherit;">
             <option value="top" ${adsJobRankingMode === 'top' ? 'selected' : ''}>並び：応募完了数</option>
@@ -11708,10 +11714,10 @@ function adsRenderJobRanking() {
           <button onclick="adsExportJobRankingCsv()" style="padding:4px 10px;background:#5a8a48;color:#fff;border:none;border-radius:5px;font-size:10px;font-family:inherit;cursor:pointer;font-weight:500;">CSV出力</button>
         </div>
       </div>
-      <div style="overflow-x:auto;">
+      <div style="overflow-x:auto;${adsJobRankingShowAll ? 'max-height:600px;overflow-y:auto;' : ''}">
         <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:780px;">
           <thead>
-            <tr style="border-bottom:1px solid #e8ebe9;color:#666;text-align:left;">
+            <tr style="border-bottom:1px solid #e8ebe9;color:#666;text-align:left;${adsJobRankingShowAll ? 'position:sticky;top:0;background:#fff;z-index:1;' : ''}">
               <th style="padding:6px 4px;font-weight:500;width:20px;">#</th>
               <th style="padding:6px 4px;font-weight:500;">求人</th>
               <th style="padding:6px 4px;font-weight:500;">企業</th>
@@ -11727,6 +11733,9 @@ function adsRenderJobRanking() {
           <tbody>${tableRows}</tbody>
         </table>
       </div>
+      ${totalCount > 10 ? `<div style="text-align:center;margin-top:10px;">
+        <button onclick="adsToggleJobRankingShowAll()" style="padding:6px 14px;background:#fff;border:1px solid #5a8a48;color:#5a8a48;border-radius:6px;font-size:11px;font-family:inherit;cursor:pointer;font-weight:500;transition:all .15s;" onmouseover="this.style.background='#eaf3de'" onmouseout="this.style.background='#fff'">${adsJobRankingShowAll ? '🔼 TOP10に戻す' : `🔽 全${totalCount}件を表示`}</button>
+      </div>` : ''}
       <div style="margin-top:8px;font-size:9px;color:#888;line-height:1.6;background:#fafaf8;padding:6px 10px;border-radius:5px;">
         💡 CPシェア = 該当求人の応募完了数 ÷ 基準CP内の総応募完了数。フィルタで基準を切替可能。
       </div>
@@ -11741,6 +11750,10 @@ function adsSetJobRankingMode(m) {
 function adsSetJobShareBasis(v) {
   const el = document.getElementById('adsJobRanking');
   if (el) el.dataset.shareBasis = v;
+  adsRenderJobRanking();
+}
+function adsToggleJobRankingShowAll() {
+  adsJobRankingShowAll = !adsJobRankingShowAll;
   adsRenderJobRanking();
 }
 
@@ -11874,13 +11887,21 @@ function adsSetWorstTab(t) {
   adsRenderWorstSections();
 }
 
+// ワーストランキング各タブの「全件表示」トグル
+function adsToggleWorstShowAll(key) {
+  if (adsWorstShowAll[key] === undefined) return;
+  adsWorstShowAll[key] = !adsWorstShowAll[key];
+  adsRenderWorstSections();
+}
+
 // 各ワーストランキングのテーブル描画
 function adsRenderWorstCost(list, totalCost, cpCostTotals) {
   if (list.length === 0) return `<div style="background:#fdf2ee;border-left:3px solid #D85A30;border-radius:0 8px 8px 0;padding:14px;font-size:11px;color:#712B13;">✓ 応募ゼロで費用が出てる求人はありません。素晴らしい！</div>`;
-  const top5 = list.slice(0, 5);
   const totalWaste = list.reduce((s, r) => s + (Number(r.cost) || 0), 0);
+  const showAll = adsWorstShowAll.cost;
+  const displayList = showAll ? list : list.slice(0, 5);
 
-  const tableRows = top5.map((r, i) => {
+  const tableRows = displayList.map((r, i) => {
     const cp = r.campaign || '(未設定)';
     const cpDisplay = cp.length > 28 ? cp.slice(0, 26) + '…' : cp;
     const cpTotal = cpCostTotals[cp] || 0;
@@ -11907,14 +11928,14 @@ function adsRenderWorstCost(list, totalCost, cpCostTotals) {
   return `<div style="background:#fdf2ee;border-left:3px solid #D85A30;border-radius:0 8px 8px 0;padding:12px 14px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
       <div>
-        <div style="font-size:12px;font-weight:500;color:#712B13;">① 費用かかってるのに応募ゼロ TOP5</div>
+        <div style="font-size:12px;font-weight:500;color:#712B13;">① 費用かかってるのに応募ゼロ ${showAll ? `（全${list.length}件）` : `TOP5`}</div>
         <div style="font-size:10px;color:#993C1D;margin-top:1px;">合計 ¥${Math.round(totalWaste).toLocaleString()} ${totalCost > 0 ? `（全費用の${(totalWaste/totalCost*100).toFixed(1)}%）` : ''}が成果ゼロ ／ 全${list.length}件</div>
       </div>
     </div>
-    <div style="overflow-x:auto;">
+    <div style="overflow-x:auto;${showAll ? 'max-height:500px;overflow-y:auto;' : ''}">
       <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:820px;">
         <thead>
-          <tr style="border-bottom:0.5px solid rgba(0,0,0,.08);color:#993C1D;text-align:left;">
+          <tr style="border-bottom:0.5px solid rgba(0,0,0,.08);color:#993C1D;text-align:left;${showAll ? 'position:sticky;top:0;background:#fdf2ee;z-index:1;' : ''}">
             <th style="padding:5px 4px;font-weight:500;width:20px;">#</th>
             <th style="padding:5px 4px;font-weight:500;">求人</th>
             <th style="padding:5px 4px;font-weight:500;">企業</th>
@@ -11929,14 +11950,18 @@ function adsRenderWorstCost(list, totalCost, cpCostTotals) {
         <tbody>${tableRows}</tbody>
       </table>
     </div>
+    ${list.length > 5 ? `<div style="text-align:center;margin-top:8px;">
+      <button onclick="adsToggleWorstShowAll('cost')" style="padding:5px 12px;background:#fff;border:1px solid #D85A30;color:#712B13;border-radius:6px;font-size:11px;font-family:inherit;cursor:pointer;font-weight:500;transition:all .15s;" onmouseover="this.style.background='#fdf2ee'" onmouseout="this.style.background='#fff'">${showAll ? '🔼 TOP5に戻す' : `🔽 全${list.length}件を表示`}</button>
+    </div>` : ''}
     <div style="margin-top:6px;font-size:9px;color:#993C1D;line-height:1.6;">※ CP内費用シェア = 該当求人の費用 ÷ そのCP内の総費用</div>
   </div>`;
 }
 
 function adsRenderWorstCtr(list) {
   if (list.length === 0) return `<div style="background:#fef7e9;border-left:3px solid #BA7517;border-radius:0 8px 8px 0;padding:14px;font-size:11px;color:#854F0B;">✓ 表示が多いのにクリックされない求人はありません</div>`;
-  const top5 = list.slice(0, 5);
-  const tableRows = top5.map((r, i) => {
+  const showAll = adsWorstShowAll.ctr;
+  const displayList = showAll ? list : list.slice(0, 5);
+  const tableRows = displayList.map((r, i) => {
     const ctr = (r.imp || 0) > 0 ? ((r.click || 0) / r.imp * 100).toFixed(2) : '0.00';
     const cp = r.campaign || '(未設定)';
     const cpDisplay = cp.length > 28 ? cp.slice(0, 26) + '…' : cp;
@@ -11957,14 +11982,14 @@ function adsRenderWorstCtr(list) {
   return `<div style="background:#fef7e9;border-left:3px solid #BA7517;border-radius:0 8px 8px 0;padding:12px 14px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
       <div>
-        <div style="font-size:12px;font-weight:500;color:#854F0B;">② 表示多いのにクリックされない TOP5</div>
+        <div style="font-size:12px;font-weight:500;color:#854F0B;">② 表示多いのにクリックされない ${showAll ? `（全${list.length}件）` : `TOP5`}</div>
         <div style="font-size:10px;color:#BA7517;margin-top:1px;">求人タイトル・画像・冒頭文を改善する余地大 ／ 全${list.length}件</div>
       </div>
     </div>
-    <div style="overflow-x:auto;">
+    <div style="overflow-x:auto;${showAll ? 'max-height:500px;overflow-y:auto;' : ''}">
       <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:780px;">
         <thead>
-          <tr style="border-bottom:0.5px solid rgba(0,0,0,.08);color:#854F0B;text-align:left;">
+          <tr style="border-bottom:0.5px solid rgba(0,0,0,.08);color:#854F0B;text-align:left;${showAll ? 'position:sticky;top:0;background:#fef7e9;z-index:1;' : ''}">
             <th style="padding:5px 4px;font-weight:500;width:20px;">#</th>
             <th style="padding:5px 4px;font-weight:500;">求人</th>
             <th style="padding:5px 4px;font-weight:500;">企業</th>
@@ -11979,13 +12004,17 @@ function adsRenderWorstCtr(list) {
         <tbody>${tableRows}</tbody>
       </table>
     </div>
+    ${list.length > 5 ? `<div style="text-align:center;margin-top:8px;">
+      <button onclick="adsToggleWorstShowAll('ctr')" style="padding:5px 12px;background:#fff;border:1px solid #BA7517;color:#854F0B;border-radius:6px;font-size:11px;font-family:inherit;cursor:pointer;font-weight:500;transition:all .15s;" onmouseover="this.style.background='#fef7e9'" onmouseout="this.style.background='#fff'">${showAll ? '🔼 TOP5に戻す' : `🔽 全${list.length}件を表示`}</button>
+    </div>` : ''}
   </div>`;
 }
 
 function adsRenderWorstStart(list) {
   if (list.length === 0) return `<div style="background:#f5f4fd;border-left:3px solid #534AB7;border-radius:0 8px 8px 0;padding:14px;font-size:11px;color:#3C3489;">✓ クリックされた求人はちゃんと応募開始まで進んでいます！</div>`;
-  const top5 = list.slice(0, 5);
-  const tableRows = top5.map((r, i) => {
+  const showAll = adsWorstShowAll.start;
+  const displayList = showAll ? list : list.slice(0, 5);
+  const tableRows = displayList.map((r, i) => {
     const cp = r.campaign || '(未設定)';
     const cpDisplay = cp.length > 28 ? cp.slice(0, 26) + '…' : cp;
     const urlLink = r.url ? `<a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" style="color:#185FA5;text-decoration:none;font-size:10px;">求人 →</a>` : '<span style="color:#aaa;font-size:10px;">—</span>';
@@ -12004,14 +12033,14 @@ function adsRenderWorstStart(list) {
   return `<div style="background:#f5f4fd;border-left:3px solid #534AB7;border-radius:0 8px 8px 0;padding:12px 14px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
       <div>
-        <div style="font-size:12px;font-weight:500;color:#26215C;">③ クリックされてるのに応募開始されない TOP5</div>
+        <div style="font-size:12px;font-weight:500;color:#26215C;">③ クリックされてるのに応募開始されない ${showAll ? `（全${list.length}件）` : `TOP5`}</div>
         <div style="font-size:10px;color:#3C3489;margin-top:1px;">タイトルで惹けてるが、求人内容で離脱 → 本文改善余地大 ／ 全${list.length}件</div>
       </div>
     </div>
-    <div style="overflow-x:auto;">
+    <div style="overflow-x:auto;${showAll ? 'max-height:500px;overflow-y:auto;' : ''}">
       <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:780px;">
         <thead>
-          <tr style="border-bottom:0.5px solid rgba(0,0,0,.08);color:#3C3489;text-align:left;">
+          <tr style="border-bottom:0.5px solid rgba(0,0,0,.08);color:#3C3489;text-align:left;${showAll ? 'position:sticky;top:0;background:#f5f4fd;z-index:1;' : ''}">
             <th style="padding:5px 4px;font-weight:500;width:20px;">#</th>
             <th style="padding:5px 4px;font-weight:500;">求人</th>
             <th style="padding:5px 4px;font-weight:500;">企業</th>
@@ -12025,13 +12054,17 @@ function adsRenderWorstStart(list) {
         <tbody>${tableRows}</tbody>
       </table>
     </div>
+    ${list.length > 5 ? `<div style="text-align:center;margin-top:8px;">
+      <button onclick="adsToggleWorstShowAll('start')" style="padding:5px 12px;background:#fff;border:1px solid #534AB7;color:#26215C;border-radius:6px;font-size:11px;font-family:inherit;cursor:pointer;font-weight:500;transition:all .15s;" onmouseover="this.style.background='#f5f4fd'" onmouseout="this.style.background='#fff'">${showAll ? '🔼 TOP5に戻す' : `🔽 全${list.length}件を表示`}</button>
+    </div>` : ''}
   </div>`;
 }
 
 function adsRenderWorstComplete(list) {
   if (list.length === 0) return `<div style="background:#fbeaf0;border-left:3px solid #D4537E;border-radius:0 8px 8px 0;padding:14px;font-size:11px;color:#993556;">✓ 応募開始した人はほぼ完了まで進んでいます！</div>`;
-  const top5 = list.slice(0, 5);
-  const tableRows = top5.map((r, i) => {
+  const showAll = adsWorstShowAll.complete;
+  const displayList = showAll ? list : list.slice(0, 5);
+  const tableRows = displayList.map((r, i) => {
     const rate = (r.apply_start || 0) > 0 ? ((r.apply || 0) / r.apply_start * 100).toFixed(0) : '0';
     const cp = r.campaign || '(未設定)';
     const cpDisplay = cp.length > 28 ? cp.slice(0, 26) + '…' : cp;
@@ -12051,14 +12084,14 @@ function adsRenderWorstComplete(list) {
   return `<div style="background:#fbeaf0;border-left:3px solid #D4537E;border-radius:0 8px 8px 0;padding:12px 14px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
       <div>
-        <div style="font-size:12px;font-weight:500;color:#4B1528;">④ 応募開始してるのに完了されない TOP5</div>
+        <div style="font-size:12px;font-weight:500;color:#4B1528;">④ 応募開始してるのに完了されない ${showAll ? `（全${list.length}件）` : `TOP5`}</div>
         <div style="font-size:10px;color:#993556;margin-top:1px;">応募フォームが長すぎ・難しすぎ → 簡素化で改善可 ／ 全${list.length}件</div>
       </div>
     </div>
-    <div style="overflow-x:auto;">
+    <div style="overflow-x:auto;${showAll ? 'max-height:500px;overflow-y:auto;' : ''}">
       <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:780px;">
         <thead>
-          <tr style="border-bottom:0.5px solid rgba(0,0,0,.08);color:#993556;text-align:left;">
+          <tr style="border-bottom:0.5px solid rgba(0,0,0,.08);color:#993556;text-align:left;${showAll ? 'position:sticky;top:0;background:#fbeaf0;z-index:1;' : ''}">
             <th style="padding:5px 4px;font-weight:500;width:20px;">#</th>
             <th style="padding:5px 4px;font-weight:500;">求人</th>
             <th style="padding:5px 4px;font-weight:500;">企業</th>
@@ -12072,6 +12105,9 @@ function adsRenderWorstComplete(list) {
         <tbody>${tableRows}</tbody>
       </table>
     </div>
+    ${list.length > 5 ? `<div style="text-align:center;margin-top:8px;">
+      <button onclick="adsToggleWorstShowAll('complete')" style="padding:5px 12px;background:#fff;border:1px solid #D4537E;color:#4B1528;border-radius:6px;font-size:11px;font-family:inherit;cursor:pointer;font-weight:500;transition:all .15s;" onmouseover="this.style.background='#fbeaf0'" onmouseout="this.style.background='#fff'">${showAll ? '🔼 TOP5に戻す' : `🔽 全${list.length}件を表示`}</button>
+    </div>` : ''}
   </div>`;
 }
 
@@ -12081,6 +12117,8 @@ if (typeof window !== 'undefined') {
   window.adsSetJobShareBasis = adsSetJobShareBasis;
   window.adsExportJobRankingCsv = adsExportJobRankingCsv;
   window.adsSetWorstTab = adsSetWorstTab;
+  window.adsToggleJobRankingShowAll = adsToggleJobRankingShowAll;
+  window.adsToggleWorstShowAll = adsToggleWorstShowAll;
 }
 
 // ============================================================================
