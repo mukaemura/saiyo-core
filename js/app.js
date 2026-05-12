@@ -1673,7 +1673,7 @@ function showSec(s) {
   if (secEl) secEl.classList.add('active');
   // サブナビのactive表示
   const sectionToSnb = {
-    'list': 0, 'schedule': 1, 'minutes': 2, 'tasks': 3,  // operation
+    'dashboard': 0, 'list': 1, 'schedule': 2, 'minutes': 3, 'tasks': 4,  // operation
     'analytics-dash': 0, 'analytics': 1, 'budget': 2, 'ads': 3,  // analytics
     'master': 0, 'staff': 1, 'admin': 2  // admin_settings
   };
@@ -1685,7 +1685,7 @@ function showSec(s) {
       const btns = navContainer.querySelectorAll('.snb');
       // index指定のactive、ただしadd/import等は応募者一覧をactive扱い
       let activeIdx = sectionToSnb[s];
-      if (s === 'add' || s === 'import' || s === 'add-choice' || s === 'add-paste') activeIdx = 0;
+      if (s === 'add' || s === 'import' || s === 'add-choice' || s === 'add-paste') activeIdx = 1;  // 応募者一覧位置
       if (btns[activeIdx]) btns[activeIdx].classList.add('active');
     }
   }
