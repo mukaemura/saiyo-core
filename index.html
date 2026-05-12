@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
 <!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260512r">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260512r">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260512r">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260512r">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260512r">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260512s">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260512s">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260512s">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260512s">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260512s">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260512r">
+<link rel="stylesheet" href="css/style.css?v=20260512s">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -1823,7 +1823,7 @@
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <!-- ロゴ＋プラットフォームサブテキスト -->
         <a href="#" onclick="goHome();return false;" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;cursor:pointer;" title="ホームに戻る">
-          <img src="assets/saiyo_mark.png?v=20260512r" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
+          <img src="assets/saiyo_mark.png?v=20260512s" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
           <div style="line-height:1;">
             <div style="font-size:14px;font-weight:600;color:#1a1a1a;">採用コア</div>
             <div style="font-size:9px;color:#888;letter-spacing:0.08em;margin-top:3px;">RECRUITING PLATFORM</div>
@@ -1896,6 +1896,7 @@
     <div class="header-subnav" id="subNavBar">
       <!-- 採用運用モードのサブナビ -->
       <nav class="sub-nav" id="subNavOperation" data-mode="operation" style="display:none;">
+        <button class="snb" onclick="showSec('dashboard')">📊 運用ダッシュボード</button>
         <button class="snb" onclick="showSec('list')">応募者一覧</button>
         <button class="snb" onclick="showSec('schedule')" id="scheduleNavBtn">📅 対応スケジュール確認</button>
         <button class="snb" onclick="showSec('minutes')">議事録</button>
@@ -1903,7 +1904,7 @@
       </nav>
       <!-- 採用分析モードのサブナビ -->
       <nav class="sub-nav" id="subNavAnalytics" data-mode="analytics" style="display:none;">
-        <button class="snb" onclick="showSec('analytics-dash')">📊 分析ダッシュ</button>
+        <button class="snb" onclick="showSec('analytics-dash')">📊 分析ダッシュボード</button>
         <button class="snb" onclick="showSec('analytics')">📈 応募者分析</button>
         <button class="snb" onclick="showSec('budget')">💰 採用予算管理</button>
         <button class="snb" onclick="showSec('ads')">📣 有料広告実績</button>
@@ -4087,10 +4088,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260512r"></script>
-<script src="js/app.js?v=20260512r"></script>
-<script src="js/paste-feature.js?v=20260512r"></script>
-<script src="js/email-feature.js?v=20260512r"></script>
-<script src="js/chip-feature.js?v=20260512r"></script>
+<script src="js/router.js?v=20260512s"></script>
+<script src="js/app.js?v=20260512s"></script>
+<script src="js/paste-feature.js?v=20260512s"></script>
+<script src="js/email-feature.js?v=20260512s"></script>
+<script src="js/chip-feature.js?v=20260512s"></script>
 </body>
 </html>
