@@ -12040,5 +12040,618 @@ if (typeof window !== 'undefined') {
   window.adsSetWorstTab = adsSetWorstTab;
 }
 
+// ============================================================================
+// 🐨 フェーズ3：コアラ診断（モック版）
+// 2026/05/12 追加
+// ============================================================================
+// 構成：
+// - adsGenerateKoalaDiagnosis(): メイン関数。後で本物AIに差し替え可能
+// - adsGenerateMockDiagnosis(): ルールベースで診断結果を組み立てる
+// - adsRenderKoalaDiagnosisCard(): カードのHTML描画
+// - adsAskKoala() / adsCloseKoalaChat() などUI操作
+// ============================================================================
+
+let adsKoalaCache = {};   // key: シグネチャ, value: 診断結果
+let adsKoalaChatHistory = [];  // {role, text}
+
+// パート3の adsRefreshAnalytics を更に拡張：コアラも描画
+const _origAdsRefreshAnalytics_v4 = window.adsRefreshAnalytics;
+window.adsRefreshAnalytics = function() {
+  if (typeof _origAdsRefreshAnalytics_v4 === 'function') _origAdsRefreshAnalytics_v4();
+  adsRenderKoalaDiagnosisCard();
+};
+
+// メイン：診断を取得（キャッシュ→生成）
+async function adsGenerateKoalaDiagnosis(payload, forceRefresh) {
+  const sig = adsBuildDiagnosisSignature(payload);
+  if (!forceRefresh && adsKoalaCache[sig]) {
+    return { ...adsKoalaCache[sig], cached: true };
+  }
+  // ★ ここを将来 adsCallClaudeAPI(payload) に差し替えるだけで本物AI化できる ★
+  const result = adsGenerateMockDiagnosis(payload);
+  adsKoalaCache[sig] = result;
+  return { ...result, cached: false };
+}
+
+// 診断データの「指紋」生成（キャッシュキー）
+function adsBuildDiagnosisSignature(p) {
+  return [
+    p.media, p.periodLabel, p.cp,
+    p.main.imp, p.main.click, p.main.apply_start, p.main.apply, p.main.cost,
+    (p.compare ? `${p.compare.imp}|${p.compare.click}|${p.compare.apply}|${p.compare.cost}` : 'noCmp'),
+    p.worst.cost.length, p.worst.ctr.length, p.worst.start.length, p.worst.complete.length,
+  ].join('::');
+}
+
+// ====== モック診断ロジック ======
+function adsGenerateMockDiagnosis(p) {
+  const m = p.main;
+  const c = p.compare;
+  const w = p.worst;
+  const cpData = p.cpData;  // CP別データ
+
+  // 全体所感（応募数の前期比、CPAの状況）
+  let mood;  // 'great' / 'good' / 'caution' / 'warn'
+  let summary;
+  let summaryDetail;
+
+  const applyDiff = c && c.apply > 0 ? ((m.apply - c.apply) / c.apply) * 100 : null;
+  const costDiff = c && c.cost > 0 ? ((m.cost - c.cost) / c.cost) * 100 : null;
+  const cpaCur = m.apply > 0 ? m.cost / m.apply : 0;
+  const cpaPrev = c && c.apply > 0 ? c.cost / c.apply : 0;
+  const cpaDiff = cpaPrev > 0 ? ((cpaCur - cpaPrev) / cpaPrev) * 100 : null;
+  const wasteRate = m.cost > 0 ? (w.cost.reduce((s, r) => s + (Number(r.cost) || 0), 0) / m.cost) * 100 : 0;
+
+  // ムード判定
+  if (m.apply === 0 && m.imp > 0) {
+    mood = 'caution';
+    summary = '応募ゼロが続いてるよ…一緒に原因を探そう';
+    summaryDetail = `${p.periodLabel}は応募が0件でした。表示は${m.imp.toLocaleString()}回あったので、求人が表示されてはいるんだけど、応募完了まで至っていない状態です。求人タイトルや募集条件を見直すと改善できるかも。`;
+  } else if (applyDiff !== null) {
+    // 前期比あり
+    if (applyDiff >= 20 && (cpaDiff === null || cpaDiff <= 0)) {
+      mood = 'great';
+      summary = `応募${m.apply}件で前期比+${applyDiff.toFixed(1)}%！絶好調だよ✨`;
+      summaryDetail = `${p.periodLabel}は前期比+${applyDiff.toFixed(1)}%で応募完了${m.apply}件達成。CPAも${cpaDiff !== null ? cpaDiff.toFixed(1) + '%改善' : '安定'}してて、運用が効いてるね〜！この調子！`;
+    } else if (applyDiff >= 0) {
+      mood = 'good';
+      summary = `応募${m.apply}件で前期比+${applyDiff.toFixed(1)}%、堅調だね〜`;
+      summaryDetail = `${p.periodLabel}は応募完了${m.apply}件で前期比+${applyDiff.toFixed(1)}%。順調に伸びてるよ。${wasteRate > 5 ? `ただ、応募ゼロのまま費用がかかってる求人が${w.cost.length}件あって、全費用の${wasteRate.toFixed(1)}%（¥${Math.round(w.cost.reduce((s,r)=>s+Number(r.cost||0),0)).toLocaleString()}）がムダになってる可能性があるんだ。` : ''}`;
+    } else if (applyDiff >= -10) {
+      mood = 'caution';
+      summary = `応募${m.apply}件、前月よりちょっと下がってる…`;
+      summaryDetail = `${p.periodLabel}は応募完了${m.apply}件で前期比${applyDiff.toFixed(1)}%。少し下がってるね。${cpaDiff !== null && cpaDiff > 10 ? `CPAも${cpaDiff.toFixed(1)}%上がってて、効率が悪化してる可能性あり。` : ''}原因を一緒に探してみよう。`;
+    } else {
+      mood = 'warn';
+      summary = `応募が大幅に下がってる…(${applyDiff.toFixed(1)}%)`;
+      summaryDetail = `${p.periodLabel}は応募完了${m.apply}件で前期比${applyDiff.toFixed(1)}%と大きく低下。求人内容・予算配分・媒体側のアルゴリズム変化など複数要因が考えられます。早めに対処したいね。`;
+    }
+  } else {
+    // 前期比なし
+    if (m.apply >= 50) {
+      mood = 'good';
+      summary = `応募${m.apply}件、順調だね〜`;
+      summaryDetail = `${p.periodLabel}は応募完了${m.apply}件。${m.cost > 0 ? `費用¥${Math.round(m.cost).toLocaleString()}でCPA¥${Math.round(cpaCur).toLocaleString()}` : ''}。${wasteRate > 5 ? `応募ゼロ求人が${w.cost.length}件あって、改善余地もあるよ。` : '効率的に運用できてるよ。'}`;
+    } else {
+      mood = 'good';
+      summary = `応募${m.apply}件の月だったね`;
+      summaryDetail = `${p.periodLabel}は応募完了${m.apply}件。${m.cost > 0 ? `費用¥${Math.round(m.cost).toLocaleString()}で運用` : ''}。比較する前期データがあると、もっと深く分析できるよ。`;
+    }
+  }
+
+  // 気になるポイント①（最大ムダ費用の求人）
+  const insights = [];
+  if (w.cost.length > 0) {
+    const top = w.cost[0];
+    insights.push({
+      type: 'warn',
+      color: '#D85A30',
+      label: '⚠ 気になる①',
+      title: `「${(top.job_title || '').slice(0, 24)}${top.job_title && top.job_title.length > 24 ? '…' : ''}」がムダ費用TOP`,
+      detail: `¥${Math.round(Number(top.cost) || 0).toLocaleString()}消費でクリック${top.click || 0}なのに応募0。求人本文の見直しか出稿停止を検討してね。`
+    });
+  }
+
+  // 気になるポイント②（応募開始されない or 応募完了率低い）
+  if (w.start.length > 0) {
+    insights.push({
+      type: 'warn',
+      color: '#BA7517',
+      label: '⚠ 気になる②',
+      title: `クリックされてるのに応募開始0が${w.start.length}件`,
+      detail: 'タイトルで惹けてるけど、求人本文で離脱されてるかも。仕事内容や応募条件を魅力的にしてみよう。'
+    });
+  } else if (w.complete.length > 0) {
+    insights.push({
+      type: 'warn',
+      color: '#BA7517',
+      label: '⚠ 気になる②',
+      title: `応募完了率が低い求人が${w.complete.length}件`,
+      detail: '応募開始したのに完了しない＝応募フォームか必要書類が重い可能性。簡素化を検討してみよう。'
+    });
+  } else if (w.ctr.length > 0) {
+    insights.push({
+      type: 'warn',
+      color: '#BA7517',
+      label: '⚠ 気になる②',
+      title: `CTRが低い求人が${w.ctr.length}件`,
+      detail: '表示されてもクリックされない＝求人タイトルや画像が弱いかも。タイトルに具体的な数字を入れると改善するよ。'
+    });
+  }
+
+  // 改善アクション
+  let action;
+  if (cpData && cpData.length >= 2) {
+    // 複数CPある場合：CPAの差を見て予算配分提案
+    const sorted = [...cpData].filter(d => d.agg.apply > 0).sort((a, b) => a.agg.cpa - b.agg.cpa);
+    if (sorted.length >= 2) {
+      const best = sorted[0];
+      const worst = sorted[sorted.length - 1];
+      const diff = Math.round(worst.agg.cpa - best.agg.cpa);
+      if (diff > 500) {
+        action = {
+          color: '#5a8a48',
+          label: '💡 こうしてみない？',
+          title: `予算をCPA優秀なCPに寄せよう`,
+          detail: `「${best.cp.slice(0, 20)}…」がCPA¥${Math.round(best.agg.cpa).toLocaleString()}で最効率。低効率CPから予算を移すと月+${Math.round(diff/best.agg.cpa)}件くらい見込めるかも。`
+        };
+      }
+    }
+  }
+  if (!action && m.apply > 0 && wasteRate > 5) {
+    action = {
+      color: '#5a8a48',
+      label: '💡 こうしてみない？',
+      title: '応募ゼロ求人の出稿を見直す',
+      detail: `応募ゼロで¥${Math.round(w.cost.reduce((s,r)=>s+Number(r.cost||0),0)).toLocaleString()}（${wasteRate.toFixed(1)}%）が消費されてる。これらを停止すると、その分の予算を他に回せるよ。`
+    };
+  }
+  if (!action && m.imp > 0 && m.click === 0) {
+    action = {
+      color: '#5a8a48',
+      label: '💡 こうしてみない？',
+      title: 'まず求人タイトルから見直そう',
+      detail: '表示はあるけどクリックが0。これは求人タイトルが採用層に刺さってない可能性が高いよ。「経験者歓迎」「未経験OK」など具体的なキーワードを入れてみて。'
+    };
+  }
+  if (!action) {
+    action = {
+      color: '#5a8a48',
+      label: '💡 こうしてみない？',
+      title: '現状の運用を維持しつつ微調整',
+      detail: '今のところ大きな問題は見当たらないよ。CPシェアが高い求人の予算を維持しつつ、低パフォーマンス求人の見直しを継続しよう。'
+    };
+  }
+  insights.push(action);
+
+  return {
+    mood,
+    summary,
+    summaryDetail,
+    insights,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+// コアラ画像URLをムードから決定
+function adsGetKoalaImage(mood) {
+  switch (mood) {
+    case 'great':   return 'assets/koala-kira.png';
+    case 'good':    return 'assets/koala-good.png';
+    case 'caution': return 'assets/koala-think.png';
+    case 'warn':    return 'assets/koala-think.png';
+    case 'loading': return 'assets/koala-pc.png';
+    default:        return 'assets/koala-pc.png';
+  }
+}
+function adsGetKoalaMoodLabel(mood) {
+  switch (mood) {
+    case 'great':   return 'キラキラ✨ コアラ';
+    case 'good':    return 'グッド👍 コアラ';
+    case 'caution': return '考えるコアラ🤔';
+    case 'warn':    return '心配コアラ😟';
+    default:        return 'コアラ';
+  }
+}
+
+// 現在のフィルタ状態から診断用payloadを構築
+function adsBuildDiagnosisPayload() {
+  const result = adsFilterRowsByPeriod();
+  const rows = result.rows || [];
+  const compareRows = result.compareRows || null;
+  const main = adsAggregate(rows);
+  const compare = compareRows ? adsAggregate(compareRows) : null;
+
+  // ワーストランキング
+  const w_cost = rows.filter(r => (r.apply || 0) === 0 && (Number(r.cost) || 0) > 0)
+                     .sort((a, b) => (Number(b.cost) || 0) - (Number(a.cost) || 0));
+  const w_ctr = rows.filter(r => (r.imp || 0) >= 100 && ((r.click || 0) === 0 || (r.click || 0) / r.imp < 0.01))
+                    .sort((a, b) => (b.imp || 0) - (a.imp || 0));
+  const w_start = rows.filter(r => (r.click || 0) >= 20 && (r.apply_start || 0) === 0)
+                      .sort((a, b) => (b.click || 0) - (a.click || 0));
+  const w_complete = rows.filter(r => (r.apply_start || 0) >= 3 && (r.apply || 0) / r.apply_start < 0.5)
+                         .sort((a, b) => (b.apply_start || 0) - (a.apply_start || 0));
+
+  // CP別データ
+  const byCp = {};
+  rows.forEach(r => {
+    const cp = r.campaign || '(未設定)';
+    if (!byCp[cp]) byCp[cp] = [];
+    byCp[cp].push(r);
+  });
+  const cpData = Object.keys(byCp).map(cp => ({
+    cp,
+    agg: adsAggregate(byCp[cp]),
+  }));
+
+  return {
+    media: adsActiveMedia,
+    periodLabel: result.periodLabel,
+    cp: document.getElementById('adsCampaignFilter')?.value || '',
+    main, compare,
+    worst: { cost: w_cost, ctr: w_ctr, start: w_start, complete: w_complete },
+    cpData,
+    rowCount: rows.length,
+  };
+}
+
+// コアラ診断カードを描画
+async function adsRenderKoalaDiagnosisCard() {
+  const el = document.getElementById('adsKoalaDiagnosisCard');
+  if (!el) return;
+
+  const payload = adsBuildDiagnosisPayload();
+  if (payload.main.rowCount === 0) {
+    // データなし
+    el.innerHTML = `
+      <div style="background:linear-gradient(135deg,#fafdf7 0%,#f4f8f1 100%);border:1px solid #c0dd97;border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+        <img src="assets/koala-think.png" alt="コアラ" style="width:54px;height:54px;object-fit:contain;">
+        <div style="flex:1;">
+          <div style="font-size:12px;font-weight:500;color:#3B6D11;margin-bottom:2px;">🐨 コアラ診断</div>
+          <div style="font-size:11px;color:#555;line-height:1.7;">${payload.periodLabel}にはまだデータがないみたい。期間を変えるか、CSVをアップロードしてくれたら診断するよ〜</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  // ローディング表示
+  el.innerHTML = `
+    <div style="background:linear-gradient(135deg,#fafdf7 0%,#f4f8f1 100%);border:1px solid #c0dd97;border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+      <img src="assets/koala-pc.png" alt="コアラ" style="width:54px;height:54px;object-fit:contain;">
+      <div style="flex:1;">
+        <div style="font-size:12px;font-weight:500;color:#3B6D11;margin-bottom:2px;">🐨 コアラ診断</div>
+        <div style="font-size:11px;color:#5a8a48;line-height:1.7;">📊 データを分析してるよ…</div>
+      </div>
+    </div>`;
+
+  const diag = await adsGenerateKoalaDiagnosis(payload);
+
+  // 本体描画
+  const insightsHtml = diag.insights.map(ins => `
+    <div style="background:#fff;border-radius:8px;padding:10px 12px;border:1px solid #e8ebe9;border-top:3px solid ${ins.color};">
+      <div style="font-size:10px;color:${ins.color};font-weight:500;margin-bottom:3px;">${ins.label}</div>
+      <div style="font-size:11px;color:#1a1a1a;font-weight:500;line-height:1.5;margin-bottom:3px;">${escapeHtml(ins.title)}</div>
+      <div style="font-size:10px;color:#666;line-height:1.6;">${escapeHtml(ins.detail)}</div>
+    </div>
+  `).join('');
+
+  const koalaImg = adsGetKoalaImage(diag.mood);
+  const moodLabel = adsGetKoalaMoodLabel(diag.mood);
+  const cached = diag.cached ? '<span style="font-size:9px;color:#aaa;margin-left:6px;">（キャッシュ表示）</span>' : '';
+
+  el.innerHTML = `
+    <div style="background:linear-gradient(135deg,#fafdf7 0%,#f4f8f1 100%);border:1px solid #c0dd97;border-radius:12px;padding:16px 18px;">
+      <div style="display:flex;align-items:flex-start;gap:14px;">
+
+        <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;">
+          <div style="width:88px;height:88px;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #c0dd97;position:relative;overflow:hidden;">
+            <img src="${koalaImg}" alt="コアラ" style="width:74px;height:74px;object-fit:contain;">
+          </div>
+          <div style="font-size:9px;color:#5a8a48;font-weight:500;margin-top:6px;letter-spacing:.04em;text-align:center;">${moodLabel}</div>
+        </div>
+
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+            <div>
+              <div style="font-size:14px;font-weight:500;color:#1a1a1a;letter-spacing:.04em;">🐨 コアラ診断${cached}</div>
+              <div style="font-size:10px;color:#888;margin-top:1px;">${escapeHtml(payload.periodLabel)} ／ 対象求人 ${payload.main.rowCount.toLocaleString()}件 ／ ${new Date(diag.generatedAt).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'})} 生成</div>
+            </div>
+            <button onclick="adsRefreshKoalaDiagnosis()" style="padding:5px 11px;background:#fff;color:#5a8a48;border:1px solid #5a8a48;border-radius:6px;font-size:10px;font-weight:500;font-family:inherit;cursor:pointer;">🔄 もう一度診てもらう</button>
+          </div>
+
+          <div style="background:#fff;border-radius:8px;padding:11px 13px;margin-bottom:8px;border-left:3px solid #5a8a48;position:relative;">
+            <div style="position:absolute;top:14px;left:-7px;width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:8px solid #fff;"></div>
+            <div style="font-size:11px;font-weight:500;color:#1a1a1a;margin-bottom:4px;">${escapeHtml(diag.summary)}</div>
+            <div style="font-size:11px;color:#444;line-height:1.7;">${escapeHtml(diag.summaryDetail)}</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:${diag.insights.length === 3 ? 'repeat(3,1fr)' : 'repeat(2,1fr)'};gap:8px;">
+            ${insightsHtml}
+          </div>
+
+          <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">
+            <button onclick="adsOpenKoalaDetail()" style="padding:4px 10px;background:#fff;border:1px solid #e3e3e0;border-radius:14px;font-size:10px;color:#5a8a48;cursor:pointer;font-family:inherit;">📋 もっと詳しく聞く</button>
+            <button onclick="adsOpenKoalaChat()" style="padding:4px 10px;background:#fff;border:1px solid #e3e3e0;border-radius:14px;font-size:10px;color:#666;cursor:pointer;font-family:inherit;">💬 コアラに質問</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;padding-top:10px;border-top:0.5px dashed #c0dd97;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+        <div style="font-size:9.5px;color:#5a8a48;">💡 コアラの顔は診断内容で変わるよ：考える🤔→注意あり / グッド👍→順調 / キラキラ✨→絶好調</div>
+        <div style="font-size:9px;color:#888;">Powered by Saiyo Core 🐨</div>
+      </div>
+    </div>
+  `;
+}
+
+// 「もう一度診てもらう」ボタン
+async function adsRefreshKoalaDiagnosis() {
+  const payload = adsBuildDiagnosisPayload();
+  const sig = adsBuildDiagnosisSignature(payload);
+  delete adsKoalaCache[sig];
+  await adsRenderKoalaDiagnosisCard();
+}
+
+// ====== 「もっと詳しく聞く」モーダル ======
+function adsOpenKoalaDetail() {
+  const payload = adsBuildDiagnosisPayload();
+  const m = payload.main;
+  const c = payload.compare;
+  const w = payload.worst;
+  const cpData = payload.cpData;
+
+  document.getElementById('adsKoalaDetailPeriod').textContent = `${payload.periodLabel} ／ 対象求人 ${m.rowCount.toLocaleString()}件`;
+
+  // 詳しい診断レポート（より長いテキスト）
+  let html = '';
+  // 全体サマリー
+  html += `<div style="background:#fafdf7;border-left:3px solid #5a8a48;border-radius:0 8px 8px 0;padding:12px 14px;margin-bottom:14px;">
+    <div style="font-size:13px;font-weight:500;color:#3B6D11;margin-bottom:6px;">📈 全体パフォーマンス</div>
+    <div style="font-size:11.5px;color:#444;line-height:1.8;">
+      ${escapeHtml(payload.periodLabel)}の運用結果は、表示<strong>${m.imp.toLocaleString()}</strong>回、クリック<strong>${m.click.toLocaleString()}</strong>回、応募開始<strong>${m.apply_start}</strong>件、応募完了<strong style="color:#5a8a48;">${m.apply}</strong>件、費用<strong>¥${Math.round(m.cost).toLocaleString()}</strong>でした。<br>
+      CTRは<strong>${(m.ctr * 100).toFixed(2)}%</strong>、応募完了率は<strong>${(m.completion_rate * 100).toFixed(1)}%</strong>。${m.apply > 0 ? `CPAは<strong>¥${Math.round(m.cpa).toLocaleString()}</strong>でした。` : ''}
+    </div>
+  </div>`;
+
+  // 前期比較
+  if (c) {
+    const applyDiff = c.apply > 0 ? ((m.apply - c.apply) / c.apply * 100).toFixed(1) : '—';
+    const costDiff = c.cost > 0 ? ((m.cost - c.cost) / c.cost * 100).toFixed(1) : '—';
+    const cpaCur = m.apply > 0 ? m.cost / m.apply : 0;
+    const cpaPrev = c.apply > 0 ? c.cost / c.apply : 0;
+    const cpaDiff = cpaPrev > 0 ? ((cpaCur - cpaPrev) / cpaPrev * 100).toFixed(1) : '—';
+    html += `<div style="background:#f5f5f3;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
+      <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-bottom:6px;">📊 前期との比較</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+        <tr><td style="padding:3px 0;color:#666;width:40%;">応募完了数</td><td style="padding:3px 0;color:#1a1a1a;">${m.apply} ← ${c.apply}（${applyDiff !== '—' ? (parseFloat(applyDiff) >= 0 ? '+' : '') + applyDiff + '%' : '—'}）</td></tr>
+        <tr><td style="padding:3px 0;color:#666;">費用</td><td style="padding:3px 0;color:#1a1a1a;">¥${Math.round(m.cost).toLocaleString()} ← ¥${Math.round(c.cost).toLocaleString()}（${costDiff !== '—' ? (parseFloat(costDiff) >= 0 ? '+' : '') + costDiff + '%' : '—'}）</td></tr>
+        <tr><td style="padding:3px 0;color:#666;">CPA</td><td style="padding:3px 0;color:#1a1a1a;">${cpaCur > 0 ? '¥' + Math.round(cpaCur).toLocaleString() : '—'} ← ${cpaPrev > 0 ? '¥' + Math.round(cpaPrev).toLocaleString() : '—'}（${cpaDiff !== '—' ? (parseFloat(cpaDiff) >= 0 ? '+' : '') + cpaDiff + '%' : '—'}）</td></tr>
+      </table>
+    </div>`;
+  }
+
+  // 改善ポイント
+  html += `<div style="background:#fff;border:1px solid #e8ebe9;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
+    <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-bottom:8px;">⚠ 改善ポイント詳細</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+      <tr style="border-bottom:0.5px solid #f0f0ee;"><td style="padding:5px 0;color:#666;">①費用かかってるのに応募0</td><td style="padding:5px 0;text-align:right;font-weight:500;color:${w.cost.length > 5 ? '#D85A30' : '#666'};">${w.cost.length}件 ／ ¥${Math.round(w.cost.reduce((s,r)=>s+Number(r.cost||0),0)).toLocaleString()}</td></tr>
+      <tr style="border-bottom:0.5px solid #f0f0ee;"><td style="padding:5px 0;color:#666;">②表示多いのにクリックされない</td><td style="padding:5px 0;text-align:right;font-weight:500;color:${w.ctr.length > 3 ? '#BA7517' : '#666'};">${w.ctr.length}件</td></tr>
+      <tr style="border-bottom:0.5px solid #f0f0ee;"><td style="padding:5px 0;color:#666;">③クリック多いのに応募開始0</td><td style="padding:5px 0;text-align:right;font-weight:500;color:${w.start.length > 3 ? '#534AB7' : '#666'};">${w.start.length}件</td></tr>
+      <tr><td style="padding:5px 0;color:#666;">④応募開始したのに完了率低</td><td style="padding:5px 0;text-align:right;font-weight:500;color:${w.complete.length > 3 ? '#D4537E' : '#666'};">${w.complete.length}件</td></tr>
+    </table>
+  </div>`;
+
+  // CP別の推奨アクション
+  if (cpData && cpData.length >= 2) {
+    const sorted = [...cpData].filter(d => d.agg.apply > 0).sort((a, b) => a.agg.cpa - b.agg.cpa);
+    if (sorted.length >= 2) {
+      html += `<div style="background:#fff;border:1px solid #e8ebe9;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-bottom:8px;">📣 CP別パフォーマンス</div>
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <thead><tr style="border-bottom:1px solid #e8ebe9;color:#666;text-align:left;">
+            <th style="padding:5px 4px;font-weight:500;">CP</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;">応募</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;">CPA</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;">費用</th>
+          </tr></thead>
+          <tbody>${sorted.map(d => `<tr style="border-bottom:0.5px solid #f0f0ee;">
+            <td style="padding:5px 4px;color:#1a1a1a;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(d.cp)}">${escapeHtml(d.cp.slice(0, 32))}${d.cp.length > 32 ? '…' : ''}</td>
+            <td style="padding:5px 4px;text-align:right;font-weight:500;">${d.agg.apply}</td>
+            <td style="padding:5px 4px;text-align:right;">¥${Math.round(d.agg.cpa).toLocaleString()}</td>
+            <td style="padding:5px 4px;text-align:right;">¥${Math.round(d.agg.cost).toLocaleString()}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+    }
+  }
+
+  // アクションサマリ
+  html += `<div style="background:#fafdf7;border-left:3px solid #5a8a48;border-radius:0 8px 8px 0;padding:12px 14px;">
+    <div style="font-size:13px;font-weight:500;color:#3B6D11;margin-bottom:6px;">💡 次のアクション提案</div>
+    <div style="font-size:11.5px;color:#444;line-height:1.8;">
+      ${w.cost.length > 5 ? `• 応募ゼロで¥${Math.round(w.cost.reduce((s,r)=>s+Number(r.cost||0),0)).toLocaleString()}を消費している${w.cost.length}件の求人を見直し、不要なものは停止<br>` : ''}
+      ${w.ctr.length > 0 ? `• CTRが低い${w.ctr.length}件は求人タイトルを見直し、具体的な数字や訴求ポイントを追加<br>` : ''}
+      ${w.start.length > 0 ? `• クリックされても応募開始されない${w.start.length}件は求人本文（仕事内容・条件）を改善<br>` : ''}
+      ${w.complete.length > 0 ? `• 応募完了率が低い${w.complete.length}件は応募フォームの簡素化を検討<br>` : ''}
+      ${cpData && cpData.length >= 2 ? `• 効率の良いCPに予算を寄せて、低効率CPの予算を削減する<br>` : ''}
+      • 月次でこの診断を確認し、改善サイクルを回そう
+    </div>
+  </div>`;
+
+  document.getElementById('adsKoalaDetailBody').innerHTML = html;
+  document.getElementById('adsKoalaDetailModal').style.display = 'flex';
+}
+function adsCloseKoalaDetail() {
+  document.getElementById('adsKoalaDetailModal').style.display = 'none';
+}
+function adsCloseKoalaDetailBg(e) {
+  if (e && e.target && e.target.id === 'adsKoalaDetailModal') adsCloseKoalaDetail();
+}
+
+// ====== 「コアラに質問」チャット ======
+function adsOpenKoalaChat() {
+  adsKoalaChatHistory = [];
+  // ウェルカムメッセージ
+  adsKoalaChatHistory.push({
+    role: 'koala',
+    text: 'やあ！何か気になることがあったら聞いてね〜！データを見て答えるよ。'
+  });
+  adsRenderKoalaChat();
+  document.getElementById('adsKoalaChatInput').value = '';
+  document.getElementById('adsKoalaChatModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('adsKoalaChatInput')?.focus(), 100);
+}
+function adsCloseKoalaChat() {
+  document.getElementById('adsKoalaChatModal').style.display = 'none';
+}
+function adsCloseKoalaChatBg(e) {
+  if (e && e.target && e.target.id === 'adsKoalaChatModal') adsCloseKoalaChat();
+}
+
+function adsRenderKoalaChat() {
+  const body = document.getElementById('adsKoalaChatBody');
+  if (!body) return;
+  body.innerHTML = adsKoalaChatHistory.map(msg => {
+    if (msg.role === 'user') {
+      return `<div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+        <div style="background:#5a8a48;color:#fff;padding:8px 12px;border-radius:14px 14px 4px 14px;font-size:12px;max-width:80%;line-height:1.6;">${escapeHtml(msg.text)}</div>
+      </div>`;
+    } else {
+      return `<div style="display:flex;justify-content:flex-start;margin-bottom:8px;gap:6px;align-items:flex-end;">
+        <img src="assets/koala-pc.png" alt="コアラ" style="width:28px;height:28px;object-fit:contain;flex-shrink:0;">
+        <div style="background:#fff;border:1px solid #e8ebe9;color:#1a1a1a;padding:8px 12px;border-radius:14px 14px 14px 4px;font-size:12px;max-width:80%;line-height:1.7;">${msg.text.replace(/\n/g, '<br>')}</div>
+      </div>`;
+    }
+  }).join('');
+  body.scrollTop = body.scrollHeight;
+}
+
+// 質問の送信（モック回答）
+async function adsAskKoala(presetText) {
+  const input = document.getElementById('adsKoalaChatInput');
+  const q = presetText || (input ? input.value.trim() : '');
+  if (!q) return;
+  if (input) input.value = '';
+
+  adsKoalaChatHistory.push({ role: 'user', text: q });
+  adsRenderKoalaChat();
+
+  // ローディング表示
+  adsKoalaChatHistory.push({ role: 'koala', text: '🤔 考えてるよ…' });
+  adsRenderKoalaChat();
+
+  // 少し待つ（演出）
+  await new Promise(r => setTimeout(r, 600));
+
+  // 最後の「考えてるよ」を本当の回答に差し替え
+  const payload = adsBuildDiagnosisPayload();
+  const answer = adsGenerateMockChatAnswer(q, payload);
+  adsKoalaChatHistory[adsKoalaChatHistory.length - 1] = { role: 'koala', text: answer };
+  adsRenderKoalaChat();
+}
+
+// 質問内容に応じて動的に回答を組み立てる
+function adsGenerateMockChatAnswer(q, p) {
+  const m = p.main;
+  const c = p.compare;
+  const w = p.worst;
+  const cpData = p.cpData;
+  const cpaCur = m.apply > 0 ? m.cost / m.apply : 0;
+  const cpaPrev = c && c.apply > 0 ? c.cost / c.apply : 0;
+
+  // キーワード判定
+  if (/CPA|単価|高い|上が|下が/.test(q)) {
+    if (c) {
+      const diff = cpaPrev > 0 ? ((cpaCur - cpaPrev) / cpaPrev * 100) : 0;
+      if (diff > 5) {
+        return `CPAは前期¥${Math.round(cpaPrev).toLocaleString()} → 今期¥${Math.round(cpaCur).toLocaleString()}（+${diff.toFixed(1)}%）と上がってるね。主な要因は：\n` +
+               `• 応募ゼロで費用がかかってる求人${w.cost.length}件（¥${Math.round(w.cost.reduce((s,r)=>s+Number(r.cost||0),0)).toLocaleString()}）\n` +
+               `• 表示数は伸びてるけどクリック率が${(m.ctr * 100).toFixed(2)}%でやや低い\n` +
+               `特に①の低パフォーマンス求人を見直すと、CPA改善できるよ。`;
+      } else if (diff < -5) {
+        return `CPAは前期¥${Math.round(cpaPrev).toLocaleString()} → 今期¥${Math.round(cpaCur).toLocaleString()}（${diff.toFixed(1)}%）と改善してるよ！✨\n運用が効いてる証拠だね。この調子で続けよう。`;
+      }
+      return `CPAは前期¥${Math.round(cpaPrev).toLocaleString()} → 今期¥${Math.round(cpaCur).toLocaleString()}でほぼ横ばい。安定運用できてるね。`;
+    }
+    return `現在のCPAは¥${Math.round(cpaCur).toLocaleString()}。前期データと比較すると変化が分かるから、「比較」モードに切り替えてみて！`;
+  }
+  if (/予算|配分|どこ|増やす|減らす/.test(q)) {
+    if (cpData && cpData.length >= 2) {
+      const sorted = [...cpData].filter(d => d.agg.apply > 0).sort((a, b) => a.agg.cpa - b.agg.cpa);
+      if (sorted.length >= 2) {
+        const best = sorted[0];
+        const worst = sorted[sorted.length - 1];
+        return `予算配分のヒントだよ！\n\n` +
+               `🥇 最も効率の良いCP\n「${best.cp.slice(0,40)}」\nCPA: ¥${Math.round(best.agg.cpa).toLocaleString()}（応募${best.agg.apply}件）\n\n` +
+               `🐌 効率が低いCP\n「${worst.cp.slice(0,40)}」\nCPA: ¥${Math.round(worst.agg.cpa).toLocaleString()}（応募${worst.agg.apply}件）\n\n` +
+               `差は¥${Math.round(worst.agg.cpa - best.agg.cpa).toLocaleString()}。低効率CPの予算を減らして、高効率CPに寄せると、同じ予算で応募数が増えるよ。`;
+      }
+    }
+    return `予算を最適化するには、まずCP別の効率を見るのがおすすめ！\n• 応募ゼロで費用がかかってる求人（${w.cost.length}件）を停止\n• CPAが安いCPに予算を寄せる\n• 季節要因や採用緊急度に応じて調整\nこの3点を意識してみて！`;
+  }
+  if (/応募|増やす|少ない/.test(q)) {
+    let msg = `応募数を増やすコツだよ！\n\n`;
+    if (w.ctr.length > 0) msg += `1️⃣ CTRが低い求人${w.ctr.length}件 → 求人タイトルを見直し（具体的な数字や訴求を追加）\n`;
+    if (w.start.length > 0) msg += `2️⃣ クリックされてるのに応募開始0が${w.start.length}件 → 求人本文を魅力的に\n`;
+    if (w.complete.length > 0) msg += `3️⃣ 応募完了率が低い${w.complete.length}件 → 応募フォームを簡素化\n`;
+    if (w.cost.length > 0) msg += `4️⃣ 応募ゼロで費用がかかってる${w.cost.length}件 → 出稿停止か内容刷新\n`;
+    msg += `\n特に1番効果が出やすいのは、求人タイトルの改善だよ。`;
+    return msg;
+  }
+  if (/求人|どれ|タイトル|本文/.test(q)) {
+    if (w.cost.length > 0) {
+      const top = w.cost[0];
+      return `見直すべき求人No.1は「${(top.job_title || '').slice(0, 30)}」だよ。\n¥${Math.round(Number(top.cost) || 0).toLocaleString()}の費用がかかってるのに応募0件。\n` +
+             `提案：\n• 求人タイトルを見直す（具体的な仕事内容・特徴を追加）\n• 募集条件をもう一度確認\n• 一旦出稿を停止して、内容を改修してから再開する`;
+    }
+    return `分析を見て気になる求人があったら、ワーストランキングの「求人 →」リンクから実際のページを確認してみて！具体的な改善点が見えてくるはず。`;
+  }
+  if (/CTR|クリック率/.test(q)) {
+    return `現在のCTRは${(m.ctr * 100).toFixed(2)}%。\n${m.ctr * 100 >= 5 ? '✨ 業界平均（3-5%）と比べても良い水準！' : m.ctr * 100 >= 2 ? '👍 一般的な水準だけど、もう少し伸ばせそう。' : '⚠ ちょっと低いかも。求人タイトルを見直すと改善できるよ。'}`;
+  }
+  if (/フォーム|応募完了/.test(q)) {
+    if (w.complete.length > 0) {
+      return `応募完了率が低い求人が${w.complete.length}件あるよ。応募フォームが長すぎる・複雑すぎる場合に起きやすい現象。\n対策：\n• 必須項目を最小限に\n• 履歴書添付を任意にする（電話面談で確認）\n• ファイル形式を制限しすぎない\nまずは詳細ランキングで該当求人を確認してみて。`;
+    }
+    return `応募完了率は${(m.completion_rate * 100).toFixed(1)}%。${m.completion_rate >= 0.5 ? '✨ 良好です！フォームがちゃんと機能してるね。' : '⚠ もう少し改善余地ありそう。フォーム簡素化を検討してみて。'}`;
+  }
+  // デフォルト
+  return `その質問にはまだうまく答えられないけど、データから言えることは：\n` +
+         `• 応募完了 ${m.apply}件 ／ 費用 ¥${Math.round(m.cost).toLocaleString()}\n` +
+         `• CPA ${m.apply > 0 ? '¥' + Math.round(m.cpa).toLocaleString() : '—'} ／ CTR ${(m.ctr * 100).toFixed(2)}%\n` +
+         `• 改善余地のある求人 ${w.cost.length + w.ctr.length + w.start.length + w.complete.length}件\n\n` +
+         `他に「CPAを下げるには？」「予算配分は？」「応募を増やすには？」などの質問もできるよ！`;
+}
+
+// ====== 本物のClaude API化のための切替ポイント ======
+// 将来この関数を実装して、adsGenerateKoalaDiagnosis内のadsGenerateMockDiagnosis呼び出しを
+// 以下に差し替えるだけで本物AI化できる：
+//
+// async function adsCallClaudeAPI(payload) {
+//   const res = await fetch('/api/koala-diagnose', {
+//     method: 'POST',
+//     headers: { 'Content-Type': 'application/json' },
+//     body: JSON.stringify(payload),
+//   });
+//   if (!res.ok) throw new Error('API error');
+//   const data = await res.json();
+//   return data;  // { mood, summary, summaryDetail, insights, generatedAt }
+// }
+//
+// プロキシ側（Supabase Edge Function等）でClaude APIを呼び、
+// 同じ形式のJSONを返すように実装。
+
+// グローバル公開
+if (typeof window !== 'undefined') {
+  window.adsRefreshKoalaDiagnosis = adsRefreshKoalaDiagnosis;
+  window.adsOpenKoalaDetail = adsOpenKoalaDetail;
+  window.adsCloseKoalaDetail = adsCloseKoalaDetail;
+  window.adsCloseKoalaDetailBg = adsCloseKoalaDetailBg;
+  window.adsOpenKoalaChat = adsOpenKoalaChat;
+  window.adsCloseKoalaChat = adsCloseKoalaChat;
+  window.adsCloseKoalaChatBg = adsCloseKoalaChatBg;
+  window.adsAskKoala = adsAskKoala;
+}
+
 // 起動完了ログ
 console.log('[app.js] 読み込み完了');
