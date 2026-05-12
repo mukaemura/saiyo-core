@@ -968,7 +968,7 @@ async function startApp() {
     if (staffSel) staffSel.style.display = 'none';
     document.getElementById('mainApp').style.display = 'block';
     document.getElementById('clientBadge').textContent = currentClientName;
-    document.getElementById('adminNavBtn').style.display = isAdmin ? 'block' : 'none';
+    document.getElementById('adminNavBtn').style.display = isAdmin ? 'inline-flex' : 'none';
     // Phase B-2：ヘッダー担当者表示
     updateHeaderStaffDisplay();
     initFormOptions();
@@ -981,7 +981,21 @@ async function startApp() {
     await loadMinutesAndTasks();
     await loadBudgetData();
     updateTaskBadge();
-    renderDashboard();
+    // Step 1: モードシステム初期化（前回モード復元、サブナビ表示など）
+    try { await initModeSystem(); } catch(e) { console.warn('[startApp] initModeSystem失敗', e); }
+    // Step 2: 起動時の画面決定
+    // - localStorage に前回モードがあれば → そのモードのデフォルトセクションへ
+    // - なければ → モード選択ホーム画面
+    let savedMode = null;
+    try { savedMode = localStorage.getItem(SAIYO_MODE_KEY); } catch(e) {}
+    if (savedMode && SAIYO_MODE_DEFS[savedMode]) {
+      // 前回モードがあれば、そのモードのデフォルトセクションへ
+      // setMode内で defaultSection に遷移する
+      setMode(savedMode);
+    } else {
+      // ホーム画面表示
+      showModeHome();
+    }
     // ルーター連携：URLから現在の画面を復元（直URL/リロード対応）
     if (window.SaiyoRouter && typeof window.SaiyoRouter.onLoginComplete === 'function') {
       try { window.SaiyoRouter.onLoginComplete(); } catch(e) { console.warn('[startApp] router連携エラー', e); }
@@ -1619,28 +1633,57 @@ document.addEventListener('click', function(e) {
 // ナビ
 // ========================================
 function showSec(s) {
+  // Step 3: 'dashboard' は採用運用ダッシュとして通常表示する（Step 2のリダイレクトは廃止）
+  // ホーム画面は別途 showModeHome() / goHome() で表示
   // ルーター連携：URLを更新（ルーター起因の呼び出しでない場合のみ）
   if (window.SaiyoRouter && typeof window.SaiyoRouter.syncUrlFromSection === 'function') {
     window.SaiyoRouter.syncUrlFromSection(s);
   }
+  // Step 1: セクション → モードのマッピング、セクション切替時に該当モードへ自動移行
+  const sectionToMode = {
+    'dashboard': 'operation',  // Step 3: ダッシュは採用運用モード配下
+    'list': 'operation', 'add': 'operation', 'add-choice': 'operation',
+    'add-paste': 'operation', 'import': 'operation',
+    'schedule': 'operation', 'minutes': 'operation', 'tasks': 'operation',
+    'analytics-dash': 'analytics',  // Step 4: 分析ダッシュは採用分析モードのデフォルト
+    'analytics': 'analytics', 'budget': 'analytics', 'ads': 'analytics',
+    'master': 'admin_settings', 'staff': 'admin_settings', 'admin': 'admin_settings'
+  };
+  const targetMode = sectionToMode[s];
+  if (targetMode && typeof setMode === 'function') {
+    setMode(targetMode, true);  // silent=true: モード切替時の追加処理をスキップ
+  }
   // 前のセクションのキャラを非表示
   document.querySelectorAll('[id^="char_sec-"]').forEach(el => el.style.display = 'none');
-  document.querySelectorAll('.sec').forEach(e => e.classList.remove('active'));
-  document.querySelectorAll('.nb').forEach(e => e.classList.remove('active'));
+  document.querySelectorAll('.sec').forEach(e => {
+    e.classList.remove('active');
+    // mode-home がデフォルトで display:none なので、それを尊重
+    if (e.id === 'sec-mode-home') e.style.display = 'none';
+  });
+  // サブナビ・旧navのactive解除
+  document.querySelectorAll('.nb, .snb').forEach(e => e.classList.remove('active'));
   // 新しいセクションのキャラを表示
   const charEl = document.getElementById('char_' + 'sec-' + s);
   if (charEl && s !== 'dashboard') charEl.style.display = 'block';
-  document.getElementById('sec-' + s).classList.add('active');
-  // navMapはサイドバーボタンの位置インデックス。
-  // 順番：ダッシュボード(0) / 応募者一覧(1) / スケジュール(2) / 分析(3) / 議事録(4) / タスク(5) / 予算(6) / 有料広告実績(7) / マスター(8) / 担当者(9)
-  const navMap = { dashboard: 0, list: 1, schedule: 2, analytics: 3, minutes: 4, tasks: 5, budget: 6, ads: 7, master: 8, staff: 9 };
-  if (navMap[s] !== undefined) {
-    const navBtns = document.querySelectorAll('.nb');
-    if (navBtns[navMap[s]]) navBtns[navMap[s]].classList.add('active');
-  } else if (s === 'add' || s === 'import') {
-    // サイドバーには無いので、応募者一覧をアクティブ表示にする
-    const navBtns = document.querySelectorAll('.nb');
-    if (navBtns[1]) navBtns[1].classList.add('active');
+  const secEl = document.getElementById('sec-' + s);
+  if (secEl) secEl.classList.add('active');
+  // サブナビのactive表示
+  const sectionToSnb = {
+    'list': 0, 'schedule': 1, 'minutes': 2, 'tasks': 3,  // operation
+    'analytics-dash': 0, 'analytics': 1, 'budget': 2, 'ads': 3,  // analytics
+    'master': 0, 'staff': 1, 'admin': 2  // admin_settings
+  };
+  if (targetMode && sectionToSnb[s] !== undefined) {
+    const subNavId = targetMode === 'admin_settings' ? 'subNavAdminSettings' :
+                     targetMode === 'analytics' ? 'subNavAnalytics' : 'subNavOperation';
+    const navContainer = document.getElementById(subNavId);
+    if (navContainer) {
+      const btns = navContainer.querySelectorAll('.snb');
+      // index指定のactive、ただしadd/import等は応募者一覧をactive扱い
+      let activeIdx = sectionToSnb[s];
+      if (s === 'add' || s === 'import' || s === 'add-choice' || s === 'add-paste') activeIdx = 0;
+      if (btns[activeIdx]) btns[activeIdx].classList.add('active');
+    }
   }
   // Phase C-2：addセクション以外に切り替えるときは編集ヘッダーを必ず隠す
   if (s !== 'add' && typeof hideEditModeHeader === 'function') hideEditModeHeader();
@@ -1676,6 +1719,441 @@ function showSec(s) {
     // 初回表示は分析タブから（データがあれば表示、無ければ案内）
     if (typeof adsLoadAnalytics === 'function') adsLoadAnalytics();
   }
+  if (s === 'analytics-dash') {
+    // Step 4: 採用分析ダッシュ
+    if (typeof renderAnalyticsDash === 'function') renderAnalyticsDash();
+  }
+}
+
+// ========================================================
+// Step 1: モード制御
+// ========================================================
+// localStorage キー
+const SAIYO_MODE_KEY = 'saiyoCoreActiveMode';
+// クライアントごとの有効モード（DB から読み込み、デフォルトは全モード）
+let saiyoEnabledModes = ['operation', 'analytics', 'admin_settings'];
+// 現在のモード
+let saiyoActiveMode = null;
+
+// モード定義（表示用）
+const SAIYO_MODE_DEFS = {
+  operation:      { label: '採用運用',   icon: '🏃', defaultSection: 'dashboard',      contextLabel: '応募対応・面接・タスクを進める' },
+  analytics:      { label: '採用分析',   icon: '📊', defaultSection: 'analytics-dash', contextLabel: '採用と広告のデータを見る' },
+  admin_settings: { label: '管理設定',   icon: '⚙️', defaultSection: 'master',         contextLabel: 'マスター・担当者の管理' },
+};
+
+// モードを切り替える
+// silent=true のとき：showSec から呼ばれた、画面遷移はしない
+function setMode(mode, silent) {
+  if (!SAIYO_MODE_DEFS[mode]) return;
+  // adminは全モード許可、それ以外は enabled_modes をチェック
+  if (!isAdmin && !saiyoEnabledModes.includes(mode)) {
+    // グレーアウトされたタブをクリック → アップグレード案内（将来用）
+    showUpgradeModal(mode);
+    return;
+  }
+  saiyoActiveMode = mode;
+  // localStorage に保存（次回ログイン時に復元）
+  try { localStorage.setItem(SAIYO_MODE_KEY, mode); } catch(e) {}
+  // body の data-active-mode 属性を更新（CSSセレクタ用）
+  document.body.setAttribute('data-active-mode', mode);
+  // モードタブの active クラス更新
+  document.querySelectorAll('.mode-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+  // サブナビの表示切替
+  document.querySelectorAll('.sub-nav').forEach(nav => {
+    nav.style.display = nav.dataset.mode === mode ? 'flex' : 'none';
+  });
+  // モード概要ラベル更新
+  const ctxEl = document.getElementById('modeContextLabel');
+  if (ctxEl) ctxEl.textContent = SAIYO_MODE_DEFS[mode].contextLabel;
+  // Step 3: 採用運用モード時のみ自動更新タイマーを動かす
+  if (mode === 'operation') {
+    if (typeof startDashAutoRefresh === 'function') startDashAutoRefresh();
+    if (typeof stopAnDashAutoRefresh === 'function') stopAnDashAutoRefresh();
+  } else if (mode === 'analytics') {
+    // Step 4: 採用分析モード時はan-dash自動更新
+    if (typeof stopDashAutoRefresh === 'function') stopDashAutoRefresh();
+    if (typeof startAnDashAutoRefresh === 'function') startAnDashAutoRefresh();
+  } else {
+    if (typeof stopDashAutoRefresh === 'function') stopDashAutoRefresh();
+    if (typeof stopAnDashAutoRefresh === 'function') stopAnDashAutoRefresh();
+  }
+  // Step 5: モード概要バーを更新
+  if (typeof renderModeQuickStats === 'function') renderModeQuickStats();
+  // silent=true ならここで終了（showSec から呼ばれた場合）
+  if (silent) return;
+  // silent=false なら、デフォルトセクションへ遷移
+  const defaultSec = SAIYO_MODE_DEFS[mode].defaultSection;
+  if (defaultSec && typeof showSec === 'function') {
+    showSec(defaultSec);
+  }
+}
+
+// 「ホームに戻る」：モード選択ホーム画面へ
+function goHome() {
+  // Step 2: 既存ダッシュではなく、モード選択ホーム画面を表示
+  showModeHome();
+}
+
+// Step 2: モード選択ホーム画面を表示
+function showModeHome() {
+  // 全セクションを非表示にして mode-home だけ表示
+  document.querySelectorAll('.sec').forEach(e => {
+    e.classList.remove('active');
+    e.style.display = '';
+  });
+  document.querySelectorAll('[id^="char_sec-"]').forEach(el => el.style.display = 'none');
+  const home = document.getElementById('sec-mode-home');
+  if (home) {
+    home.classList.add('active');
+    home.style.display = 'block';
+  }
+  // モードタブの active を解除（どのモードにも属していない状態）
+  document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
+  // body の data-active-mode を解除
+  document.body.removeAttribute('data-active-mode');
+  // Step 5: 現在モードもクリア
+  saiyoActiveMode = null;
+  // モード概要ラベル & クイックスタッツクリア
+  const ctx = document.getElementById('modeContextLabel');
+  if (ctx) ctx.textContent = '';
+  const qs = document.getElementById('modeQuickStats');
+  if (qs) { qs.style.display = 'none'; qs.innerHTML = ''; }
+  // 自動更新タイマー停止
+  if (typeof stopDashAutoRefresh === 'function') stopDashAutoRefresh();
+  if (typeof stopAnDashAutoRefresh === 'function') stopAnDashAutoRefresh();
+  // URL同期：/home
+  if (window.SaiyoRouter && typeof window.SaiyoRouter.syncUrlFromSection === 'function') {
+    try {
+      const base = window.SaiyoRouter.BASE || '';
+      history.replaceState({ path: '/home' }, '', base + '/home');
+    } catch(e) {}
+  }
+  // ホーム画面のコンテンツ更新
+  refreshModeHome();
+}
+
+// Step 2: モード選択ホーム画面のコンテンツ更新（KPI・コアラ表情）
+function refreshModeHome() {
+  // 挨拶
+  const greetEl = document.getElementById('mhGreeting');
+  const dateEl = document.getElementById('mhDate');
+  const hour = new Date().getHours();
+  const greet = hour < 11 ? 'おはようございます' : hour < 17 ? 'こんにちは' : 'こんばんは';
+  const name = currentStaffName || (isAdmin ? '管理者' : currentClientName || '');
+  if (greetEl) greetEl.textContent = name ? `${greet}、${name}さん` : greet;
+  if (dateEl) {
+    const d = new Date();
+    const wd = ['日','月','火','水','木','金','土'][d.getDay()];
+    dateEl.textContent = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${wd}） · どの世界に入りますか？`;
+  }
+  // コアラの判定＋画像差し替え
+  updateModeHomeKoalas();
+}
+
+// Step 2: コアラ表情をデータ連動で更新
+function updateModeHomeKoalas() {
+  try {
+    // ===== 採用運用カードのコアラ判定 =====
+    const opMetrics = computeOperationMetrics();
+    let opMood = 'koala-good';
+    let opMsg = '対応待ちはなし、いい感じ！';
+    if (opMetrics.todayInterviews >= 3) {
+      opMood = 'koala-pc';
+      opMsg = `今日の面接が${opMetrics.todayInterviews}件、頑張ろう`;
+    } else if (opMetrics.pendingCount >= 3 || opMetrics.delayedCount >= 1) {
+      opMood = 'koala-think';
+      opMsg = `対応待ちが${opMetrics.pendingCount}名${opMetrics.delayedCount > 0 ? `、うち${opMetrics.delayedCount}名は遅延` : ''}`;
+    } else if (opMetrics.thisMonthApplyGrowth >= 30) {
+      opMood = 'koala-kira';
+      opMsg = `今月の応募が好調！+${opMetrics.thisMonthApplyGrowth}%`;
+    }
+    setKoalaImage('mhKoalaOperation', opMood);
+    const opBubble = document.getElementById('mhBubbleOperationText');
+    if (opBubble) opBubble.textContent = opMsg;
+
+    // ===== 採用分析カードのコアラ判定 =====
+    const anMetrics = computeAnalyticsMetrics();
+    let anMood = 'koala-pc';
+    let anMsg = 'データをチェックしよう';
+    if (anMetrics.cpaImprovementPct >= 10 || anMetrics.applyGrowthPct >= 20) {
+      anMood = 'koala-kira';
+      const goodNews = anMetrics.cpaImprovementPct >= 10
+        ? `CPA改善${anMetrics.cpaImprovementPct}%！`
+        : `応募+${anMetrics.applyGrowthPct}%！`;
+      anMsg = goodNews;
+    } else if (anMetrics.budgetWarning || anMetrics.cpaWorseningPct >= 15) {
+      anMood = 'koala-think';
+      anMsg = anMetrics.budgetWarning
+        ? '予算消化が早いぞ、要チェック'
+        : `CPAが+${anMetrics.cpaWorseningPct}%悪化`;
+    } else if (anMetrics.hasData) {
+      anMood = 'koala-good';
+      anMsg = '採用順調、いいペース';
+    } else {
+      anMood = 'koala-pc';
+      anMsg = 'データを見てみよう';
+    }
+    setKoalaImage('mhKoalaAnalytics', anMood);
+    const anBubble = document.getElementById('mhBubbleAnalyticsText');
+    if (anBubble) anBubble.textContent = anMsg;
+
+    // ===== フッターコアラの一言 =====
+    const footer = document.getElementById('mhFooterText');
+    if (footer) {
+      const phrases = [
+        '今日も一緒にがんばろう',
+        '採用、いい流れにしていこう',
+        'ひとつずつ進めていこう',
+        'あなたのペースで大丈夫',
+      ];
+      footer.textContent = phrases[Math.floor(Math.random() * phrases.length)];
+    }
+  } catch(e) {
+    console.warn('[updateModeHomeKoalas] エラー', e);
+  }
+}
+
+// Step 2: コアラ画像をフェードで差し替え
+function setKoalaImage(imgId, mood) {
+  const img = document.getElementById(imgId);
+  if (!img) return;
+  const newSrc = `assets/${mood}.png`;
+  if (img.src.endsWith(newSrc)) return;  // 同じなら何もしない
+  // フェードアウト → src変更 → フェードイン
+  img.classList.add('koala-fade-out');
+  setTimeout(() => {
+    img.src = newSrc;
+    img.alt = mood;
+    img.classList.remove('koala-fade-out');
+  }, 200);
+}
+
+// Step 2: 採用運用モードの指標を計算
+function computeOperationMetrics() {
+  const res = { pendingCount: 0, delayedCount: 0, todayInterviews: 0, thisMonthApplyGrowth: 0 };
+  if (!Array.isArray(applicants) || applicants.length === 0) return res;
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const threeDaysAgo = new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000);
+  const thisMonth = today.toISOString().slice(0, 7);
+  const prevMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1).toISOString().slice(0, 7);
+
+  applicants.forEach(a => {
+    // 対応待ち：コアステータスが「応募」「対応中」
+    const cid = a.coreStatusId || (typeof STATUS_TO_CORE !== 'undefined' ? STATUS_TO_CORE[a.status] : null);
+    if (cid === 'applied' || cid === 'in_progress' || !a.status || a.status === '応募') {
+      res.pendingCount++;
+      // 遅延：3日以上更新がない
+      const updated = a.updatedAt || a.appDate;
+      if (updated) {
+        const d = new Date(updated);
+        if (d < threeDaysAgo) res.delayedCount++;
+      } else {
+        res.delayedCount++;
+      }
+    }
+    // 今日の面接
+    const i1 = a.int1Date ? String(a.int1Date).slice(0, 10) : '';
+    const i2 = a.int2Date ? String(a.int2Date).slice(0, 10) : '';
+    if (i1 === todayStr) res.todayInterviews++;
+    if (i2 === todayStr) res.todayInterviews++;
+  });
+
+  // 今月応募数 vs 先月応募数
+  const thisMonthCount = applicants.filter(a => a.appDate && a.appDate.startsWith(thisMonth)).length;
+  const prevMonthCount = applicants.filter(a => a.appDate && a.appDate.startsWith(prevMonth)).length;
+  if (prevMonthCount > 0) {
+    res.thisMonthApplyGrowth = Math.round((thisMonthCount - prevMonthCount) / prevMonthCount * 100);
+  }
+  return res;
+}
+
+// Step 2: 採用分析モードの指標を計算
+function computeAnalyticsMetrics() {
+  const res = {
+    hasData: false,
+    cpaImprovementPct: 0, cpaWorseningPct: 0,
+    applyGrowthPct: 0,
+    budgetWarning: false
+  };
+  // 広告データを使う（ad_performance_rowsから）
+  if (typeof adsRows !== 'undefined' && Array.isArray(adsRows) && adsRows.length > 0) {
+    res.hasData = true;
+    try {
+      // 当月と前月のCPA・応募を比較
+      const months = {};
+      adsRows.forEach(r => {
+        const m = r._month;
+        if (!m) return;
+        if (!months[m]) months[m] = { cost: 0, apply: 0 };
+        months[m].cost += Number(r.cost) || 0;
+        months[m].apply += Number(r.apply) || 0;
+      });
+      const sortedMonths = Object.keys(months).sort();
+      if (sortedMonths.length >= 2) {
+        const cur = months[sortedMonths[sortedMonths.length - 1]];
+        const prev = months[sortedMonths[sortedMonths.length - 2]];
+        const curCpa = cur.apply > 0 ? cur.cost / cur.apply : 0;
+        const prevCpa = prev.apply > 0 ? prev.cost / prev.apply : 0;
+        if (prevCpa > 0 && curCpa > 0) {
+          const diff = (prevCpa - curCpa) / prevCpa * 100;
+          if (diff > 0) res.cpaImprovementPct = Math.round(diff);
+          else res.cpaWorseningPct = Math.round(-diff);
+        }
+        if (prev.apply > 0) {
+          res.applyGrowthPct = Math.round((cur.apply - prev.apply) / prev.apply * 100);
+        }
+      }
+      // 予算警告：CP内予算消化率が90%超のキャンペーンがあるか
+      const cpData = {};
+      adsRows.forEach(r => {
+        const cp = r.campaign || '';
+        if (!cp) return;
+        if (!cpData[cp]) cpData[cp] = { cost: 0, budget: null };
+        cpData[cp].cost += Number(r.cost) || 0;
+        if (cpData[cp].budget === null) {
+          const budM = cp.match(/[¥￥]\s*([0-9,]+)/);
+          if (budM) cpData[cp].budget = parseInt(budM[1].replace(/,/g, ''), 10);
+        }
+      });
+      Object.values(cpData).forEach(d => {
+        if (d.budget && d.budget > 0 && (d.cost / d.budget) >= 0.9) {
+          res.budgetWarning = true;
+        }
+      });
+    } catch(e) {
+      console.warn('[computeAnalyticsMetrics] 広告データ集計エラー', e);
+    }
+  }
+  // 広告データが無い場合は応募者DBで補完
+  if (!res.hasData && Array.isArray(applicants) && applicants.length > 0) {
+    res.hasData = true;
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    const prevMonthD = new Date(); prevMonthD.setMonth(prevMonthD.getMonth() - 1);
+    const prevMonth = prevMonthD.toISOString().slice(0, 7);
+    const thisCount = applicants.filter(a => a.appDate && a.appDate.startsWith(thisMonth)).length;
+    const prevCount = applicants.filter(a => a.appDate && a.appDate.startsWith(prevMonth)).length;
+    if (prevCount > 0) {
+      const diff = (thisCount - prevCount) / prevCount * 100;
+      if (diff >= 0) res.applyGrowthPct = Math.round(diff);
+    }
+  }
+  return res;
+}
+
+// Step 2: モードカードクリック → 該当モードへ入る
+function enterMode(mode, event) {
+  // Step 5: クリック演出（リップル）
+  if (event && typeof rippleEffect === 'function') {
+    try { rippleEffect(event); } catch(e) {}
+  }
+  // 少し待ってモード遷移（リップルが見えるように）
+  setTimeout(() => {
+    if (typeof setMode === 'function') setMode(mode);
+  }, 120);
+}
+
+// 起動時：localStorage から前回モードを復元
+function restoreModeFromStorage() {
+  let mode = null;
+  try { mode = localStorage.getItem(SAIYO_MODE_KEY); } catch(e) {}
+  if (!mode || !SAIYO_MODE_DEFS[mode]) mode = 'operation';
+  // 権限チェック
+  if (!isAdmin && !saiyoEnabledModes.includes(mode)) {
+    mode = saiyoEnabledModes[0] || 'operation';
+  }
+  return mode;
+}
+
+// adminの場合のモードタブ表示制御（admin_settingsタブ常時表示）
+// クライアントの場合は enabled_modes に応じてグレーアウト
+function applyModeTabPermissions() {
+  document.querySelectorAll('.mode-tab').forEach(btn => {
+    const m = btn.dataset.mode;
+    if (isAdmin) {
+      btn.classList.remove('disabled');
+      btn.style.display = 'inline-flex';
+    } else {
+      // クライアントの場合
+      if (saiyoEnabledModes.includes(m)) {
+        btn.classList.remove('disabled');
+        btn.style.display = 'inline-flex';
+      } else {
+        // 将来：グレーアウト＋アップグレードモーダル
+        btn.classList.add('disabled');
+        btn.style.display = 'inline-flex'; // 今は全クライアント全モード許可なので実質非表示にはならない
+      }
+    }
+    // admin_settingsはadmin向けだが、クライアントもマスター/担当者管理は触れる仕様なので
+    // 表示はそのまま
+  });
+}
+
+// アップグレード案内モーダル
+function showUpgradeModal(targetMode) {
+  const def = SAIYO_MODE_DEFS[targetMode];
+  const label = def ? `${def.icon} ${def.label}` : targetMode;
+  const name = def ? def.label : targetMode;
+  const overlay = document.getElementById('upgradeModalOverlay');
+  const modeEl = document.getElementById('upgradeModalMode');
+  const nameEl = document.getElementById('upgradeModalModeName');
+  if (modeEl) modeEl.textContent = label;
+  if (nameEl) nameEl.textContent = `${name}モード`;
+  if (overlay) overlay.style.display = 'flex';
+}
+function closeUpgradeModal(event) {
+  // overlayクリック or 閉じるボタン
+  if (event && event.target && event.target.id !== 'upgradeModalOverlay' && !event.target.classList.contains('upgrade-modal-close')) {
+    return;
+  }
+  const overlay = document.getElementById('upgradeModalOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+function contactForUpgrade() {
+  // 将来は問い合わせフォームへリンクなど
+  alert('プランのアップグレードについては、運営までお問い合わせください。');
+  closeUpgradeModal();
+}
+
+// クライアントの enabled_modes を Supabase から取得
+async function loadEnabledModes() {
+  if (isAdmin) {
+    saiyoEnabledModes = ['operation', 'analytics', 'admin_settings'];
+    return;
+  }
+  if (!currentClientId) {
+    saiyoEnabledModes = ['operation', 'analytics', 'admin_settings'];
+    return;
+  }
+  try {
+    const { data, error } = await sb.from('clients')
+      .select('enabled_modes')
+      .eq('client_id', currentClientId)
+      .maybeSingle();
+    if (!error && data && Array.isArray(data.enabled_modes) && data.enabled_modes.length > 0) {
+      saiyoEnabledModes = data.enabled_modes;
+    } else {
+      // フィールドが無い or NULL の場合は全モード許可（デフォルト）
+      saiyoEnabledModes = ['operation', 'analytics', 'admin_settings'];
+    }
+  } catch(e) {
+    console.warn('[loadEnabledModes] エラー', e);
+    saiyoEnabledModes = ['operation', 'analytics', 'admin_settings'];
+  }
+}
+
+// 起動時のモード初期化（startApp から呼ばれる）
+async function initModeSystem() {
+  await loadEnabledModes();
+  applyModeTabPermissions();
+  const initialMode = restoreModeFromStorage();
+  // silent=trueで初期セット（showSecからも呼ばれるため初期画面とは別管理）
+  setMode(initialMode, true);
+  // Step 3: 採用運用ダッシュ用「自分の担当のみ」設定の復元
+  if (typeof initDashMineToggle === 'function') initDashMineToggle();
 }
 
 // ========================================
@@ -3964,6 +4442,27 @@ function setDashPeriod(period) {
 }
 
 function renderDashboard() {
+  // Step 3: 「自分の担当のみ」の場合、applicants を一時的に絞り込む
+  let __origApplicants = null;
+  try {
+    if (dashMineOnly && currentStaffId) {
+      const myIds = getMyApplicantIdSet();
+      if (myIds) {
+        __origApplicants = applicants;
+        applicants = applicants.filter(a => myIds.has(a.id));
+      }
+    }
+  } catch(e) { console.warn('[renderDashboard] mineOnly差し替えエラー', e); }
+
+  try {
+    _renderDashboardCore();
+  } finally {
+    // 必ず元に戻す
+    if (__origApplicants) applicants = __origApplicants;
+  }
+}
+
+function _renderDashboardCore() {
   const now = new Date();
   const toStr = d => d.toISOString().split('T')[0];
   const ym = now.toISOString().slice(0,7);
@@ -3971,8 +4470,15 @@ function renderDashboard() {
   const days30Ago = new Date(now); days30Ago.setDate(days30Ago.getDate() - 29);
   const h = now.getHours();
   const greet = h < 12 ? 'おはようございます' : h < 18 ? 'こんにちは' : 'お疲れ様です';
-  document.getElementById('dashGreet').textContent = greet + '、' + currentClientName + ' さん';
-  document.getElementById('dashDate').textContent = now.toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+  // Step 3: タイトルは「採用運用ダッシュ」固定、挨拶は日付欄に統合
+  const dashGreetEl = document.getElementById('dashGreet');
+  if (dashGreetEl) dashGreetEl.textContent = '採用運用ダッシュ';
+  const dashDateEl = document.getElementById('dashDate');
+  if (dashDateEl) {
+    const dateStr = now.toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+    const name = currentStaffName || currentClientName || '';
+    dashDateEl.textContent = `${dateStr} · ${greet}${name ? '、' + name + ' さん' : ''}`;
+  }
 
   // 吹き出しを真っ先に更新（後続でエラーが起きても「読み込み中」のまま残らないように）
   try {
@@ -4133,6 +4639,765 @@ function renderDashboard() {
   renderDashTasks();
   updateTaskBadge();
   updateDashBubble(total, inProgress, hired, rate, thisMonth);
+  // Step 3: 採用運用ダッシュ追加機能
+  try {
+    renderDashWeekInterviews();
+    renderDashRecentMinutes();
+    applyKpiClickability();
+    renderDashKoalaAdvice();
+  } catch(e) { console.warn('[renderDashboard] Step3拡張エラー', e); }
+  // Step 5: モード概要バーも更新
+  try { if (typeof renderModeQuickStats === 'function') renderModeQuickStats(); } catch(e) {}
+}
+
+// =====================================================
+// Step 3: 採用運用ダッシュ拡張機能
+// =====================================================
+
+// 「自分の担当のみ」フィルタの状態（ダッシュ用）
+let dashMineOnly = false;
+// 5分ごと更新タイマー
+let dashRefreshTimer = null;
+
+// 「自分の担当のみ」切替
+function onDashMineToggle(checked) {
+  dashMineOnly = !!checked;
+  try { localStorage.setItem('saiyoCoreDashMineOnly', dashMineOnly ? '1' : '0'); } catch(e) {}
+  renderDashboard();
+}
+
+// 「自分の担当のみ」の対象応募者IDセットを返す
+function getMyApplicantIdSet() {
+  // 担当者が未選択 or applicants が空なら絞り込みなし扱い
+  if (!currentStaffId) return null;
+  if (!Array.isArray(applicants) || applicants.length === 0) return null;
+  const ids = new Set();
+  try {
+    applicants.forEach(a => {
+      if (Array.isArray(a.staffIds) && a.staffIds.some(sid => String(sid) === String(currentStaffId))) {
+        ids.add(a.id);
+      }
+    });
+  } catch(e) { return null; }
+  return ids;
+}
+
+// 5分ごとの自動更新を開始（採用運用ダッシュ表示中だけ動作）
+function startDashAutoRefresh() {
+  stopDashAutoRefresh();
+  dashRefreshTimer = setInterval(() => {
+    // ダッシュが表示中のみ更新
+    const sec = document.getElementById('sec-dashboard');
+    if (sec && sec.classList.contains('active')) {
+      refreshOperationDash(true);
+    }
+  }, 5 * 60 * 1000); // 5分
+}
+function stopDashAutoRefresh() {
+  if (dashRefreshTimer) {
+    clearInterval(dashRefreshTimer);
+    dashRefreshTimer = null;
+  }
+}
+
+// 採用運用ダッシュ：今すぐ更新（手動 or 自動から）
+async function refreshOperationDash(silent) {
+  const txtEl = document.getElementById('dashRefreshText');
+  if (!silent && txtEl) txtEl.textContent = '更新中...';
+  try {
+    // データ再取得（applicants/tasks/minutes/budgets）
+    if (typeof loadApplicants === 'function') await loadApplicants();
+    if (typeof loadMinutesAndTasks === 'function') await loadMinutesAndTasks();
+    if (typeof renderDashboard === 'function') renderDashboard();
+  } catch(e) {
+    console.warn('[refreshOperationDash] エラー', e);
+  } finally {
+    if (txtEl) {
+      txtEl.textContent = '5分ごと更新';
+    }
+  }
+}
+
+// 今週の面接スケジュール（月〜日）
+function renderDashWeekInterviews() {
+  const el = document.getElementById('dashWeekInterviews');
+  if (!el) return;
+  if (!Array.isArray(applicants)) { el.innerHTML = ''; return; }
+
+  const today = new Date();
+  const day = today.getDay();
+  const diffMon = day === 0 ? -6 : 1 - day;  // 月曜
+  const monday = new Date(today); monday.setDate(monday.getDate() + diffMon);
+  const sunday = new Date(monday); sunday.setDate(sunday.getDate() + 6);
+  const mondayStr = monday.toISOString().slice(0,10);
+  const sundayStr = sunday.toISOString().slice(0,10);
+  const todayStr = today.toISOString().slice(0,10);
+
+  // 「自分の担当のみ」絞り込み
+  const myIds = dashMineOnly ? getMyApplicantIdSet() : null;
+
+  // 今週内の面接を収集
+  const items = [];
+  applicants.forEach(a => {
+    if (myIds && !myIds.has(a.id)) return;
+    // 1次面接
+    if (a.int1Date) {
+      const d = String(a.int1Date).slice(0, 10);
+      if (d >= mondayStr && d <= sundayStr) {
+        items.push({ applicantId: a.id, name: a.name, date: d, type: '1次', dateTimeStr: a.int1Date });
+      }
+    }
+    if (a.int2Date) {
+      const d = String(a.int2Date).slice(0, 10);
+      if (d >= mondayStr && d <= sundayStr) {
+        items.push({ applicantId: a.id, name: a.name, date: d, type: '2次', dateTimeStr: a.int2Date });
+      }
+    }
+  });
+  // 日付昇順
+  items.sort((a, b) => a.dateTimeStr.localeCompare(b.dateTimeStr));
+
+  if (items.length === 0) {
+    el.innerHTML = '<div class="op-dash-week-empty">今週の面接予定はありません</div>';
+    return;
+  }
+  el.innerHTML = items.slice(0, 8).map(it => {
+    const d = new Date(it.date);
+    const wd = ['日','月','火','水','木','金','土'][d.getDay()];
+    const isToday = it.date === todayStr;
+    // 時刻部分（YYYY-MM-DDTHH:MM形式から）
+    let timePart = '';
+    if (it.dateTimeStr && it.dateTimeStr.length >= 16) {
+      timePart = ` ${it.dateTimeStr.slice(11, 16)}`;
+    }
+    return `<div class="op-dash-week-item" onclick="openApplicantEdit('${escapeHtml(it.applicantId)}')">
+      <div class="op-dash-week-day ${isToday ? 'today' : ''}">${d.getMonth()+1}/${d.getDate()}(${wd})</div>
+      <div style="flex:1;">
+        <div style="font-weight:500;color:#1a1a1a;">${escapeHtml(it.name || '(名前なし)')}</div>
+        <div style="font-size:10px;color:#888;margin-top:2px;">${it.type}面接${timePart}</div>
+      </div>
+      <span style="font-size:11px;color:#5a8a48;">詳細 →</span>
+    </div>`;
+  }).join('');
+}
+
+// 議事録：直近5件
+function renderDashRecentMinutes() {
+  const el = document.getElementById('dashRecentMinutes');
+  if (!el) return;
+  if (typeof minutes === 'undefined' || !Array.isArray(minutes) || minutes.length === 0) {
+    el.innerHTML = '<div class="op-dash-minute-empty">議事録がまだありません</div>';
+    return;
+  }
+  // 日付降順で上位5件
+  const sorted = [...minutes].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 5);
+  el.innerHTML = sorted.map(m => {
+    const title = m.title || '(無題)';
+    const dateStr = m.date ? new Date(m.date).toLocaleDateString('ja-JP', { month:'short', day:'numeric' }) : '';
+    return `<div class="op-dash-minute-item" onclick="showSec('minutes')">
+      <div style="font-size:10px;color:#888;width:60px;flex-shrink:0;">${dateStr}</div>
+      <div style="flex:1;font-weight:500;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(title)}</div>
+      <span style="font-size:11px;color:#5a8a48;">→</span>
+    </div>`;
+  }).join('');
+}
+
+// KPIカードにクリック誘導を付与（応募者一覧 等へ遷移）
+function applyKpiClickability() {
+  // 1段目の本日のKPI
+  const todayWrap = document.getElementById('dashKpiToday');
+  if (todayWrap) {
+    const cards = todayWrap.querySelectorAll('.mc');
+    cards.forEach((card, idx) => {
+      card.classList.add('op-dash-clickable');
+      card.onclick = () => {
+        if (idx === 0) {
+          // 本日の応募 → 応募者一覧（応募日が今日のもの）
+          showSec('list');
+          setTimeout(() => filterListByToday(), 100);
+        } else if (idx === 1) {
+          // 本日の面接 → スケジュール画面
+          showSec('schedule');
+        }
+      };
+    });
+  }
+  // 2段目：期間KPI
+  const periodWrap = document.getElementById('dashKpi');
+  if (periodWrap) {
+    const cards = periodWrap.querySelectorAll('.mc');
+    cards.forEach((card, idx) => {
+      card.classList.add('op-dash-clickable');
+      card.onclick = () => {
+        showSec('list');
+      };
+    });
+  }
+  // TODO/Insightsもクリック可能に
+  const todoWrap = document.getElementById('dashTodo');
+  if (todoWrap) {
+    const cards = todoWrap.querySelectorAll('.mc, .todo-card');
+    cards.forEach(card => {
+      card.classList.add('op-dash-clickable');
+      // 既存onclickあれば触らない
+      if (!card.onclick) card.onclick = () => showSec('list');
+    });
+  }
+}
+
+// 応募者一覧を「今日応募」で絞り込み（簡易実装）
+function filterListByToday() {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const fDateFrom = document.getElementById('fDateFrom');
+  const fDateTo = document.getElementById('fDateTo');
+  if (fDateFrom) fDateFrom.value = todayStr;
+  if (fDateTo) fDateTo.value = todayStr;
+  if (typeof applyFilterPanel === 'function') applyFilterPanel();
+  else if (typeof renderList === 'function') renderList();
+}
+
+// コアラのアドバイス枠（運用ダッシュ用）
+function renderDashKoalaAdvice() {
+  const box = document.getElementById('dashKoalaAdvice');
+  const img = document.getElementById('dashChar');
+  const txt = document.getElementById('dashBubbleText');
+  if (!box || !img || !txt) return;
+  const metrics = (typeof computeOperationMetrics === 'function') ? computeOperationMetrics() : null;
+  if (!metrics) { box.style.display = 'none'; return; }
+
+  let mood = 'koala-good';
+  let msg = '対応待ちもなくいい流れ！この調子でいこう。';
+  if (metrics.delayedCount >= 3) {
+    mood = 'koala-think';
+    msg = `${metrics.delayedCount}名の対応が3日以上止まってる。早めに見てあげよう。`;
+  } else if (metrics.todayInterviews >= 3) {
+    mood = 'koala-pc';
+    msg = `今日は面接が${metrics.todayInterviews}件。集中していこう。`;
+  } else if (metrics.pendingCount >= 5) {
+    mood = 'koala-think';
+    msg = `対応待ちが${metrics.pendingCount}名。ひとつずつ進めていこう。`;
+  } else if (metrics.thisMonthApplyGrowth >= 30) {
+    mood = 'koala-kira';
+    msg = `今月の応募が好調！前月比+${metrics.thisMonthApplyGrowth}%、その調子！`;
+  } else if (metrics.pendingCount === 0 && metrics.todayInterviews === 0) {
+    mood = 'koala-good';
+    msg = '今日はゆったり進められそう。応募者ケアやマスター整備にどうぞ。';
+  }
+  // 画像をフェードで差し替え
+  const newSrc = `assets/${mood}.png`;
+  if (!img.src.endsWith(newSrc)) {
+    img.style.transition = 'opacity 0.3s ease';
+    img.style.opacity = '0';
+    setTimeout(() => {
+      img.src = newSrc;
+      img.style.opacity = '1';
+    }, 200);
+  }
+  txt.textContent = msg;
+  box.style.display = 'flex';
+}
+
+// 「自分の担当のみ」設定を復元、トグル表示制御
+function initDashMineToggle() {
+  const wrap = document.getElementById('dashMineToggleWrap');
+  const chk = document.getElementById('dashMineOnly');
+  if (!wrap || !chk) return;
+  // currentStaffId 無し or admin の場合は非表示
+  if (!currentStaffId) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'inline-flex';
+  // localStorageから復元
+  let saved = '0';
+  try { saved = localStorage.getItem('saiyoCoreDashMineOnly') || '0'; } catch(e) {}
+  dashMineOnly = (saved === '1');
+  chk.checked = dashMineOnly;
+}
+
+// ============================================================================
+// Step 4: 採用分析ダッシュボード
+// ============================================================================
+
+// 採用分析モード時の自動更新タイマー
+let anDashRefreshTimer = null;
+
+function startAnDashAutoRefresh() {
+  stopAnDashAutoRefresh();
+  anDashRefreshTimer = setInterval(() => {
+    const sec = document.getElementById('sec-analytics-dash');
+    if (sec && sec.classList.contains('active')) {
+      refreshAnalyticsDash(true);
+    }
+  }, 5 * 60 * 1000);
+}
+function stopAnDashAutoRefresh() {
+  if (anDashRefreshTimer) {
+    clearInterval(anDashRefreshTimer);
+    anDashRefreshTimer = null;
+  }
+}
+
+// 採用分析ダッシュ：今すぐ更新
+async function refreshAnalyticsDash(silent) {
+  try {
+    // 広告データを再ロード（存在する場合）
+    if (typeof adsLoadAnalytics === 'function') {
+      try { await adsLoadAnalytics(); } catch(e) {}
+    }
+    renderAnalyticsDash();
+  } catch(e) { console.warn('[refreshAnalyticsDash] エラー', e); }
+}
+
+// メイン：採用分析ダッシュを描画
+function renderAnalyticsDash() {
+  // 日付ラベル更新
+  const dateEl = document.getElementById('anDashDate');
+  if (dateEl) {
+    const now = new Date();
+    const wd = ['日','月','火','水','木','金','土'][now.getDay()];
+    dateEl.textContent = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日（${wd}）の分析サマリー`;
+  }
+
+  // 各パートを描画
+  renderAnDashKpiCards();
+  renderAnDashKoala();
+  renderAnDashMonthly();
+  renderAnDashWorstTop3();
+  renderAnDashAlerts();
+  // Step 5: モード概要バーも更新
+  try { if (typeof renderModeQuickStats === 'function') renderModeQuickStats(); } catch(e) {}
+}
+
+// 採用分析ダッシュ：KPIカード（CPA・応募完了・採用数・消化率）
+function renderAnDashKpiCards() {
+  const el = document.getElementById('anDashKpiGrid');
+  if (!el) return;
+
+  // ad_performance_rows から最新月のデータを集計
+  const metrics = computeAnDashMetrics();
+
+  const trendHtml = (cur, prev, smallerIsBetter, suffix) => {
+    if (!prev || prev === 0) return `<div class="an-dash-kpi-trend flat">前期データなし</div>`;
+    if (cur === prev) return `<div class="an-dash-kpi-trend flat">→ ±0${suffix||''}</div>`;
+    const diff = cur - prev;
+    const pct = Math.round(Math.abs(diff) / prev * 100);
+    const arrow = diff > 0 ? '▲' : '▼';
+    const isGood = smallerIsBetter ? diff < 0 : diff > 0;
+    const cls = (diff > 0)
+      ? (isGood ? 'up-good' : 'up-bad')
+      : (isGood ? 'down-good' : 'down-bad');
+    return `<div class="an-dash-kpi-trend ${cls}">${arrow} 前期比 ${pct}%</div>`;
+  };
+
+  el.innerHTML = `
+    <div class="an-dash-kpi-card" onclick="showSec('ads')">
+      <div class="an-dash-kpi-label">CPA（応募単価）</div>
+      <div class="an-dash-kpi-value" data-cu="cpa">${metrics.cpa ? '¥' + metrics.cpa.toLocaleString() : '—'}</div>
+      ${trendHtml(metrics.cpa, metrics.prevCpa, true)}
+    </div>
+    <div class="an-dash-kpi-card" onclick="showSec('ads')">
+      <div class="an-dash-kpi-label">応募完了</div>
+      <div class="an-dash-kpi-value" data-cu="apply"><span class="cu-num">${metrics.apply.toLocaleString()}</span><span class="an-dash-kpi-unit">件</span></div>
+      ${trendHtml(metrics.apply, metrics.prevApply, false)}
+    </div>
+    <div class="an-dash-kpi-card" onclick="showSec('analytics')">
+      <div class="an-dash-kpi-label">採用数</div>
+      <div class="an-dash-kpi-value" data-cu="hired"><span class="cu-num">${metrics.hired.toLocaleString()}</span><span class="an-dash-kpi-unit">名</span></div>
+      ${trendHtml(metrics.hired, metrics.prevHired, false)}
+    </div>
+    <div class="an-dash-kpi-card" onclick="showSec('budget')">
+      <div class="an-dash-kpi-label">費用</div>
+      <div class="an-dash-kpi-value" data-cu="cost">¥${Math.round(metrics.cost).toLocaleString()}</div>
+      ${trendHtml(metrics.cost, metrics.prevCost, false)}
+    </div>
+  `;
+
+  // Step 5: 数値カウントアップアニメ（初回表示時のみ）
+  if (!el.dataset.cuDone) {
+    el.dataset.cuDone = '1';
+    setTimeout(() => {
+      try {
+        const cpaEl = el.querySelector('[data-cu="cpa"]');
+        if (cpaEl && metrics.cpa) animateCountUp(cpaEl, 0, metrics.cpa, 700, { prefix: '¥' });
+        const applyNum = el.querySelector('[data-cu="apply"] .cu-num');
+        if (applyNum) animateCountUp(applyNum, 0, metrics.apply, 700);
+        const hiredNum = el.querySelector('[data-cu="hired"] .cu-num');
+        if (hiredNum) animateCountUp(hiredNum, 0, metrics.hired, 700);
+        const costEl = el.querySelector('[data-cu="cost"]');
+        if (costEl && metrics.cost) animateCountUp(costEl, 0, Math.round(metrics.cost), 800, { prefix: '¥' });
+      } catch(e) {}
+    }, 80);
+  }
+}
+
+// 採用分析ダッシュ：指標計算
+function computeAnDashMetrics() {
+  const res = {
+    cpa: 0, prevCpa: 0,
+    apply: 0, prevApply: 0,
+    hired: 0, prevHired: 0,
+    cost: 0, prevCost: 0,
+    hasAdsData: false,
+    months: []  // 月別推移用
+  };
+
+  // 広告データから集計
+  if (typeof adsRows !== 'undefined' && Array.isArray(adsRows) && adsRows.length > 0) {
+    res.hasAdsData = true;
+    const byMonth = {};
+    adsRows.forEach(r => {
+      const m = r._month;
+      if (!m) return;
+      if (!byMonth[m]) byMonth[m] = { cost: 0, apply: 0 };
+      byMonth[m].cost += Number(r.cost) || 0;
+      byMonth[m].apply += Number(r.apply) || 0;
+    });
+    const sortedMonths = Object.keys(byMonth).sort();
+    if (sortedMonths.length > 0) {
+      const latestM = sortedMonths[sortedMonths.length - 1];
+      const cur = byMonth[latestM];
+      res.apply = cur.apply;
+      res.cost = cur.cost;
+      res.cpa = cur.apply > 0 ? Math.round(cur.cost / cur.apply) : 0;
+      if (sortedMonths.length >= 2) {
+        const prevM = sortedMonths[sortedMonths.length - 2];
+        const prev = byMonth[prevM];
+        res.prevApply = prev.apply;
+        res.prevCost = prev.cost;
+        res.prevCpa = prev.apply > 0 ? Math.round(prev.cost / prev.apply) : 0;
+      }
+      // 月別推移用（直近6ヶ月）
+      const recent = sortedMonths.slice(-6);
+      res.months = recent.map(m => ({ month: m, apply: byMonth[m].apply || 0 }));
+    }
+  }
+
+  // 採用数は applicants から（広告データだけでは判断不可）
+  if (Array.isArray(applicants)) {
+    const now = new Date();
+    const thisMonth = now.toISOString().slice(0, 7);
+    const prevD = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevMonth = prevD.toISOString().slice(0, 7);
+    const isHired = a => {
+      const cid = a.coreStatusId || (typeof STATUS_TO_CORE !== 'undefined' ? STATUS_TO_CORE[a.status] : null);
+      return cid === 'hired' || cid === 'joined' || ['内定','内定承諾','採用'].includes(a.hireStatus);
+    };
+    res.hired = applicants.filter(a => a.appDate && a.appDate.startsWith(thisMonth) && isHired(a)).length;
+    res.prevHired = applicants.filter(a => a.appDate && a.appDate.startsWith(prevMonth) && isHired(a)).length;
+  }
+
+  return res;
+}
+
+// 採用分析ダッシュ：コアラ診断（要約版）
+function renderAnDashKoala() {
+  const img = document.getElementById('anDashKoalaImg');
+  const txt = document.getElementById('anDashKoalaText');
+  const acts = document.getElementById('anDashKoalaActions');
+  if (!img || !txt) return;
+
+  const m = computeAnDashMetrics();
+
+  let mood = 'koala-pc';
+  let comment = 'まだ広告データが少ないみたい。データを取り込んでから分析するともっと深いことが分かるよ！';
+
+  if (m.hasAdsData) {
+    // 改善判定
+    const cpaImp = m.prevCpa > 0 && m.cpa > 0 ? (m.prevCpa - m.cpa) / m.prevCpa * 100 : 0;
+    const applyGrowth = m.prevApply > 0 ? (m.apply - m.prevApply) / m.prevApply * 100 : 0;
+
+    if (cpaImp >= 10 && applyGrowth >= 10) {
+      mood = 'koala-kira';
+      comment = `すばらしい！CPAが前月比${Math.round(cpaImp)}%改善、応募完了も+${Math.round(applyGrowth)}%！この調子で行こう✨`;
+    } else if (cpaImp >= 10) {
+      mood = 'koala-kira';
+      comment = `CPAが前月比${Math.round(cpaImp)}%改善！広告の費用対効果が上がってる感じ、その調子！`;
+    } else if (applyGrowth >= 20) {
+      mood = 'koala-kira';
+      comment = `応募完了が前月比+${Math.round(applyGrowth)}%！注目度が上がってる、いいタイミング！`;
+    } else if (cpaImp <= -15) {
+      mood = 'koala-think';
+      comment = `CPAが前月比+${Math.round(-cpaImp)}%悪化…広告原稿や入札を見直すタイミングかも。ワーストランキングを覗いてみよう。`;
+    } else if (applyGrowth <= -20) {
+      mood = 'koala-think';
+      comment = `応募完了が前月比${Math.round(applyGrowth)}%減ってる。媒体ミックスや求人タイトルの見直しを検討しよう。`;
+    } else {
+      mood = 'koala-good';
+      comment = `今月もデータは順調に推移中。詳しい改善ポイントは「応募者分析」や「有料広告実績」で見てみよう。`;
+    }
+  } else if (Array.isArray(applicants) && applicants.length > 0) {
+    mood = 'koala-pc';
+    comment = '広告データはまだだけど、応募者データは見れるよ。「応募者分析」で媒体別・職種別の傾向を見てみよう。';
+  }
+
+  // 画像フェード切替
+  const newSrc = `assets/${mood}.png`;
+  if (!img.src.endsWith(newSrc)) {
+    img.style.transition = 'opacity 0.3s ease';
+    img.style.opacity = '0';
+    setTimeout(() => {
+      img.src = newSrc;
+      img.style.opacity = '1';
+    }, 200);
+  }
+  txt.textContent = comment;
+
+  // アクションボタン
+  if (acts) {
+    const buttons = [];
+    if (m.hasAdsData) {
+      buttons.push(`<button class="an-dash-more" onclick="showSec('ads')">📣 有料広告実績を見る →</button>`);
+    }
+    buttons.push(`<button class="an-dash-more" onclick="showSec('analytics')">📈 応募者分析を見る →</button>`);
+    acts.innerHTML = buttons.join('');
+  }
+}
+
+// 採用分析ダッシュ：月別推移バー
+function renderAnDashMonthly() {
+  const el = document.getElementById('anDashMonthly');
+  if (!el) return;
+  const m = computeAnDashMetrics();
+
+  if (!m.months || m.months.length === 0) {
+    // 広告データが無い場合は応募者DBで補完
+    if (Array.isArray(applicants) && applicants.length > 0) {
+      const byMonth = {};
+      applicants.forEach(a => {
+        if (!a.appDate) return;
+        const mm = a.appDate.slice(0, 7);
+        byMonth[mm] = (byMonth[mm] || 0) + 1;
+      });
+      const sm = Object.keys(byMonth).sort();
+      if (sm.length === 0) {
+        el.innerHTML = '<div class="an-dash-empty">データがありません</div>';
+        return;
+      }
+      m.months = sm.slice(-6).map(mm => ({ month: mm, apply: byMonth[mm] }));
+    } else {
+      el.innerHTML = '<div class="an-dash-empty">データがありません</div>';
+      return;
+    }
+  }
+
+  const maxV = Math.max(...m.months.map(d => d.apply), 1);
+  const latestIdx = m.months.length - 1;
+
+  el.innerHTML = m.months.map((d, idx) => {
+    const h = Math.max(2, (d.apply / maxV) * 110);
+    const isLatest = idx === latestIdx;
+    const monthLabel = d.month.slice(5).replace(/^0/, '') + '月';
+    return `<div class="an-dash-bar">
+      <div class="an-dash-bar-num">${d.apply}</div>
+      <div class="an-dash-bar-fill ${isLatest ? 'latest' : ''}" style="height:${h}px;"></div>
+      <div class="an-dash-bar-label ${isLatest ? 'latest' : ''}">${monthLabel}</div>
+    </div>`;
+  }).join('');
+}
+
+// 採用分析ダッシュ：改善が必要な求人 TOP3
+function renderAnDashWorstTop3() {
+  const el = document.getElementById('anDashWorstTop3');
+  if (!el) return;
+
+  if (typeof adsRows === 'undefined' || !Array.isArray(adsRows) || adsRows.length === 0) {
+    el.innerHTML = '<div class="an-dash-empty">広告データがまだありません</div>';
+    return;
+  }
+
+  // 費用かかってるのに応募ゼロ
+  const worst = adsRows
+    .filter(r => (r.apply || 0) === 0 && (Number(r.cost) || 0) > 0)
+    .sort((a, b) => (Number(b.cost) || 0) - (Number(a.cost) || 0))
+    .slice(0, 3);
+
+  if (worst.length === 0) {
+    el.innerHTML = `<div style="background:#eaf3de;border:0.5px solid #c0dd97;border-radius:7px;padding:14px;font-size:11px;color:#3B6D11;text-align:center;">✓ 改善が必要な求人はありません<br><span style="font-size:10px;opacity:0.8;">広告が効率よく回ってます！</span></div>`;
+    return;
+  }
+
+  el.innerHTML = worst.map(r => {
+    const title = r.job_title || '(無題)';
+    const cost = Math.round(Number(r.cost) || 0);
+    const cl = (r.click || 0).toLocaleString();
+    return `<div class="an-dash-worst-item" onclick="showSec('ads')" title="${escapeHtml(title)}">
+      <div class="an-dash-worst-title">${escapeHtml(title)}</div>
+      <div class="an-dash-worst-meta">¥${cost.toLocaleString()} 消費 ／ クリック${cl} ／ 応募 0</div>
+    </div>`;
+  }).join('');
+}
+
+// 採用分析ダッシュ：重要アラート（予算枯渇 など）
+function renderAnDashAlerts() {
+  const el = document.getElementById('anDashAlerts');
+  if (!el) return;
+  const alerts = [];
+
+  // 1) 予算消化警告
+  if (typeof adsRows !== 'undefined' && Array.isArray(adsRows)) {
+    const cpData = {};
+    adsRows.forEach(r => {
+      const cp = r.campaign || '';
+      if (!cp) return;
+      if (!cpData[cp]) cpData[cp] = { cost: 0, budget: null };
+      cpData[cp].cost += Number(r.cost) || 0;
+      if (cpData[cp].budget === null) {
+        const budM = cp.match(/[¥￥]\s*([0-9,]+)/);
+        if (budM) cpData[cp].budget = parseInt(budM[1].replace(/,/g, ''), 10);
+      }
+    });
+    Object.entries(cpData).forEach(([cp, d]) => {
+      if (d.budget && d.budget > 0) {
+        const pct = (d.cost / d.budget) * 100;
+        if (pct >= 95) {
+          const shortCp = cp.length > 40 ? cp.slice(0, 38) + '…' : cp;
+          alerts.push({
+            type: 'danger',
+            icon: '🚨',
+            text: `<strong>${escapeHtml(shortCp)}</strong> の予算消化率が ${Math.round(pct)}%！もうすぐ枯渇します。`
+          });
+        } else if (pct >= 85) {
+          const shortCp = cp.length > 40 ? cp.slice(0, 38) + '…' : cp;
+          alerts.push({
+            type: 'warning',
+            icon: '⚠️',
+            text: `<strong>${escapeHtml(shortCp)}</strong> の予算消化率が ${Math.round(pct)}%。要チェック。`
+          });
+        }
+      }
+    });
+  }
+
+  // 2) CPAが急悪化
+  const m = computeAnDashMetrics();
+  if (m.hasAdsData && m.prevCpa > 0 && m.cpa > 0) {
+    const diff = (m.cpa - m.prevCpa) / m.prevCpa * 100;
+    if (diff >= 25) {
+      alerts.push({
+        type: 'warning',
+        icon: '📊',
+        text: `CPAが前月比 <strong>+${Math.round(diff)}%</strong> 悪化中。広告原稿の見直しを推奨します。`
+      });
+    }
+  }
+
+  if (alerts.length === 0) {
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = 'block';
+  el.innerHTML = `<div style="font-size:11px;color:#888;margin-bottom:8px;font-weight:500;">🔔 重要アラート</div>` +
+    alerts.map(a => `<div class="an-dash-alert-item ${a.type === 'danger' ? 'danger' : ''}">
+      <span style="font-size:16px;">${a.icon}</span>
+      <span style="flex:1;line-height:1.6;">${a.text}</span>
+    </div>`).join('');
+}
+
+// ============================================================================
+// Step 5: 仕上げ - モード概要バー / 数値カウントアップ / クリックリップル
+// ============================================================================
+
+// モード概要バー（KPI帯）を描画
+function renderModeQuickStats() {
+  const el = document.getElementById('modeQuickStats');
+  if (!el) return;
+  // モード未選択（ホーム表示中）は非表示
+  if (!saiyoActiveMode) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  let html = '';
+  try {
+    if (saiyoActiveMode === 'operation') {
+      // 採用運用モード：対応待ち / 今日の面接 / 遅延警告
+      const m = (typeof computeOperationMetrics === 'function') ? computeOperationMetrics() : null;
+      if (m) {
+        const pendCls = m.pendingCount >= 5 ? 'warn' : 'mqs-value';
+        const delCls = m.delayedCount > 0 ? 'danger' : '';
+        html = `
+          <span class="mqs-item"><span class="mqs-label">対応待ち</span><span class="mqs-value ${pendCls}">${m.pendingCount}<span style="font-size:9px;color:#888;">名</span></span></span>
+          <span class="mqs-divider"></span>
+          <span class="mqs-item"><span class="mqs-label">今日の面接</span><span class="mqs-value">${m.todayInterviews}<span style="font-size:9px;color:#888;">件</span></span></span>
+          ${m.delayedCount > 0 ? `<span class="mqs-divider"></span><span class="mqs-item"><span class="mqs-label">遅延</span><span class="mqs-value danger">${m.delayedCount}<span style="font-size:9px;color:#888;">名</span></span></span>` : ''}
+        `;
+      }
+    } else if (saiyoActiveMode === 'analytics') {
+      // 採用分析モード：CPA / 応募完了 / 改善トレンド
+      const m = (typeof computeAnDashMetrics === 'function') ? computeAnDashMetrics() : null;
+      if (m && m.hasAdsData) {
+        const cpaDiff = m.prevCpa > 0 && m.cpa > 0 ? (m.prevCpa - m.cpa) / m.prevCpa * 100 : 0;
+        const cpaCls = cpaDiff >= 5 ? 'good' : (cpaDiff <= -5 ? 'danger' : 'mqs-value');
+        const cpaArrow = cpaDiff >= 5 ? '↓' : (cpaDiff <= -5 ? '↑' : '→');
+        html = `
+          <span class="mqs-item"><span class="mqs-label">CPA</span><span class="mqs-value">¥${m.cpa.toLocaleString()}</span></span>
+          ${m.prevCpa > 0 ? `<span class="mqs-item"><span class="mqs-value ${cpaCls}">${cpaArrow} ${Math.abs(Math.round(cpaDiff))}%</span></span>` : ''}
+          <span class="mqs-divider"></span>
+          <span class="mqs-item"><span class="mqs-label">応募</span><span class="mqs-value">${m.apply}<span style="font-size:9px;color:#888;">件</span></span></span>
+        `;
+      } else if (Array.isArray(applicants) && applicants.length > 0) {
+        // 広告データなくても応募者だけで簡易表示
+        const thisMonth = new Date().toISOString().slice(0, 7);
+        const cnt = applicants.filter(a => a.appDate && a.appDate.startsWith(thisMonth)).length;
+        html = `<span class="mqs-item"><span class="mqs-label">今月応募</span><span class="mqs-value">${cnt}<span style="font-size:9px;color:#888;">名</span></span></span>`;
+      }
+    }
+    // admin_settings は概要バーなし
+  } catch(e) {
+    console.warn('[renderModeQuickStats] エラー', e);
+  }
+  if (html) {
+    el.innerHTML = html;
+    el.style.display = 'inline-flex';
+  } else {
+    el.style.display = 'none';
+    el.innerHTML = '';
+  }
+}
+
+// 数値カウントアップアニメ
+// 使い方：animateCountUp(element, fromValue, toValue, durationMs, { prefix, suffix, formatter })
+function animateCountUp(el, from, to, duration, options) {
+  if (!el) return;
+  options = options || {};
+  const dur = duration || 600;
+  const start = performance.now();
+  const fmt = options.formatter || ((v) => Math.round(v).toLocaleString());
+  const prefix = options.prefix || '';
+  const suffix = options.suffix || '';
+  el.classList.add('countup');
+  function step(now) {
+    const elapsed = now - start;
+    const t = Math.min(1, elapsed / dur);
+    // ease-out
+    const e = 1 - Math.pow(1 - t, 3);
+    const cur = from + (to - from) * e;
+    el.textContent = prefix + fmt(cur) + suffix;
+    if (t < 1) {
+      requestAnimationFrame(step);
+    } else {
+      el.textContent = prefix + fmt(to) + suffix;
+    }
+  }
+  requestAnimationFrame(step);
+}
+
+// モードカードクリック時のリップル演出
+function rippleEffect(event) {
+  try {
+    const card = event.currentTarget;
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    const r = document.createElement('span');
+    r.className = 'ripple';
+    r.style.width = r.style.height = size + 'px';
+    r.style.left = (event.clientX - rect.left - size / 2) + 'px';
+    r.style.top = (event.clientY - rect.top - size / 2) + 'px';
+    card.appendChild(r);
+    setTimeout(() => r.remove(), 700);
+  } catch(e) {}
 }
 
 // 追加情報
@@ -4237,14 +5502,14 @@ function renderTrendMini(fromDate, toDate) {
 }
 
 function updateDashBubble(total, inProgress, hired, rate, thisMonth) {
-  // tasksがロード済みなら即座に、未ロードなら遅延実行
-  if (typeof tasks !== 'undefined' && Array.isArray(tasks)) {
-    updateDashBubbleInner(total, inProgress, hired, rate, thisMonth);
-  } else {
-    setTimeout(() => updateDashBubbleInner(total, inProgress, hired, rate, thisMonth), 300);
-  }
+  // Step 3: 採用運用ダッシュへの昇格に伴い、renderDashKoalaAdvice() に統合
+  // この関数は呼ばれても何もしない（互換性維持のため残す）
+  return;
 }
 function updateDashBubbleInner(total, inProgress, hired, rate, thisMonth) {
+  // Step 3: 無効化（renderDashKoalaAdvice に統合）
+  return;
+  // === 以下は旧コード（実行されない） ===
   try {
   const bubble = document.getElementById('dashBubbleText');
   const charImg = document.getElementById('dashChar');
@@ -8087,6 +9352,33 @@ function updateHeaderStaffDisplay() {
   }
   switcher.style.display = 'inline-flex';
   populateStaffSwitcher();
+  // Step 5: アバター円のイニシャル更新
+  updateStaffAvatar();
+}
+
+// Step 5: アバター円にイニシャル表示
+function updateStaffAvatar() {
+  const avatar = document.getElementById('staffAvatar');
+  if (!avatar) return;
+  const name = currentStaffName || '';
+  if (!name) {
+    avatar.textContent = '?';
+    avatar.title = '未設定';
+    return;
+  }
+  // 日本語の場合は先頭1文字、英語の場合は単語の頭文字
+  let initial = '?';
+  // 英語っぽい？
+  if (/^[a-zA-Z\s]+$/.test(name)) {
+    const words = name.trim().split(/\s+/);
+    initial = (words[0]?.[0] || '').toUpperCase();
+    if (words.length > 1) initial += (words[1][0] || '').toUpperCase();
+  } else {
+    // 日本語：1文字目
+    initial = name.charAt(0);
+  }
+  avatar.textContent = initial;
+  avatar.title = name + ' さん';
 }
 
 // ヘッダープルダウンの中身を生成（担当者選択肢のみ）
@@ -8126,6 +9418,9 @@ async function switchActiveStaff(staffId) {
   } catch(e) {
     console.warn('[switchActiveStaff] 再描画で警告', e);
   }
+  // Step 5: アバター円とモード概要バーを更新
+  try { updateStaffAvatar(); } catch(e) {}
+  try { renderModeQuickStats(); } catch(e) {}
 }
 
 // escapeHtmlヘルパーは既にこのファイルの後方で定義されているため、ここでは再定義しない
@@ -10219,6 +11514,25 @@ if (typeof window !== 'undefined') {
   window.onFileDrop = onFileDrop;
   window.downloadFile = downloadFile;
   window.deleteFile = deleteFile;
+  // Step 1: モード制御関数のグローバル公開
+  window.setMode = setMode;
+  window.goHome = goHome;
+  window.showUpgradeModal = showUpgradeModal;
+  // Step 2: モード選択ホーム関連
+  window.showModeHome = showModeHome;
+  window.refreshModeHome = refreshModeHome;
+  window.enterMode = enterMode;
+  // Step 3: 採用運用ダッシュ拡張
+  window.onDashMineToggle = onDashMineToggle;
+  window.refreshOperationDash = refreshOperationDash;
+  // Step 4: 採用分析ダッシュ
+  window.renderAnalyticsDash = renderAnalyticsDash;
+  window.refreshAnalyticsDash = refreshAnalyticsDash;
+  // Step 5: 仕上げ関連
+  window.closeUpgradeModal = closeUpgradeModal;
+  window.contactForUpgrade = contactForUpgrade;
+  window.renderModeQuickStats = renderModeQuickStats;
+  window.updateStaffAvatar = updateStaffAvatar;
   // 上記以外の関数は function宣言により既にグローバルだが、
   // 万一のミニファイ等に備えて主要関数も明示しておく
 }

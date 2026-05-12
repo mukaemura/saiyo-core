@@ -41,7 +41,12 @@
   const routes = [
     { path: '/login',              section: null,         action: 'showLogin' },
     { path: '/reset-password',     section: null,         action: 'resetPassword' },
+    { path: '/home',               section: null,         action: 'modeHome' },
     { path: '/dashboard',          section: 'dashboard' },
+    // Step 1: モード直URL対応（各モードのデフォルトセクションへ）
+    { path: '/operation',          section: 'list',       action: 'modeOperation' },
+    { path: '/analytics-mode',     section: 'analytics',  action: 'modeAnalytics' },
+    { path: '/admin-settings',     section: 'master',     action: 'modeAdminSettings' },
     { path: '/applicants',         section: 'list' },
     { path: '/applicants/new',     section: 'add',        action: 'newApplicant' },
     { path: '/applicants/import',  section: 'import' },
@@ -49,6 +54,7 @@
     { path: '/applicants/paste',   section: 'add-paste' },
     { path: '/applicants/:id',     section: 'add',        action: 'editApplicant' },
     { path: '/schedule',           section: 'schedule' },
+    { path: '/analytics-dash',     section: 'analytics-dash' },
     { path: '/analytics',          section: 'analytics' },
     { path: '/minutes',            section: 'minutes' },
     { path: '/tasks',              section: 'tasks' },
@@ -64,6 +70,7 @@
     'dashboard':  '/dashboard',
     'list':       '/applicants',
     'schedule':   '/schedule',
+    'analytics-dash': '/analytics-dash',
     'analytics':  '/analytics',
     'minutes':    '/minutes',
     'tasks':      '/tasks',
@@ -181,6 +188,20 @@
         } else if (typeof showSec === 'function') {
           showSec('add');
         }
+      } else if (route.action === 'modeHome') {
+        // モード選択ホーム画面
+        if (typeof showModeHome === 'function') showModeHome();
+        else if (typeof goHome === 'function') goHome();
+      } else if (route.action === 'modeOperation') {
+        // Step 1: 採用運用モードへ
+        if (typeof setMode === 'function') setMode('operation');
+        else if (typeof showSec === 'function') showSec('list');
+      } else if (route.action === 'modeAnalytics') {
+        if (typeof setMode === 'function') setMode('analytics');
+        else if (typeof showSec === 'function') showSec('analytics');
+      } else if (route.action === 'modeAdminSettings') {
+        if (typeof setMode === 'function') setMode('admin_settings');
+        else if (typeof showSec === 'function') showSec('master');
       } else if (route.section) {
         if (typeof showSec === 'function') showSec(route.section);
       }
