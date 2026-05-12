@@ -11223,5 +11223,331 @@ if (typeof window !== 'undefined') {
   window.adsRefreshAnalytics = adsRefreshAnalytics;
 }
 
+// ============================================================================
+// 📊 フェーズ2：分析画面 - パート2（月別推移、CP別、都道府県TOP5）
+// 2026/05/12 追加
+// ============================================================================
+
+let adsMonthlyView = 'table';  // 'table' or 'graph'
+
+// パート1の adsRefreshAnalytics 拡張：パート2のセクションも描画
+const _origAdsRefreshAnalytics = window.adsRefreshAnalytics;
+window.adsRefreshAnalytics = function() {
+  if (typeof _origAdsRefreshAnalytics === 'function') _origAdsRefreshAnalytics();
+  // パート2セクション描画
+  adsRenderMonthlyTrend();
+  adsRenderCampaignPerf();
+  adsRenderPrefTop();
+};
+
+// --- 月別パフォーマンス推移 ---
+function adsRenderMonthlyTrend() {
+  const el = document.getElementById('adsMonthlyTrend');
+  if (!el) return;
+  // 媒体・CPで絞ったrowsの中で、月ごとに集計
+  const cp = document.getElementById('adsCampaignFilter')?.value || '';
+  const filtered = adsRows.filter(r => {
+    if (adsActiveMedia !== 'all' && r.media_type !== adsActiveMedia) return false;
+    if (cp && r.campaign !== cp) return false;
+    return true;
+  });
+
+  // 月別グルーピング
+  const byMonth = {};
+  filtered.forEach(r => {
+    const m = r._month;
+    if (!m) return;
+    if (!byMonth[m]) byMonth[m] = [];
+    byMonth[m].push(r);
+  });
+  const months = Object.keys(byMonth).sort();
+  if (months.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  // 各月の集計
+  const monthData = months.map(m => ({
+    month: m,
+    agg: adsAggregate(byMonth[m]),
+  }));
+
+  // 最新月
+  const latestMonth = months[months.length - 1];
+  // 応募完了の最大値（棒グラフのスケール用）
+  const maxApply = Math.max(...monthData.map(d => d.agg.apply), 1);
+
+  // テーブル/グラフ切替の見た目
+  const tableBtn = adsMonthlyView === 'table'
+    ? `<button onclick="adsSetMonthlyView('table')" style="padding:3px 9px;background:#5a8a48;color:#fff;border:none;border-radius:4px;font-size:10px;font-family:inherit;cursor:pointer;">テーブル</button>`
+    : `<button onclick="adsSetMonthlyView('table')" style="padding:3px 9px;background:#fff;color:#666;border:1px solid #e3e3e0;border-radius:4px;font-size:10px;font-family:inherit;cursor:pointer;">テーブル</button>`;
+  const graphBtn = adsMonthlyView === 'graph'
+    ? `<button onclick="adsSetMonthlyView('graph')" style="padding:3px 9px;background:#5a8a48;color:#fff;border:none;border-radius:4px;font-size:10px;font-family:inherit;cursor:pointer;">グラフ</button>`
+    : `<button onclick="adsSetMonthlyView('graph')" style="padding:3px 9px;background:#fff;color:#666;border:1px solid #e3e3e0;border-radius:4px;font-size:10px;font-family:inherit;cursor:pointer;">グラフ</button>`;
+
+  let body = '';
+  if (adsMonthlyView === 'table') {
+    body = `<div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:780px;">
+        <thead>
+          <tr style="border-bottom:1px solid #e8ebe9;color:#666;text-align:right;">
+            <th style="padding:7px 6px;font-weight:500;text-align:left;width:80px;">月</th>
+            <th style="padding:7px 6px;font-weight:500;">表示</th>
+            <th style="padding:7px 6px;font-weight:500;">クリック</th>
+            <th style="padding:7px 6px;font-weight:500;">CTR</th>
+            <th style="padding:7px 6px;font-weight:500;">応募開始</th>
+            <th style="padding:7px 6px;font-weight:500;">応募完了</th>
+            <th style="padding:7px 6px;font-weight:500;">完了率</th>
+            <th style="padding:7px 6px;font-weight:500;">費用</th>
+            <th style="padding:7px 6px;font-weight:500;">CPA</th>
+            <th style="padding:7px 6px;font-weight:500;text-align:center;width:24px;"></th>
+          </tr>
+        </thead>
+        <tbody style="text-align:right;">
+          ${monthData.map(d => {
+            const isLatest = d.month === latestMonth;
+            const rowBg = isLatest ? 'background:#fafdf7;' : '';
+            const a = d.agg;
+            const monthLabel = `${d.month.replace('-', '年')}月`;
+            return `<tr style="border-bottom:0.5px solid #f0f0ee;${rowBg}">
+              <td style="padding:8px 6px;text-align:left;font-weight:500;color:#1a1a1a;">${monthLabel}${isLatest ? ' <span style="font-size:9px;color:#5a8a48;font-weight:500;background:#eaf3de;padding:1px 5px;border-radius:8px;margin-left:3px;">最新</span>' : ''}</td>
+              <td style="padding:8px 6px;${isLatest ? 'font-weight:500;' : ''}">${a.imp.toLocaleString()}</td>
+              <td style="padding:8px 6px;${isLatest ? 'font-weight:500;' : ''}">${a.click.toLocaleString()}</td>
+              <td style="padding:8px 6px;color:#666;">${(a.ctr * 100).toFixed(2)}%</td>
+              <td style="padding:8px 6px;${isLatest ? 'font-weight:500;' : ''}">${a.apply_start.toLocaleString()}</td>
+              <td style="padding:8px 6px;font-weight:500;color:#5a8a48;">${a.apply.toLocaleString()}</td>
+              <td style="padding:8px 6px;color:#666;">${(a.completion_rate * 100).toFixed(1)}%</td>
+              <td style="padding:8px 6px;${isLatest ? 'font-weight:500;' : ''}">¥${Math.round(a.cost).toLocaleString()}</td>
+              <td style="padding:8px 6px;color:#666;">${a.apply > 0 ? '¥' + Math.round(a.cpa).toLocaleString() : '—'}</td>
+              <td style="padding:8px 6px;text-align:center;color:#5a8a48;cursor:pointer;" onclick="adsJumpToMonth('${d.month}')" title="この月にフィルタ">▶</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  } else {
+    // グラフ表示：応募完了数の棒グラフ
+    body = `<div style="display:flex;gap:8px;align-items:flex-end;height:160px;padding:10px 4px 4px;">
+      ${monthData.map(d => {
+        const isLatest = d.month === latestMonth;
+        const h = Math.max(2, (d.agg.apply / maxApply) * 130);
+        const barColor = isLatest ? '#5a8a48' : '#a8c596';
+        const numColor = isLatest ? '#5a8a48' : '#3B6D11';
+        const labelColor = isLatest ? '#5a8a48' : '#666';
+        const labelWeight = isLatest ? '500' : '400';
+        const monthLabel = d.month.slice(5).replace(/^0/, '') + '月';
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;" onclick="adsJumpToMonth('${d.month}')">
+          <div style="font-size:10px;font-weight:500;color:${numColor};">${d.agg.apply}</div>
+          <div style="background:${barColor};width:100%;height:${h}px;border-radius:4px 4px 0 0;transition:opacity .15s;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'"></div>
+          <div style="font-size:9px;color:${labelColor};font-weight:${labelWeight};">${monthLabel}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="text-align:center;font-size:10px;color:#888;margin-top:6px;">応募完了数の月別推移（クリックでその月にフィルタ）</div>`;
+  }
+
+  el.innerHTML = `
+    <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:14px 16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:6px;">
+        <div style="font-size:12px;font-weight:500;color:#1a1a1a;">📅 月別パフォーマンス推移</div>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <span style="font-size:10px;color:#888;">表示形式：</span>
+          ${tableBtn}${graphBtn}
+        </div>
+      </div>
+      ${body}
+    </div>
+  `;
+}
+
+function adsSetMonthlyView(v) {
+  adsMonthlyView = v;
+  adsRenderMonthlyTrend();
+}
+
+function adsJumpToMonth(m) {
+  // 単月モードにしてその月を選択
+  adsPeriodMode = 'single';
+  document.querySelectorAll('.ads-period-btn').forEach(b => {
+    if (b.dataset.period === 'single') {
+      b.style.background = '#5a8a48'; b.style.color = '#fff'; b.style.fontWeight = '500';
+    } else {
+      b.style.background = 'transparent'; b.style.color = '#666'; b.style.fontWeight = '400';
+    }
+  });
+  document.getElementById('adsPeriodSingle').style.display = 'flex';
+  document.getElementById('adsPeriodRange').style.display = 'none';
+  document.getElementById('adsPeriodCompare').style.display = 'none';
+  document.getElementById('adsSingleMonth').value = m;
+  adsRefreshAnalytics();
+  // 画面トップへスクロール
+  document.getElementById('adsKpiMain')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// --- キャンペーン別パフォーマンス ---
+function adsRenderCampaignPerf() {
+  const el = document.getElementById('adsCampaignPerf');
+  if (!el) return;
+  const result = adsFilterRowsByPeriod();
+  const rows = result.rows || [];
+
+  // CPでグルーピング
+  const byCp = {};
+  rows.forEach(r => {
+    const cp = r.campaign || '(未設定)';
+    if (!byCp[cp]) byCp[cp] = [];
+    byCp[cp].push(r);
+  });
+  const cps = Object.keys(byCp);
+  if (cps.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  // CPごとの集計
+  const cpData = cps.map(cp => {
+    const agg = adsAggregate(byCp[cp]);
+    // CP名から予算を推測（"全案件￥1,200,000 - 2026年5月8日〜2026年5月31日"などのパターン）
+    let budget = null;
+    let cpPeriodStart = null;
+    let cpPeriodEnd = null;
+    const budM = cp.match(/[¥￥]\s*([0-9,]+)/);
+    if (budM) budget = parseInt(budM[1].replace(/,/g, ''), 10);
+    const dateM = cp.match(/(\d{4})年(\d{1,2})月(\d{1,2})日[～~〜](\d{4})年(\d{1,2})月(\d{1,2})日/);
+    if (dateM) {
+      cpPeriodStart = `${dateM[1]}/${dateM[2]}/${dateM[3]}`;
+      cpPeriodEnd = `${dateM[4]}/${dateM[5]}/${dateM[6]}`;
+    } else {
+      // AirWORK形式："2273482_東京請負【2026/5/1〜5/31】"
+      const dateM2 = cp.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})[～~〜](\d{1,2})\/(\d{1,2})/);
+      if (dateM2) {
+        cpPeriodStart = `${dateM2[1]}/${dateM2[2]}/${dateM2[3]}`;
+        cpPeriodEnd = `${dateM2[1]}/${dateM2[4]}/${dateM2[5]}`;
+      }
+    }
+    // 進行中/終了判定
+    let isOngoing = false;
+    if (cpPeriodEnd) {
+      const endDate = new Date(cpPeriodEnd.replace(/\//g, '-'));
+      const today = new Date();
+      isOngoing = endDate >= today;
+    }
+    return { cp, agg, budget, cpPeriodStart, cpPeriodEnd, isOngoing, rowCount: byCp[cp].length };
+  });
+
+  // 費用降順
+  cpData.sort((a, b) => b.agg.cost - a.agg.cost);
+
+  el.innerHTML = `
+    <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:14px 16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:6px;">
+        <div style="font-size:12px;font-weight:500;color:#1a1a1a;">📣 キャンペーン別パフォーマンス</div>
+        <span style="font-size:10px;color:#888;">${cpData.length}件のキャンペーン</span>
+      </div>
+      ${cpData.map(d => {
+        const consumePct = d.budget && d.budget > 0 ? (d.agg.cost / d.budget) * 100 : null;
+        const borderColor = d.isOngoing ? '#5a8a48' : '#888';
+        const bgColor = d.isOngoing ? '#f7f6f1' : '#f7f6f1';
+        const opacity = d.isOngoing ? '1' : '.85';
+        const badge = d.isOngoing
+          ? '<span style="background:#eaf3de;color:#3B6D11;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:500;">進行中</span>'
+          : (d.cpPeriodEnd
+              ? '<span style="background:#f1efe8;color:#5F5E5A;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:500;">終了</span>'
+              : '');
+        const periodLabel = (d.cpPeriodStart && d.cpPeriodEnd)
+          ? `<span style="font-size:10px;color:#888;font-weight:400;">(${d.cpPeriodStart}〜${d.cpPeriodEnd})</span>` : '';
+        return `<div style="background:${bgColor};border-radius:8px;padding:12px 14px;margin-bottom:10px;border-left:3px solid ${borderColor};opacity:${opacity};">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+            <div style="min-width:0;flex:1;">
+              <div style="font-size:12px;font-weight:500;color:#1a1a1a;word-break:break-all;">${escapeHtml(d.cp)} ${periodLabel}</div>
+              <div style="font-size:10px;color:#888;margin-top:2px;">
+                対象求人 ${d.rowCount}件
+                ${d.budget ? `／ 予算 ¥${d.budget.toLocaleString()}` : ''}
+                ${consumePct !== null ? `／ 消化 ¥${Math.round(d.agg.cost).toLocaleString()}（${consumePct.toFixed(1)}%）` : ''}
+              </div>
+            </div>
+            ${badge}
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;font-size:11px;">
+            <div><div style="font-size:9px;color:#888;">表示</div><div style="font-weight:500;color:#1a1a1a;margin-top:1px;">${d.agg.imp.toLocaleString()}</div></div>
+            <div><div style="font-size:9px;color:#888;">クリック</div><div style="font-weight:500;color:#1a1a1a;margin-top:1px;">${d.agg.click.toLocaleString()}</div></div>
+            <div><div style="font-size:9px;color:#888;">応募開始</div><div style="font-weight:500;color:#1a1a1a;margin-top:1px;">${d.agg.apply_start.toLocaleString()}</div></div>
+            <div><div style="font-size:9px;color:#888;">応募完了</div><div style="font-weight:500;color:#5a8a48;margin-top:1px;">${d.agg.apply.toLocaleString()}</div></div>
+            <div><div style="font-size:9px;color:#888;">消化額</div><div style="font-weight:500;color:#1a1a1a;margin-top:1px;">¥${Math.round(d.agg.cost).toLocaleString()}</div></div>
+            <div><div style="font-size:9px;color:#888;">CPC</div><div style="font-weight:500;color:#1a1a1a;margin-top:1px;">${d.agg.click > 0 ? '¥' + Math.round(d.agg.cpc).toLocaleString() : '—'}</div></div>
+            <div><div style="font-size:9px;color:#888;">CPA</div><div style="font-weight:500;color:#1a1a1a;margin-top:1px;">${d.agg.apply > 0 ? '¥' + Math.round(d.agg.cpa).toLocaleString() : '—'}</div></div>
+          </div>
+          ${consumePct !== null ? `
+          <div style="margin-top:10px;background:#eee;border-radius:4px;height:6px;overflow:hidden;">
+            <div style="background:${d.isOngoing ? '#5a8a48' : '#aaa'};width:${Math.min(consumePct, 100)}%;height:100%;"></div>
+          </div>
+          <div style="font-size:9px;color:#888;margin-top:3px;display:flex;justify-content:space-between;">
+            <span>予算消化率</span><span>${consumePct.toFixed(1)}%</span>
+          </div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+// --- 都道府県TOP5（応募完了数） ---
+function adsRenderPrefTop() {
+  const el = document.getElementById('adsPrefTop');
+  if (!el) return;
+  const result = adsFilterRowsByPeriod();
+  const rows = result.rows || [];
+
+  // 都道府県別グルーピング（応募完了数で集計）
+  const byPref = {};
+  rows.forEach(r => {
+    const pref = (r.prefecture || '').trim();
+    if (!pref) return;
+    if (!byPref[pref]) byPref[pref] = { apply: 0, cost: 0, click: 0, imp: 0 };
+    byPref[pref].apply += r.apply || 0;
+    byPref[pref].cost += Number(r.cost) || 0;
+    byPref[pref].click += r.click || 0;
+    byPref[pref].imp += r.imp || 0;
+  });
+  const list = Object.entries(byPref)
+    .map(([pref, d]) => ({ pref, ...d }))
+    .filter(d => d.apply > 0)
+    .sort((a, b) => b.apply - a.apply)
+    .slice(0, 5);
+
+  if (list.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  const maxApply = list[0].apply;
+  el.innerHTML = `
+    <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:14px 16px;">
+      <div style="font-size:12px;font-weight:500;color:#1a1a1a;margin-bottom:12px;">🗾 都道府県TOP5（応募完了数）</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        ${[0, 1].map(col => `
+          <div style="display:flex;flex-direction:column;gap:7px;">
+            ${list.slice(col * 3, col * 3 + 3).map((d, idx) => {
+              const rank = col * 3 + idx + 1;
+              const wPct = (d.apply / maxApply) * 100;
+              return `<div style="display:grid;grid-template-columns:24px 90px 1fr 36px;gap:8px;font-size:11px;align-items:center;">
+                <span style="color:#888;">${rank}</span>
+                <span style="font-weight:500;color:#1a1a1a;">${escapeHtml(d.pref)}</span>
+                <div style="background:#eaf3de;height:14px;border-radius:3px;"><div style="background:#5a8a48;width:${wPct}%;height:100%;border-radius:3px;"></div></div>
+                <span style="text-align:right;font-weight:500;color:#1a1a1a;">${d.apply}</span>
+              </div>`;
+            }).join('')}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// グローバル公開
+if (typeof window !== 'undefined') {
+  window.adsSetMonthlyView = adsSetMonthlyView;
+  window.adsJumpToMonth = adsJumpToMonth;
+}
+
 // 起動完了ログ
 console.log('[app.js] 読み込み完了');
