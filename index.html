@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
 <!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260512p">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260512p">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260512p">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260512p">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260512p">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260512q">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260512q">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260512q">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260512q">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260512q">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260512p">
+<link rel="stylesheet" href="css/style.css?v=20260512q">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -500,7 +500,7 @@
     grid-template-columns:1fr 1fr;
     gap:24px;
     max-width:640px;
-    margin:0 auto;
+    margin:48px auto 0;  /* コアラが上に飛び出すぶんのスペース */
     position:relative;
     z-index:1;
   }
@@ -509,11 +509,12 @@
     background:#fff;
     border:0.5px solid #eaeae6;
     border-radius:16px;
-    padding:0 24px 24px;
+    padding:64px 24px 24px;  /* 上は64pxにしてコアラ円の下半分のスペース確保 */
     cursor:pointer;
     position:relative;
     transition:all 0.25s cubic-bezier(.34,1.56,.64,1);
     box-shadow:0 1px 3px rgba(0,0,0,0.03);
+    overflow:visible;  /* 明示的に上はみ出しOK */
   }
   .mh-card:hover {
     transform:translateY(-4px);
@@ -531,23 +532,25 @@
   .mh-koala-wrap {
     width:96px;
     height:96px;
-    margin:0 auto;
     background:#eaf3de;
     border-radius:50%;
     display:flex;
     align-items:center;
     justify-content:center;
     border:4px solid #fafaf8;
-    position:relative;
-    margin-top:-48px;
-    margin-bottom:14px;
+    /* カード上端から半分飛び出す配置 */
+    position:absolute;
+    top:-48px;
+    left:50%;
+    transform:translateX(-50%);
     transition:transform 0.3s cubic-bezier(.34,1.56,.64,1);
+    z-index:2;
   }
   .mh-card-analytics .mh-koala-wrap {
     background:#e6f1fb;
   }
   .mh-card:hover .mh-koala-wrap {
-    transform:scale(1.08) translateY(-2px);
+    transform:translateX(-50%) scale(1.08) translateY(-2px);
   }
   /* コアラ画像本体 */
   .mh-koala {
@@ -652,16 +655,23 @@
     }
     .mh-cards {
       grid-template-columns:1fr;
-      gap:36px;  /* コアラ円が浮き出てるので縦間隔広め */
+      gap:60px;  /* コアラ円が浮き出てるので縦間隔広め */
       max-width:340px;
+      margin-top:42px;
     }
     .mh-title {
       font-size:22px;
     }
+    .mh-card {
+      padding-top:56px;
+    }
     .mh-koala-wrap {
       width:84px;
       height:84px;
-      margin-top:-42px;
+      top:-42px;
+    }
+    .mh-card:hover .mh-koala-wrap {
+      transform:translateX(-50%) scale(1.05) translateY(-2px);
     }
     .mh-koala {
       width:64px;
@@ -1370,9 +1380,7 @@
   }
 
   /* リップル風クリック演出（モードカード用） */
-  .mh-card {
-    overflow:hidden;
-  }
+  /* overflow:hidden だとコアラの円が切れるので、リップル要素側で対応 */
   .mh-card .ripple {
     position:absolute;
     border-radius:50%;
@@ -1380,6 +1388,8 @@
     transform:scale(0);
     animation:rippleEffect 0.6s ease-out;
     opacity:0.5;
+    /* コアラの円より下の本体エリアにクリップするマスク */
+    clip-path: inset(48px 0 0 0 round 0);  /* 上48pxはコアラ円エリアなので隠す */
   }
   .mh-card-operation .ripple { background:rgba(90,138,72,0.3); }
   .mh-card-analytics .ripple { background:rgba(24,95,165,0.25); }
@@ -1813,7 +1823,7 @@
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <!-- ロゴ＋プラットフォームサブテキスト -->
         <a href="#" onclick="goHome();return false;" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;cursor:pointer;" title="ホームに戻る">
-          <img src="assets/saiyo_mark.png?v=20260512p" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
+          <img src="assets/saiyo_mark.png?v=20260512q" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
           <div style="line-height:1;">
             <div style="font-size:14px;font-weight:600;color:#1a1a1a;">採用コア</div>
             <div style="font-size:9px;color:#888;letter-spacing:0.08em;margin-top:3px;">RECRUITING PLATFORM</div>
@@ -4077,10 +4087,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260512p"></script>
-<script src="js/app.js?v=20260512p"></script>
-<script src="js/paste-feature.js?v=20260512p"></script>
-<script src="js/email-feature.js?v=20260512p"></script>
-<script src="js/chip-feature.js?v=20260512p"></script>
+<script src="js/router.js?v=20260512q"></script>
+<script src="js/app.js?v=20260512q"></script>
+<script src="js/paste-feature.js?v=20260512q"></script>
+<script src="js/email-feature.js?v=20260512q"></script>
+<script src="js/chip-feature.js?v=20260512q"></script>
 </body>
 </html>
