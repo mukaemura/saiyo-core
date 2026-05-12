@@ -11853,14 +11853,15 @@ function adsRenderWorstCost(list, totalCost, cpCostTotals) {
 
   const tableRows = top5.map((r, i) => {
     const cp = r.campaign || '(未設定)';
+    const cpDisplay = cp.length > 28 ? cp.slice(0, 26) + '…' : cp;
     const cpTotal = cpCostTotals[cp] || 0;
     const sharePct = cpTotal > 0 ? ((Number(r.cost) || 0) / cpTotal * 100) : 0;
     const urlLink = r.url ? `<a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" style="color:#185FA5;text-decoration:none;font-size:10px;">求人 →</a>` : '<span style="color:#aaa;font-size:10px;">—</span>';
-    const maxBar = list[0].cost > 0 ? (Number(r.cost) / Number(list[0].cost)) * 100 : 0;
     return `<tr style="border-bottom:0.5px solid rgba(0,0,0,.05);">
       <td style="padding:5px 4px;color:#888;">${i + 1}</td>
-      <td style="padding:5px 4px;font-weight:500;color:#1a1a1a;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.job_title || '')}">${escapeHtml(r.job_title || '—')}</td>
-      <td style="padding:5px 4px;color:#666;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.company || '')}">${escapeHtml(r.company || '—')}</td>
+      <td style="padding:5px 4px;font-weight:500;color:#1a1a1a;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.job_title || '')}">${escapeHtml(r.job_title || '—')}</td>
+      <td style="padding:5px 4px;color:#666;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.company || '')}">${escapeHtml(r.company || '—')}</td>
+      <td style="padding:5px 4px;color:#555;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(cp)}"><span style="display:inline-block;background:#fff;color:#993C1D;padding:1px 6px;border-radius:8px;font-size:10px;border:0.5px solid #F0997B;">${escapeHtml(cpDisplay)}</span></td>
       <td style="padding:5px 4px;text-align:right;">${(r.imp || 0).toLocaleString()}</td>
       <td style="padding:5px 4px;text-align:right;">${(r.click || 0).toLocaleString()}</td>
       <td style="padding:5px 4px;text-align:right;font-weight:500;color:#712B13;">¥${Math.round(Number(r.cost) || 0).toLocaleString()}</td>
@@ -11882,12 +11883,13 @@ function adsRenderWorstCost(list, totalCost, cpCostTotals) {
       </div>
     </div>
     <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:700px;">
+      <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:820px;">
         <thead>
           <tr style="border-bottom:0.5px solid rgba(0,0,0,.08);color:#993C1D;text-align:left;">
             <th style="padding:5px 4px;font-weight:500;width:20px;">#</th>
             <th style="padding:5px 4px;font-weight:500;">求人</th>
             <th style="padding:5px 4px;font-weight:500;">企業</th>
+            <th style="padding:5px 4px;font-weight:500;">CP</th>
             <th style="padding:5px 4px;font-weight:500;text-align:right;">表示</th>
             <th style="padding:5px 4px;font-weight:500;text-align:right;">CL</th>
             <th style="padding:5px 4px;font-weight:500;text-align:right;">費用</th>
@@ -11907,11 +11909,14 @@ function adsRenderWorstCtr(list) {
   const top5 = list.slice(0, 5);
   const tableRows = top5.map((r, i) => {
     const ctr = (r.imp || 0) > 0 ? ((r.click || 0) / r.imp * 100).toFixed(2) : '0.00';
+    const cp = r.campaign || '(未設定)';
+    const cpDisplay = cp.length > 28 ? cp.slice(0, 26) + '…' : cp;
     const urlLink = r.url ? `<a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" style="color:#185FA5;text-decoration:none;font-size:10px;">求人 →</a>` : '<span style="color:#aaa;font-size:10px;">—</span>';
     return `<tr style="border-bottom:0.5px solid rgba(0,0,0,.05);">
       <td style="padding:5px 4px;color:#888;">${i + 1}</td>
-      <td style="padding:5px 4px;font-weight:500;color:#1a1a1a;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.job_title || '')}">${escapeHtml(r.job_title || '—')}</td>
-      <td style="padding:5px 4px;color:#666;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.company || '')}">${escapeHtml(r.company || '—')}</td>
+      <td style="padding:5px 4px;font-weight:500;color:#1a1a1a;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.job_title || '')}">${escapeHtml(r.job_title || '—')}</td>
+      <td style="padding:5px 4px;color:#666;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.company || '')}">${escapeHtml(r.company || '—')}</td>
+      <td style="padding:5px 4px;color:#555;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(cp)}"><span style="display:inline-block;background:#fff;color:#854F0B;padding:1px 6px;border-radius:8px;font-size:10px;border:0.5px solid #EF9F27;">${escapeHtml(cpDisplay)}</span></td>
       <td style="padding:5px 4px;text-align:right;font-weight:500;">${(r.imp || 0).toLocaleString()}</td>
       <td style="padding:5px 4px;text-align:right;">${(r.click || 0).toLocaleString()}</td>
       <td style="padding:5px 4px;text-align:right;font-weight:500;color:#854F0B;">${ctr}%</td>
@@ -11928,12 +11933,13 @@ function adsRenderWorstCtr(list) {
       </div>
     </div>
     <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:680px;">
+      <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:780px;">
         <thead>
           <tr style="border-bottom:0.5px solid rgba(0,0,0,.08);color:#854F0B;text-align:left;">
             <th style="padding:5px 4px;font-weight:500;width:20px;">#</th>
             <th style="padding:5px 4px;font-weight:500;">求人</th>
             <th style="padding:5px 4px;font-weight:500;">企業</th>
+            <th style="padding:5px 4px;font-weight:500;">CP</th>
             <th style="padding:5px 4px;font-weight:500;text-align:right;">表示</th>
             <th style="padding:5px 4px;font-weight:500;text-align:right;">CL</th>
             <th style="padding:5px 4px;font-weight:500;text-align:right;">CTR</th>
@@ -11951,11 +11957,14 @@ function adsRenderWorstStart(list) {
   if (list.length === 0) return `<div style="background:#f5f4fd;border-left:3px solid #534AB7;border-radius:0 8px 8px 0;padding:14px;font-size:11px;color:#3C3489;">✓ クリックされた求人はちゃんと応募開始まで進んでいます！</div>`;
   const top5 = list.slice(0, 5);
   const tableRows = top5.map((r, i) => {
+    const cp = r.campaign || '(未設定)';
+    const cpDisplay = cp.length > 28 ? cp.slice(0, 26) + '…' : cp;
     const urlLink = r.url ? `<a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" style="color:#185FA5;text-decoration:none;font-size:10px;">求人 →</a>` : '<span style="color:#aaa;font-size:10px;">—</span>';
     return `<tr style="border-bottom:0.5px solid rgba(0,0,0,.05);">
       <td style="padding:5px 4px;color:#888;">${i + 1}</td>
-      <td style="padding:5px 4px;font-weight:500;color:#1a1a1a;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.job_title || '')}">${escapeHtml(r.job_title || '—')}</td>
-      <td style="padding:5px 4px;color:#666;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.company || '')}">${escapeHtml(r.company || '—')}</td>
+      <td style="padding:5px 4px;font-weight:500;color:#1a1a1a;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.job_title || '')}">${escapeHtml(r.job_title || '—')}</td>
+      <td style="padding:5px 4px;color:#666;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.company || '')}">${escapeHtml(r.company || '—')}</td>
+      <td style="padding:5px 4px;color:#555;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(cp)}"><span style="display:inline-block;background:#fff;color:#3C3489;padding:1px 6px;border-radius:8px;font-size:10px;border:0.5px solid #AFA9EC;">${escapeHtml(cpDisplay)}</span></td>
       <td style="padding:5px 4px;text-align:right;font-weight:500;">${(r.click || 0).toLocaleString()}</td>
       <td style="padding:5px 4px;text-align:right;font-weight:500;color:#D85A30;">0</td>
       <td style="padding:5px 4px;text-align:right;">¥${Math.round(Number(r.cost) || 0).toLocaleString()}</td>
@@ -11971,12 +11980,13 @@ function adsRenderWorstStart(list) {
       </div>
     </div>
     <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:680px;">
+      <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:780px;">
         <thead>
           <tr style="border-bottom:0.5px solid rgba(0,0,0,.08);color:#3C3489;text-align:left;">
             <th style="padding:5px 4px;font-weight:500;width:20px;">#</th>
             <th style="padding:5px 4px;font-weight:500;">求人</th>
             <th style="padding:5px 4px;font-weight:500;">企業</th>
+            <th style="padding:5px 4px;font-weight:500;">CP</th>
             <th style="padding:5px 4px;font-weight:500;text-align:right;">CL</th>
             <th style="padding:5px 4px;font-weight:500;text-align:right;">応募開始</th>
             <th style="padding:5px 4px;font-weight:500;text-align:right;">費用</th>
@@ -11994,11 +12004,14 @@ function adsRenderWorstComplete(list) {
   const top5 = list.slice(0, 5);
   const tableRows = top5.map((r, i) => {
     const rate = (r.apply_start || 0) > 0 ? ((r.apply || 0) / r.apply_start * 100).toFixed(0) : '0';
+    const cp = r.campaign || '(未設定)';
+    const cpDisplay = cp.length > 28 ? cp.slice(0, 26) + '…' : cp;
     const urlLink = r.url ? `<a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" style="color:#185FA5;text-decoration:none;font-size:10px;">求人 →</a>` : '<span style="color:#aaa;font-size:10px;">—</span>';
     return `<tr style="border-bottom:0.5px solid rgba(0,0,0,.05);">
       <td style="padding:5px 4px;color:#888;">${i + 1}</td>
-      <td style="padding:5px 4px;font-weight:500;color:#1a1a1a;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.job_title || '')}">${escapeHtml(r.job_title || '—')}</td>
-      <td style="padding:5px 4px;color:#666;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.company || '')}">${escapeHtml(r.company || '—')}</td>
+      <td style="padding:5px 4px;font-weight:500;color:#1a1a1a;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.job_title || '')}">${escapeHtml(r.job_title || '—')}</td>
+      <td style="padding:5px 4px;color:#666;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.company || '')}">${escapeHtml(r.company || '—')}</td>
+      <td style="padding:5px 4px;color:#555;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(cp)}"><span style="display:inline-block;background:#fff;color:#993556;padding:1px 6px;border-radius:8px;font-size:10px;border:0.5px solid #ED93B1;">${escapeHtml(cpDisplay)}</span></td>
       <td style="padding:5px 4px;text-align:right;font-weight:500;">${r.apply_start || 0}</td>
       <td style="padding:5px 4px;text-align:right;">${r.apply || 0}</td>
       <td style="padding:5px 4px;text-align:right;font-weight:500;color:#D4537E;">${rate}%</td>
@@ -12014,12 +12027,13 @@ function adsRenderWorstComplete(list) {
       </div>
     </div>
     <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:680px;">
+      <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:780px;">
         <thead>
           <tr style="border-bottom:0.5px solid rgba(0,0,0,.08);color:#993556;text-align:left;">
             <th style="padding:5px 4px;font-weight:500;width:20px;">#</th>
             <th style="padding:5px 4px;font-weight:500;">求人</th>
             <th style="padding:5px 4px;font-weight:500;">企業</th>
+            <th style="padding:5px 4px;font-weight:500;">CP</th>
             <th style="padding:5px 4px;font-weight:500;text-align:right;">応募開始</th>
             <th style="padding:5px 4px;font-weight:500;text-align:right;">応募完了</th>
             <th style="padding:5px 4px;font-weight:500;text-align:right;">完了率</th>
