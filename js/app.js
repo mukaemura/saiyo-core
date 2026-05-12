@@ -10900,11 +10900,25 @@ async function adsLoadAnalytics() {
   const medias = Array.from(new Set(files.map(f => f.media_type)));
   adsAvailableMedias = medias;
 
-  // 実績行をまとめて取得
+  // 実績行をまとめて取得（Supabaseのデフォルト1000件上限を回避するためページング）
   const fileIds = files.map(f => f.file_id);
-  let q2 = sb.from('ad_performance_rows').select('*').in('file_id', fileIds);
-  const { data: rows, error: e2 } = await q2;
-  if (e2) { console.error('[adsLoadAnalytics rows]', e2); return; }
+  let rows = [];
+  const PAGE = 1000;
+  let from = 0;
+  // 安全のため最大50ページ（5万件）まで取得
+  for (let i = 0; i < 50; i++) {
+    const { data: chunk, error: e2 } = await sb
+      .from('ad_performance_rows')
+      .select('*')
+      .in('file_id', fileIds)
+      .range(from, from + PAGE - 1);
+    if (e2) { console.error('[adsLoadAnalytics rows]', e2); break; }
+    if (!chunk || chunk.length === 0) break;
+    rows = rows.concat(chunk);
+    if (chunk.length < PAGE) break;  // 最終ページ
+    from += PAGE;
+  }
+  console.log('[adsLoadAnalytics] 取得した行数:', rows.length);
 
   // ファイル情報を行に注入（期間情報）
   const fileMap = {};
