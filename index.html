@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
 <!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260512f">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260512f">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260512f">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260512f">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260512f">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260512g">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260512g">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260512g">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260512g">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260512g">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260512f">
+<link rel="stylesheet" href="css/style.css?v=20260512g">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -525,7 +525,7 @@
   <div class="app" id="mainApp" style="display:none;">
     <div class="header">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <div style="display:flex;align-items:center;gap:6px;"><img src="assets/saiyo_mark.png?v=20260512f" alt="採用コア" style="width:34px;height:34px;object-fit:contain;"></div>
+        <div style="display:flex;align-items:center;gap:6px;"><img src="assets/saiyo_mark.png?v=20260512g" alt="採用コア" style="width:34px;height:34px;object-fit:contain;"></div>
         <span class="client-badge" id="clientBadge"></span>
         <!-- 担当者表示エリア（Phase B-2） -->
         <div id="staffSwitcher" style="display:none;align-items:center;gap:6px;">
@@ -2011,6 +2011,9 @@
             </div>
           </div>
 
+          <!-- コアラ診断カード -->
+          <div id="adsKoalaDiagnosisCard" style="margin-bottom:12px;"></div>
+
           <!-- メインKPI 5枚 -->
           <div id="adsKpiMain" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px;"></div>
 
@@ -2164,6 +2167,49 @@
         <div style="padding:14px 24px;background:#fafaf8;display:flex;justify-content:flex-end;gap:8px;border-top:0.5px solid #e8ebe9;">
           <button onclick="adsCloseUploadModal()" style="padding:9px 16px;background:#fff;color:#666;border:1px solid #e3e3e0;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;">キャンセル</button>
           <button id="adsUploadConfirmBtn" onclick="adsConfirmUpload()" disabled style="padding:9px 22px;background:#5a8a48;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;letter-spacing:.04em;opacity:.4;">取り込む</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== コアラ詳細診断モーダル ===== -->
+    <div id="adsKoalaDetailModal" onclick="adsCloseKoalaDetailBg(event)" style="display:none;position:fixed;inset:0;z-index:9002;background:rgba(0,0,0,.45);align-items:center;justify-content:center;padding:20px;">
+      <div onclick="event.stopPropagation()" style="background:#fff;border-radius:14px;max-width:680px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.18);">
+        <div style="padding:18px 24px;border-bottom:0.5px solid #e8ebe9;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#fafdf7 0%,#f4f8f1 100%);">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <img src="assets/koala-think.png" alt="コアラ" style="width:40px;height:40px;object-fit:contain;">
+            <div>
+              <div style="font-size:14px;font-weight:500;color:#1a1a1a;letter-spacing:.04em;">🐨 コアラの詳しい診断</div>
+              <div style="font-size:10px;color:#5a8a48;" id="adsKoalaDetailPeriod">—</div>
+            </div>
+          </div>
+          <button onclick="adsCloseKoalaDetail()" style="background:none;border:none;color:#888;cursor:pointer;font-size:20px;line-height:1;padding:0;">×</button>
+        </div>
+        <div id="adsKoalaDetailBody" style="padding:22px 24px;font-size:12px;color:#444;line-height:1.8;"></div>
+        <div style="padding:14px 24px;background:#fafaf8;border-top:0.5px solid #e8ebe9;display:flex;justify-content:flex-end;">
+          <button onclick="adsCloseKoalaDetail()" style="padding:8px 18px;background:#5a8a48;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;">閉じる</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== コアラに質問モーダル ===== -->
+    <div id="adsKoalaChatModal" onclick="adsCloseKoalaChatBg(event)" style="display:none;position:fixed;inset:0;z-index:9002;background:rgba(0,0,0,.45);align-items:center;justify-content:center;padding:20px;">
+      <div onclick="event.stopPropagation()" style="background:#fff;border-radius:14px;max-width:560px;width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.18);">
+        <div style="padding:18px 24px;border-bottom:0.5px solid #e8ebe9;display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-size:14px;font-weight:500;color:#1a1a1a;letter-spacing:.04em;">💬 コアラに質問</div>
+          <button onclick="adsCloseKoalaChat()" style="background:none;border:none;color:#888;cursor:pointer;font-size:20px;line-height:1;padding:0;">×</button>
+        </div>
+        <div id="adsKoalaChatBody" style="padding:18px 24px;flex:1;overflow-y:auto;min-height:200px;"></div>
+        <div style="padding:14px 24px;background:#fafaf8;border-top:0.5px solid #e8ebe9;">
+          <div style="font-size:10px;color:#888;margin-bottom:6px;">質問例（クリックで送信）：</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+            <button onclick="adsAskKoala('先月と比べてCPAが上がった理由は？')" style="padding:4px 9px;background:#fff;border:1px solid #e3e3e0;border-radius:14px;font-size:10px;color:#5a8a48;cursor:pointer;font-family:inherit;">先月と比べてCPAが上がった理由は？</button>
+            <button onclick="adsAskKoala('予算の使い方で改善できる点は？')" style="padding:4px 9px;background:#fff;border:1px solid #e3e3e0;border-radius:14px;font-size:10px;color:#5a8a48;cursor:pointer;font-family:inherit;">予算の使い方で改善できる点は？</button>
+            <button onclick="adsAskKoala('応募が少ない求人を増やすには？')" style="padding:4px 9px;background:#fff;border:1px solid #e3e3e0;border-radius:14px;font-size:10px;color:#5a8a48;cursor:pointer;font-family:inherit;">応募が少ない求人を増やすには？</button>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <input type="text" id="adsKoalaChatInput" placeholder="質問を入力（Enterで送信）" onkeydown="if(event.key==='Enter')adsAskKoala()" style="flex:1;padding:8px 12px;border:1px solid #e3e3e0;border-radius:8px;font-size:12px;font-family:inherit;">
+            <button onclick="adsAskKoala()" style="padding:8px 16px;background:#5a8a48;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;">送信</button>
+          </div>
         </div>
       </div>
     </div>
@@ -2507,10 +2553,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260512f"></script>
-<script src="js/app.js?v=20260512f"></script>
-<script src="js/paste-feature.js?v=20260512f"></script>
-<script src="js/email-feature.js?v=20260512f"></script>
-<script src="js/chip-feature.js?v=20260512f"></script>
+<script src="js/router.js?v=20260512g"></script>
+<script src="js/app.js?v=20260512g"></script>
+<script src="js/paste-feature.js?v=20260512g"></script>
+<script src="js/email-feature.js?v=20260512g"></script>
+<script src="js/chip-feature.js?v=20260512g"></script>
 </body>
 </html>
