@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
 <!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260512k">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260512k">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260512k">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260512k">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260512k">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260512p">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260512p">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260512p">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260512p">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260512p">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260512k">
+<link rel="stylesheet" href="css/style.css?v=20260512p">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -261,6 +261,1269 @@
     transform:translateY(-1px) scale(.99) !important;
     transition:transform .08s ease !important;
   }
+
+  /* ============================================ */
+  /* Step 1: モードタブ＋サブナビUI                */
+  /* ============================================ */
+  /* ヘッダー上段：白背景 */
+  .header-top {
+    background:#fff !important;
+    border-bottom:0.5px solid #eaeae6 !important;
+    padding:12px 24px !important;
+  }
+  /* ヘッダー中段：モードタブ帯 */
+  .header-modes {
+    background:#fff;
+    border-bottom:0.5px solid #eaeae6;
+    padding:8px 24px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  /* ホームに戻るボタン */
+  .mode-home-btn {
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    padding:7px 12px;
+    background:transparent;
+    border:none;
+    border-radius:7px;
+    font-size:12px;
+    color:#666;
+    font-family:inherit;
+    font-weight:500;
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .mode-home-btn:hover {
+    background:#f7f6f1;
+    color:#1a1a1a;
+  }
+  /* モードタブグループ：pill型セグメント */
+  .mode-tabs {
+    display:inline-flex;
+    gap:3px;
+    background:#f7f6f1;
+    padding:3px;
+    border-radius:9px;
+  }
+  .mode-tab {
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    padding:7px 14px;
+    background:transparent;
+    border:none;
+    border-radius:7px;
+    font-size:12px;
+    color:#888;
+    font-family:inherit;
+    font-weight:500;
+    cursor:pointer;
+    transition:all .2s ease;
+  }
+  .mode-tab:hover:not(.active) {
+    color:#1a1a1a;
+    background:rgba(255,255,255,.5);
+  }
+  .mode-tab.active {
+    background:#fff;
+    color:#1a1a1a;
+    font-weight:600;
+    box-shadow:0 1px 2px rgba(0,0,0,0.04);
+    border:0.5px solid #eaeae6;
+  }
+  .mode-tab.active[data-mode="operation"] {
+    color:#3B6D11;
+  }
+  .mode-tab.active[data-mode="analytics"] {
+    color:#0C447C;
+  }
+  .mode-tab.active[data-mode="admin_settings"] {
+    color:#444441;
+  }
+  .mode-tab.disabled {
+    opacity:0.4;
+    cursor:not-allowed;
+  }
+  .mode-tab-icon {
+    font-size:13px;
+  }
+  /* ヘッダー下段：サブナビ */
+  .header-subnav {
+    background:#fff;
+    border-bottom:0.5px solid #eaeae6;
+    padding:10px 24px;
+  }
+  .sub-nav {
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  /* サブナビボタン（モダンな下線型ではなく、運用しやすいピル型） */
+  .snb {
+    padding:7px 13px;
+    background:#fff;
+    border:1px solid #e3e3e0;
+    border-radius:7px;
+    font-size:12px;
+    color:#666;
+    font-family:inherit;
+    font-weight:500;
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .snb:hover {
+    border-color:#5a8a48;
+    background:#f4f8f1;
+    color:#1a1a1a;
+  }
+  .snb.active {
+    background:#1a1a1a;
+    color:#fff;
+    border-color:#1a1a1a;
+    font-weight:600;
+  }
+  /* モード別アクセント：採用運用 */
+  body[data-active-mode="operation"] .snb.active {
+    background:#5a8a48;
+    border-color:#5a8a48;
+  }
+  /* モード別アクセント：採用分析（背景クールに） */
+  body[data-active-mode="analytics"] {
+    background:#f4f6fa;
+  }
+  body[data-active-mode="analytics"] .snb.active {
+    background:#185FA5;
+    border-color:#185FA5;
+  }
+  body[data-active-mode="analytics"] .snb:hover:not(.active) {
+    border-color:#185FA5;
+    background:#e6f1fb;
+  }
+  /* モード別アクセント：管理設定 */
+  body[data-active-mode="admin_settings"] .snb.active {
+    background:#5F5E5A;
+    border-color:#5F5E5A;
+  }
+  body[data-active-mode="admin_settings"] .snb:hover:not(.active) {
+    border-color:#5F5E5A;
+    background:#f1efe8;
+  }
+  /* モード切替フェード */
+  .sub-nav, .sec {
+    animation: modeFadeIn 0.25s ease-out;
+  }
+  @keyframes modeFadeIn {
+    from { opacity:0.4; transform:translateY(-3px); }
+    to { opacity:1; transform:translateY(0); }
+  }
+  /* モバイル：モードタブ縮小 */
+  @media (max-width: 640px) {
+    .header-top, .header-modes, .header-subnav {
+      padding-left:14px !important;
+      padding-right:14px !important;
+    }
+    .mode-tab {
+      padding:6px 10px;
+      font-size:11px;
+    }
+    .mode-tab span:not(.mode-tab-icon) {
+      display:none;
+    }
+    .mode-home-btn span:not(:first-child) {
+      display:none;
+    }
+  }
+
+  /* ============================================ */
+  /* Step 2: モード選択ホーム画面（方向C）         */
+  /* ============================================ */
+  .mode-home-screen {
+    padding:48px 32px 40px !important;
+    text-align:center;
+    background:linear-gradient(180deg,#fafdf7 0%,#fafaf8 100%);
+    border-radius:0 !important;
+    box-shadow:none !important;
+    position:relative;
+    overflow:hidden;
+    min-height:calc(100vh - 250px);
+    animation: mhFadeIn 0.4s ease-out;
+  }
+  @keyframes mhFadeIn {
+    from { opacity:0; transform:translateY(8px); }
+    to { opacity:1; transform:translateY(0); }
+  }
+  /* 背景装飾：薄い葉っぱ */
+  .mh-leaf {
+    position:absolute;
+    font-size:18px;
+    opacity:0.12;
+    pointer-events:none;
+    user-select:none;
+  }
+  .mh-leaf-1 { top:30px; left:8%; transform:rotate(-20deg); }
+  .mh-leaf-2 { top:110px; right:12%; transform:rotate(30deg); font-size:14px; }
+  .mh-leaf-3 { bottom:70px; left:14%; transform:rotate(45deg); font-size:14px; }
+  .mh-leaf-4 { bottom:120px; right:8%; transform:rotate(-30deg); }
+  /* ヒーロー */
+  .mh-hero {
+    margin-bottom:48px;
+    position:relative;
+    z-index:1;
+  }
+  .mh-eyebrow {
+    font-size:11px;
+    color:#5a8a48;
+    letter-spacing:0.14em;
+    font-weight:500;
+    margin-bottom:10px;
+  }
+  .mh-title {
+    font-size:28px;
+    font-weight:600;
+    color:#1a1a1a;
+    margin:0 0 8px;
+    line-height:1.3;
+  }
+  .mh-subtitle {
+    font-size:13px;
+    color:#888;
+  }
+  /* モードカード群 */
+  .mh-cards {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:24px;
+    max-width:640px;
+    margin:0 auto;
+    position:relative;
+    z-index:1;
+  }
+  /* カード本体 */
+  .mh-card {
+    background:#fff;
+    border:0.5px solid #eaeae6;
+    border-radius:16px;
+    padding:0 24px 24px;
+    cursor:pointer;
+    position:relative;
+    transition:all 0.25s cubic-bezier(.34,1.56,.64,1);
+    box-shadow:0 1px 3px rgba(0,0,0,0.03);
+  }
+  .mh-card:hover {
+    transform:translateY(-4px);
+    box-shadow:0 10px 30px rgba(0,0,0,0.08);
+  }
+  .mh-card-operation:hover {
+    border-color:#c8d8b8;
+    box-shadow:0 10px 30px rgba(90,138,72,0.12);
+  }
+  .mh-card-analytics:hover {
+    border-color:#cfe0f0;
+    box-shadow:0 10px 30px rgba(24,95,165,0.12);
+  }
+  /* カード上部のコアララッパー（カード上端から飛び出す） */
+  .mh-koala-wrap {
+    width:96px;
+    height:96px;
+    margin:0 auto;
+    background:#eaf3de;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border:4px solid #fafaf8;
+    position:relative;
+    margin-top:-48px;
+    margin-bottom:14px;
+    transition:transform 0.3s cubic-bezier(.34,1.56,.64,1);
+  }
+  .mh-card-analytics .mh-koala-wrap {
+    background:#e6f1fb;
+  }
+  .mh-card:hover .mh-koala-wrap {
+    transform:scale(1.08) translateY(-2px);
+  }
+  /* コアラ画像本体 */
+  .mh-koala {
+    width:72px;
+    height:72px;
+    object-fit:contain;
+    transition:opacity 0.4s ease;
+  }
+  .mh-koala.koala-fade-out {
+    opacity:0;
+  }
+  /* カード本文 */
+  .mh-card-body {
+    text-align:center;
+  }
+  .mh-mode-no {
+    font-size:10px;
+    letter-spacing:0.08em;
+    font-weight:500;
+    margin-bottom:6px;
+  }
+  .mh-mode-name {
+    font-size:20px;
+    font-weight:600;
+    color:#1a1a1a;
+    margin-bottom:6px;
+  }
+  .mh-mode-desc {
+    font-size:11px;
+    color:#888;
+    line-height:1.7;
+    margin-bottom:16px;
+  }
+  /* つぶやき吹き出し */
+  .mh-bubble {
+    background:#fafdf7;
+    border:0.5px solid #eaf3de;
+    border-radius:8px;
+    padding:8px 12px;
+    font-size:11px;
+    line-height:1.5;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    justify-content:center;
+    margin-bottom:14px;
+  }
+  .mh-bubble-operation {
+    background:#fafdf7;
+    border-color:#eaf3de;
+    color:#3B6D11;
+  }
+  .mh-bubble-analytics {
+    background:#f4f8fc;
+    border-color:#e6f1fb;
+    color:#0C447C;
+  }
+  /* 入るボタン */
+  .mh-enter-btn {
+    width:100%;
+    padding:10px;
+    border:none;
+    border-radius:8px;
+    font-size:12px;
+    font-weight:500;
+    font-family:inherit;
+    color:#fff;
+    cursor:pointer;
+    transition:all 0.15s ease;
+  }
+  .mh-enter-operation {
+    background:#5a8a48;
+  }
+  .mh-enter-operation:hover {
+    background:#4a7339;
+  }
+  .mh-enter-analytics {
+    background:#185FA5;
+  }
+  .mh-enter-analytics:hover {
+    background:#0C447C;
+  }
+  /* フッターのコアラ一言 */
+  .mh-footer {
+    margin-top:40px;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    background:#fff;
+    border:0.5px solid #eaeae6;
+    border-radius:24px;
+    padding:8px 16px;
+    font-size:11px;
+    color:#666;
+    position:relative;
+    z-index:1;
+  }
+  /* モバイル */
+  @media (max-width: 640px) {
+    .mode-home-screen {
+      padding:32px 16px 32px !important;
+    }
+    .mh-cards {
+      grid-template-columns:1fr;
+      gap:36px;  /* コアラ円が浮き出てるので縦間隔広め */
+      max-width:340px;
+    }
+    .mh-title {
+      font-size:22px;
+    }
+    .mh-koala-wrap {
+      width:84px;
+      height:84px;
+      margin-top:-42px;
+    }
+    .mh-koala {
+      width:64px;
+      height:64px;
+    }
+  }
+
+  /* ============================================ */
+  /* Step 3: 採用運用ダッシュ                      */
+  /* ============================================ */
+  .op-dash-header {
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    margin-bottom:1.25rem;
+    background:linear-gradient(135deg,#f5f9f1 0%,#fafdf7 100%);
+    border-radius:12px;
+    padding:18px 22px;
+    border:0.5px solid #eaeae6;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  .op-dash-eyebrow {
+    font-size:10px;
+    color:#5a8a48;
+    letter-spacing:0.06em;
+    font-weight:500;
+    margin-bottom:4px;
+  }
+  .op-dash-title {
+    font-size:20px;
+    font-weight:600;
+    color:#1a1a1a;
+    margin:0 0 4px;
+  }
+  .op-dash-date {
+    font-size:11px;
+    color:#888;
+  }
+  .op-dash-actions {
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .op-dash-mine-toggle {
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:6px 10px;
+    background:#fff;
+    border:0.5px solid #eaeae6;
+    border-radius:7px;
+    cursor:pointer;
+    font-size:11px;
+    color:#666;
+    transition:all .15s ease;
+  }
+  .op-dash-mine-toggle:hover {
+    border-color:#5a8a48;
+    color:#1a1a1a;
+  }
+  .op-dash-mine-toggle input {
+    margin:0;
+    cursor:pointer;
+  }
+  .op-dash-refresh {
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    padding:6px 10px;
+    background:#fff;
+    border:0.5px solid #eaeae6;
+    border-radius:7px;
+    font-size:10px;
+    color:#888;
+  }
+  .op-dash-refresh-dot {
+    display:inline-block;
+    width:6px;
+    height:6px;
+    background:#5a8a48;
+    border-radius:50%;
+    animation: dashRefreshPulse 2s ease-in-out infinite;
+  }
+  @keyframes dashRefreshPulse {
+    0%, 100% { opacity:0.4; }
+    50% { opacity:1; transform:scale(1.2); }
+  }
+  .op-dash-refresh-btn {
+    padding:6px 10px;
+    background:#fff;
+    border:0.5px solid #eaeae6;
+    border-radius:7px;
+    font-size:13px;
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .op-dash-refresh-btn:hover {
+    border-color:#5a8a48;
+    background:#f4f8f1;
+    transform:rotate(180deg);
+  }
+  /* コアラのアドバイス枠 */
+  .op-dash-koala-box {
+    display:flex;
+    gap:14px;
+    align-items:flex-start;
+    background:#fff;
+    border:0.5px solid #eaeae6;
+    border-radius:12px;
+    padding:14px 16px;
+    margin-bottom:1.25rem;
+  }
+  .op-dash-koala-img {
+    width:64px;
+    height:64px;
+    object-fit:contain;
+    flex-shrink:0;
+  }
+  .op-dash-koala-bubble {
+    flex:1;
+  }
+  .op-dash-koala-label {
+    font-size:9px;
+    color:#5a8a48;
+    letter-spacing:0.04em;
+    font-weight:500;
+    margin-bottom:4px;
+  }
+  /* 今週の面接リスト */
+  .op-dash-week-list {
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .op-dash-week-item {
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:10px 14px;
+    background:#fff;
+    border:0.5px solid #eaeae6;
+    border-radius:8px;
+    font-size:12px;
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .op-dash-week-item:hover {
+    border-color:#5a8a48;
+    background:#fafdf7;
+  }
+  .op-dash-week-day {
+    flex-shrink:0;
+    width:56px;
+    text-align:center;
+    padding:4px 0;
+    background:#f5f5f3;
+    border-radius:6px;
+    font-size:10px;
+    color:#666;
+    font-weight:500;
+  }
+  .op-dash-week-day.today {
+    background:#eaf3de;
+    color:#3B6D11;
+    font-weight:600;
+  }
+  .op-dash-week-empty {
+    padding:14px;
+    text-align:center;
+    color:#aaa;
+    font-size:11px;
+    background:#fafafa;
+    border-radius:8px;
+  }
+  /* 議事録最新 */
+  .op-dash-minutes-list {
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .op-dash-minute-item {
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 14px;
+    background:#fff;
+    border:0.5px solid #eaeae6;
+    border-radius:8px;
+    font-size:12px;
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .op-dash-minute-item:hover {
+    border-color:#5a8a48;
+    background:#fafdf7;
+  }
+  .op-dash-minute-empty {
+    padding:14px;
+    text-align:center;
+    color:#aaa;
+    font-size:11px;
+    background:#fafafa;
+    border-radius:8px;
+  }
+  /* KPIカードクリック誘導：ホバーで矢印表示 */
+  .op-dash-clickable {
+    cursor:pointer !important;
+    transition:all .15s ease;
+    position:relative;
+  }
+  .op-dash-clickable::after {
+    content:'→';
+    position:absolute;
+    top:8px;
+    right:10px;
+    opacity:0;
+    transition:opacity .15s ease;
+    color:#5a8a48;
+    font-size:14px;
+  }
+  .op-dash-clickable:hover {
+    transform:translateY(-2px);
+    box-shadow:0 4px 12px rgba(90,138,72,0.10);
+  }
+  .op-dash-clickable:hover::after {
+    opacity:1;
+  }
+  /* モバイル */
+  @media (max-width: 640px) {
+    .op-dash-header {
+      padding:14px 16px;
+      flex-direction:column;
+      align-items:flex-start;
+    }
+    .op-dash-actions {
+      width:100%;
+      justify-content:flex-start;
+    }
+    .op-dash-koala-box {
+      flex-direction:column;
+      align-items:center;
+      text-align:center;
+    }
+  }
+
+  /* ============================================ */
+  /* Step 4: 採用分析ダッシュ                      */
+  /* ============================================ */
+  .an-dash-header {
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    margin-bottom:1.25rem;
+    background:linear-gradient(135deg,#f4f8fc 0%,#fafcff 100%);
+    border-radius:12px;
+    padding:18px 22px;
+    border:0.5px solid #e6ebf3;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  .an-dash-eyebrow {
+    font-size:10px;
+    color:#185FA5;
+    letter-spacing:0.06em;
+    font-weight:500;
+    margin-bottom:4px;
+  }
+  .an-dash-title {
+    font-size:20px;
+    font-weight:600;
+    color:#1a1a1a;
+    margin:0 0 4px;
+  }
+  .an-dash-date {
+    font-size:11px;
+    color:#888;
+  }
+  .an-dash-actions {
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .an-dash-refresh {
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    padding:6px 10px;
+    background:#fff;
+    border:0.5px solid #e6ebf3;
+    border-radius:7px;
+    font-size:10px;
+    color:#888;
+  }
+  .an-dash-refresh-dot {
+    display:inline-block;
+    width:6px;
+    height:6px;
+    background:#185FA5;
+    border-radius:50%;
+    animation: dashRefreshPulse 2s ease-in-out infinite;
+  }
+  .an-dash-refresh-btn {
+    padding:6px 10px;
+    background:#fff;
+    border:0.5px solid #e6ebf3;
+    border-radius:7px;
+    font-size:13px;
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .an-dash-refresh-btn:hover {
+    border-color:#185FA5;
+    background:#f4f8fc;
+    transform:rotate(180deg);
+  }
+  /* コアラAI診断（採用分析用） */
+  .an-dash-koala-box {
+    display:flex;
+    gap:16px;
+    align-items:flex-start;
+    background:#fff;
+    border:0.5px solid #e6ebf3;
+    border-radius:12px;
+    padding:18px 22px;
+    margin-bottom:1.5rem;
+    position:relative;
+    overflow:hidden;
+  }
+  .an-dash-koala-box::before {
+    content:'';
+    position:absolute;
+    top:-20px;
+    right:-20px;
+    width:120px;
+    height:120px;
+    background:radial-gradient(circle,rgba(24,95,165,0.04) 0%,transparent 70%);
+  }
+  .an-dash-koala-img {
+    width:72px;
+    height:72px;
+    object-fit:contain;
+    flex-shrink:0;
+    position:relative;
+    z-index:1;
+  }
+  .an-dash-koala-body {
+    flex:1;
+    position:relative;
+    z-index:1;
+  }
+  .an-dash-koala-label {
+    font-size:10px;
+    color:#185FA5;
+    letter-spacing:0.04em;
+    font-weight:500;
+    margin-bottom:6px;
+  }
+  /* メインKPI 4枚 */
+  .an-dash-kpi-grid {
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:12px;
+    margin-bottom:1.5rem;
+  }
+  .an-dash-kpi-card {
+    background:#fff;
+    border:0.5px solid #e6ebf3;
+    border-radius:10px;
+    padding:14px 16px;
+    border-left:3px solid #185FA5;
+    cursor:pointer;
+    transition:all .2s ease;
+  }
+  .an-dash-kpi-card:hover {
+    transform:translateY(-2px);
+    box-shadow:0 6px 16px rgba(24,95,165,0.08);
+  }
+  .an-dash-kpi-label {
+    font-size:10px;
+    color:#0C447C;
+    font-weight:500;
+    letter-spacing:0.04em;
+  }
+  .an-dash-kpi-value {
+    font-size:22px;
+    font-weight:600;
+    color:#1a1a1a;
+    margin-top:6px;
+    line-height:1.1;
+  }
+  .an-dash-kpi-unit {
+    font-size:11px;
+    color:#888;
+    font-weight:400;
+    margin-left:2px;
+  }
+  .an-dash-kpi-trend {
+    font-size:10px;
+    margin-top:4px;
+    font-weight:500;
+  }
+  .an-dash-kpi-trend.up-good {
+    color:#3B6D11;
+  }
+  .an-dash-kpi-trend.down-good {
+    color:#3B6D11;
+  }
+  .an-dash-kpi-trend.up-bad {
+    color:#D85A30;
+  }
+  .an-dash-kpi-trend.down-bad {
+    color:#D85A30;
+  }
+  .an-dash-kpi-trend.flat {
+    color:#888;
+  }
+  /* 2カラムレイアウト */
+  .an-dash-2col {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+    margin-bottom:1.5rem;
+  }
+  .an-dash-panel {
+    background:#fff;
+    border:0.5px solid #e6ebf3;
+    border-radius:10px;
+    padding:16px 18px;
+  }
+  .an-dash-panel-head {
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    margin-bottom:14px;
+  }
+  .an-dash-panel-title {
+    font-size:13px;
+    font-weight:600;
+    color:#1a1a1a;
+  }
+  .an-dash-panel-sub {
+    font-size:10px;
+    color:#888;
+    margin-top:2px;
+  }
+  .an-dash-more {
+    font-size:10px;
+    padding:5px 10px;
+    background:transparent;
+    border:0.5px solid #185FA5;
+    color:#185FA5;
+    border-radius:6px;
+    font-family:inherit;
+    cursor:pointer;
+    font-weight:500;
+    transition:all .15s ease;
+  }
+  .an-dash-more:hover {
+    background:#185FA5;
+    color:#fff;
+  }
+  /* 月別推移バー */
+  .an-dash-bars {
+    display:flex;
+    gap:6px;
+    align-items:flex-end;
+    height:140px;
+    padding:8px 4px 4px;
+  }
+  .an-dash-bar {
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+    cursor:default;
+  }
+  .an-dash-bar-num {
+    font-size:10px;
+    font-weight:500;
+    color:#185FA5;
+  }
+  .an-dash-bar-fill {
+    width:100%;
+    background:#cfe0f0;
+    border-radius:3px 3px 0 0;
+    min-height:2px;
+    transition:opacity 0.15s;
+  }
+  .an-dash-bar-fill.latest {
+    background:#185FA5;
+  }
+  .an-dash-bar-label {
+    font-size:9px;
+    color:#888;
+  }
+  .an-dash-bar-label.latest {
+    color:#185FA5;
+    font-weight:600;
+  }
+  .an-dash-empty {
+    padding:24px;
+    text-align:center;
+    color:#aaa;
+    font-size:11px;
+  }
+  /* ワーストリスト */
+  .an-dash-worst-list {
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .an-dash-worst-item {
+    background:#fdf2ee;
+    border:0.5px solid #f4d4c4;
+    border-radius:7px;
+    padding:10px 12px;
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .an-dash-worst-item:hover {
+    border-color:#D85A30;
+    transform:translateX(2px);
+  }
+  .an-dash-worst-title {
+    font-size:11px;
+    font-weight:500;
+    color:#1a1a1a;
+    line-height:1.4;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .an-dash-worst-meta {
+    font-size:10px;
+    color:#993C1D;
+    margin-top:3px;
+  }
+  /* アラートゾーン */
+  .an-dash-alerts {
+    margin-bottom:1.5rem;
+  }
+  .an-dash-alert-item {
+    background:#fef7e9;
+    border:0.5px solid #FAC775;
+    border-left:3px solid #EF9F27;
+    border-radius:8px;
+    padding:10px 14px;
+    margin-bottom:8px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-size:12px;
+    color:#854F0B;
+  }
+  .an-dash-alert-item.danger {
+    background:#fcebeb;
+    border-color:#F09595;
+    border-left-color:#E24B4A;
+    color:#A32D2D;
+  }
+  /* フッター */
+  .an-dash-footer {
+    background:#fff;
+    border:0.5px solid #e6ebf3;
+    border-radius:10px;
+    padding:16px 18px;
+  }
+  .an-dash-footer-btns {
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:10px;
+  }
+  .an-dash-footer-btn {
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:12px 14px;
+    background:#fafcff;
+    border:0.5px solid #e6ebf3;
+    border-radius:8px;
+    cursor:pointer;
+    text-align:left;
+    font-family:inherit;
+    font-size:12px;
+    transition:all .15s ease;
+  }
+  .an-dash-footer-btn:hover {
+    background:#f4f8fc;
+    border-color:#185FA5;
+    transform:translateY(-1px);
+  }
+  /* モバイル */
+  @media (max-width: 768px) {
+    .an-dash-kpi-grid {
+      grid-template-columns:repeat(2,1fr);
+    }
+    .an-dash-2col {
+      grid-template-columns:1fr;
+    }
+    .an-dash-footer-btns {
+      grid-template-columns:1fr;
+    }
+    .an-dash-header {
+      padding:14px 16px;
+      flex-direction:column;
+      align-items:flex-start;
+    }
+    .an-dash-koala-box {
+      flex-direction:column;
+      text-align:center;
+      align-items:center;
+    }
+  }
+
+  /* ============================================ */
+  /* Step 5: 仕上げ                                */
+  /* ============================================ */
+
+  /* アバター円 */
+  .staff-avatar {
+    width:30px;
+    height:30px;
+    border-radius:50%;
+    background:#eaf3de;
+    color:#3B6D11;
+    font-size:13px;
+    font-weight:600;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border:1.5px solid #fff;
+    box-shadow:0 0 0 1px #c0dd97;
+    flex-shrink:0;
+    user-select:none;
+    transition:all .2s ease;
+  }
+  body[data-active-mode="analytics"] .staff-avatar {
+    background:#e6f1fb;
+    color:#0C447C;
+    box-shadow:0 0 0 1px #85B7EB;
+  }
+  body[data-active-mode="admin_settings"] .staff-avatar {
+    background:#f1efe8;
+    color:#444441;
+    box-shadow:0 0 0 1px #B4B2A9;
+  }
+
+  /* モード概要バー（KPI帯） */
+  .mode-quick-stats {
+    display:inline-flex;
+    align-items:center;
+    gap:14px;
+    margin-left:auto;
+    padding:4px 12px;
+    background:#fff;
+    border:0.5px solid #eaeae6;
+    border-radius:7px;
+    animation: mqsFadeIn 0.3s ease-out;
+  }
+  @keyframes mqsFadeIn {
+    from { opacity:0; transform:translateX(8px); }
+    to { opacity:1; transform:translateX(0); }
+  }
+  .mqs-item {
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    font-size:10px;
+    color:#666;
+  }
+  .mqs-label {
+    color:#888;
+  }
+  .mqs-value {
+    font-weight:600;
+    color:#1a1a1a;
+  }
+  .mqs-value.warn {
+    color:#854F0B;
+  }
+  .mqs-value.danger {
+    color:#A32D2D;
+  }
+  .mqs-value.good {
+    color:#3B6D11;
+  }
+  .mqs-divider {
+    width:1px;
+    height:14px;
+    background:#eaeae6;
+  }
+  @media (max-width: 900px) {
+    .mode-quick-stats {
+      display:none;  /* 狭い画面では非表示 */
+    }
+  }
+
+  /* 数値カウントアップアニメ用：JSで使う */
+  .countup {
+    transition:none;
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* リップル風クリック演出（モードカード用） */
+  .mh-card {
+    overflow:hidden;
+  }
+  .mh-card .ripple {
+    position:absolute;
+    border-radius:50%;
+    pointer-events:none;
+    transform:scale(0);
+    animation:rippleEffect 0.6s ease-out;
+    opacity:0.5;
+  }
+  .mh-card-operation .ripple { background:rgba(90,138,72,0.3); }
+  .mh-card-analytics .ripple { background:rgba(24,95,165,0.25); }
+  @keyframes rippleEffect {
+    to {
+      transform:scale(2.5);
+      opacity:0;
+    }
+  }
+
+  /* ============================================ */
+  /* Step 5: アップグレードモーダル                 */
+  /* ============================================ */
+  .upgrade-modal-overlay {
+    position:fixed;
+    inset:0;
+    background:rgba(20,20,18,0.55);
+    backdrop-filter:blur(2px);
+    z-index:9999;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    animation:upgradeOverlayIn 0.2s ease-out;
+    padding:16px;
+  }
+  @keyframes upgradeOverlayIn {
+    from { opacity:0; }
+    to { opacity:1; }
+  }
+  .upgrade-modal {
+    background:#fff;
+    border-radius:14px;
+    padding:30px 28px 26px;
+    max-width:420px;
+    width:100%;
+    box-shadow:0 20px 50px rgba(0,0,0,0.18);
+    text-align:center;
+    animation:upgradeModalIn 0.3s cubic-bezier(.34,1.56,.64,1);
+    position:relative;
+  }
+  @keyframes upgradeModalIn {
+    from { opacity:0; transform:scale(0.85) translateY(20px); }
+    to { opacity:1; transform:scale(1) translateY(0); }
+  }
+  .upgrade-modal-koala {
+    width:80px;
+    height:80px;
+    margin:0 auto 16px;
+    background:#eaf3de;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .upgrade-modal-koala img {
+    width:60px;
+    height:60px;
+    object-fit:contain;
+  }
+  .upgrade-modal-title {
+    font-size:18px;
+    font-weight:600;
+    color:#1a1a1a;
+    margin-bottom:8px;
+  }
+  .upgrade-modal-mode {
+    display:inline-block;
+    background:#fafafa;
+    border:0.5px solid #eaeae6;
+    border-radius:14px;
+    padding:4px 12px;
+    font-size:12px;
+    color:#5a8a48;
+    font-weight:500;
+    margin-bottom:14px;
+  }
+  .upgrade-modal-desc {
+    font-size:13px;
+    color:#666;
+    line-height:1.7;
+    margin-bottom:22px;
+  }
+  .upgrade-modal-actions {
+    display:flex;
+    gap:8px;
+  }
+  .upgrade-modal-btn {
+    flex:1;
+    padding:11px;
+    border-radius:9px;
+    font-size:13px;
+    font-weight:500;
+    font-family:inherit;
+    cursor:pointer;
+    transition:all .15s ease;
+    border:none;
+  }
+  .upgrade-modal-btn.primary {
+    background:#1a1a1a;
+    color:#fff;
+  }
+  .upgrade-modal-btn.primary:hover {
+    background:#000;
+  }
+  .upgrade-modal-btn.secondary {
+    background:#f5f5f3;
+    color:#666;
+  }
+  .upgrade-modal-btn.secondary:hover {
+    background:#eaeae6;
+  }
+  .upgrade-modal-close {
+    position:absolute;
+    top:14px;
+    right:14px;
+    width:28px;
+    height:28px;
+    background:transparent;
+    border:none;
+    font-size:16px;
+    color:#888;
+    cursor:pointer;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .upgrade-modal-close:hover {
+    background:#f5f5f3;
+    color:#1a1a1a;
+  }
+
+  /* グレーアウトされたモードタブは点線で示唆 */
+  .mode-tab.disabled {
+    opacity:0.5;
+    cursor:not-allowed;
+    position:relative;
+  }
+  .mode-tab.disabled::after {
+    content:'🔒';
+    margin-left:4px;
+    font-size:10px;
+    opacity:0.6;
+  }
 </style>
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
@@ -471,6 +1734,26 @@
 }
 </style>
 
+<!-- ===== Step 5: アップグレードモーダル（プラン誘導、将来用） ===== -->
+<div id="upgradeModalOverlay" class="upgrade-modal-overlay" style="display:none;" onclick="closeUpgradeModal(event)">
+  <div class="upgrade-modal" onclick="event.stopPropagation()">
+    <button class="upgrade-modal-close" onclick="closeUpgradeModal()" aria-label="閉じる">×</button>
+    <div class="upgrade-modal-koala">
+      <img src="assets/koala-think.png" alt="">
+    </div>
+    <div class="upgrade-modal-mode" id="upgradeModalMode">📊 採用分析</div>
+    <h3 class="upgrade-modal-title">このモードは現在のプランでは<br>ご利用いただけません</h3>
+    <div class="upgrade-modal-desc">
+      お申し込みのプランをアップグレードすると、<br>
+      <strong id="upgradeModalModeName">このモード</strong>をご利用いただけるようになります。
+    </div>
+    <div class="upgrade-modal-actions">
+      <button class="upgrade-modal-btn secondary" onclick="closeUpgradeModal()">閉じる</button>
+      <button class="upgrade-modal-btn primary" onclick="contactForUpgrade()">お問い合わせ →</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== 担当者選択画面（Phase B-2 / v2.5 リファイン） ===== -->
 <div id="staffSelectScreen" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:#f7f6f1;position:relative;overflow:hidden;padding:48px 16px;box-sizing:border-box;">
 
@@ -523,21 +1806,34 @@
 </div>
 
   <div class="app" id="mainApp" style="display:none;">
-    <div class="header">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <div style="display:flex;align-items:center;gap:6px;"><img src="assets/saiyo_mark.png?v=20260512k" alt="採用コア" style="width:34px;height:34px;object-fit:contain;"></div>
+    <!-- ============================================ -->
+    <!-- ヘッダー上段：ロゴ＋クライアント＋担当者＋通知 -->
+    <!-- ============================================ -->
+    <div class="header header-top">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <!-- ロゴ＋プラットフォームサブテキスト -->
+        <a href="#" onclick="goHome();return false;" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;cursor:pointer;" title="ホームに戻る">
+          <img src="assets/saiyo_mark.png?v=20260512p" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
+          <div style="line-height:1;">
+            <div style="font-size:14px;font-weight:600;color:#1a1a1a;">採用コア</div>
+            <div style="font-size:9px;color:#888;letter-spacing:0.08em;margin-top:3px;">RECRUITING PLATFORM</div>
+          </div>
+        </a>
         <span class="client-badge" id="clientBadge"></span>
-        <!-- 担当者表示エリア（Phase B-2） -->
-        <div id="staffSwitcher" style="display:none;align-items:center;gap:6px;">
-          <span style="font-size:10px;color:#aaa;">担当：</span>
+        <!-- 担当者表示エリア：アバター円 + プルダウン -->
+        <div id="staffSwitcher" style="display:none;align-items:center;gap:8px;">
+          <!-- アバター円（イニシャル表示） -->
+          <div id="staffAvatar" class="staff-avatar" title="担当者">向</div>
           <select id="staffSwitcherSelect" onchange="switchActiveStaff(this.value)"
             style="padding:4px 8px;border:1px solid #deeee9;border-radius:6px;background:#f7fcfa;color:#1a1a1a;font-size:12px;font-family:inherit;font-weight:600;cursor:pointer;outline:none;">
           </select>
         </div>
         <!-- admin時の表示 -->
         <span id="adminStaffBadge" style="display:none;font-size:11px;color:#185FA5;background:#e8f1fc;border:1px solid #c8ddf5;border-radius:20px;padding:3px 10px;font-weight:600;">管理者</span>
-        <!-- ベル通知（Phase E） -->
-        <div id="bellWrap" style="position:relative;margin-left:6px;">
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <!-- ベル通知 -->
+        <div id="bellWrap" style="position:relative;">
           <button id="bellBtn" onclick="toggleBellPanel()" style="position:relative;background:#fff;border:1px solid #e8e8e6;border-radius:50%;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;padding:0;">
             🔔
             <span id="bellBadge" style="display:none;position:absolute;top:-3px;right:-3px;background:#D85A30;color:#fff;border-radius:9px;padding:0 5px;font-size:9px;font-weight:600;min-width:14px;height:14px;line-height:14px;text-align:center;">0</span>
@@ -552,44 +1848,158 @@
             </div>
           </div>
         </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
-        <nav class="nav" id="mainNav">
-          <button class="nb active" onclick="showSec('dashboard')">ダッシュボード</button>
-          <button class="nb" onclick="showSec('list')">応募者一覧</button>
-          <button class="nb" onclick="showSec('schedule')" id="scheduleNavBtn">📅 スケジュール</button>
-          <button class="nb" onclick="showSec('analytics')">分析</button>
-          <button class="nb" onclick="showSec('minutes')">議事録</button>
-          <button class="nb" onclick="showSec('tasks')" id="taskNavBtn">タスク</button>
-          <button class="nb" onclick="showSec('budget')">💰 予算管理</button>
-          <button class="nb" onclick="showSec('ads')">📣 有料広告実績</button>
-          <button class="nb" onclick="showSec('master')">マスター管理</button>
-          <button class="nb" onclick="showSec('staff')">担当者管理</button>
-        </nav>
-        <button id="adminNavBtn" class="nb" style="display:none;border-color:#378ADD;color:#378ADD;" onclick="showSec('admin')">クライアント管理</button>
         <button class="nb-logout" onclick="confirmLogout()">ログアウト</button>
       </div>
     </div>
+
+    <!-- ============================================ -->
+    <!-- ヘッダー中段：モードタブ＋ホーム/モード選択戻る -->
+    <!-- ============================================ -->
+    <div class="header-modes" id="modeTabsBar">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <!-- 「ホームに戻る」ボタン -->
+        <button class="mode-home-btn" onclick="goHome()" title="モード選択ホームへ">
+          <span style="font-size:13px;">🏠</span><span>ホーム</span>
+        </button>
+        <div style="width:1px;height:20px;background:#eaeae6;margin:0 4px;"></div>
+        <!-- モードタブ群 -->
+        <div class="mode-tabs" id="modeTabsGroup">
+          <button class="mode-tab" data-mode="operation" onclick="setMode('operation')">
+            <span class="mode-tab-icon">🏃</span><span>採用運用</span>
+          </button>
+          <button class="mode-tab" data-mode="analytics" onclick="setMode('analytics')">
+            <span class="mode-tab-icon">📊</span><span>採用分析</span>
+          </button>
+          <button class="mode-tab" data-mode="admin_settings" onclick="setMode('admin_settings')">
+            <span class="mode-tab-icon">⚙️</span><span>管理設定</span>
+          </button>
+        </div>
+      </div>
+      <div id="modeContextLabel" style="font-size:10px;color:#888;letter-spacing:0.04em;"></div>
+      <!-- Step 5: モード別 概要バー（KPI帯） -->
+      <div id="modeQuickStats" class="mode-quick-stats" style="display:none;"></div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- ヘッダー下段：サブナビ（モードに応じて切替） -->
+    <!-- ============================================ -->
+    <div class="header-subnav" id="subNavBar">
+      <!-- 採用運用モードのサブナビ -->
+      <nav class="sub-nav" id="subNavOperation" data-mode="operation" style="display:none;">
+        <button class="snb" onclick="showSec('list')">応募者一覧</button>
+        <button class="snb" onclick="showSec('schedule')" id="scheduleNavBtn">📅 対応スケジュール確認</button>
+        <button class="snb" onclick="showSec('minutes')">議事録</button>
+        <button class="snb" onclick="showSec('tasks')" id="taskNavBtn">タスク</button>
+      </nav>
+      <!-- 採用分析モードのサブナビ -->
+      <nav class="sub-nav" id="subNavAnalytics" data-mode="analytics" style="display:none;">
+        <button class="snb" onclick="showSec('analytics-dash')">📊 分析ダッシュ</button>
+        <button class="snb" onclick="showSec('analytics')">📈 応募者分析</button>
+        <button class="snb" onclick="showSec('budget')">💰 採用予算管理</button>
+        <button class="snb" onclick="showSec('ads')">📣 有料広告実績</button>
+      </nav>
+      <!-- 管理設定モードのサブナビ -->
+      <nav class="sub-nav" id="subNavAdminSettings" data-mode="admin_settings" style="display:none;">
+        <button class="snb" onclick="showSec('master')">マスター管理</button>
+        <button class="snb" onclick="showSec('staff')">担当者管理</button>
+        <button id="adminNavBtn" class="snb" style="display:none;" onclick="showSec('admin')">クライアント管理</button>
+      </nav>
+    </div>
     <div class="status-bar" id="statusBar"></div>
 
-    <!-- ダッシュボード -->
-    <div id="sec-dashboard" class="sec active">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;background:linear-gradient(135deg,#f0faf6,#fdf8f0);border-radius:12px;padding:1.25rem 1.5rem;">
-        <div>
-          <div style="font-size:11px;color:#999;" id="dashDate"></div>
-          <h2 style="font-size:18px;font-weight:700;margin-top:4px;color:#1a1a1a;" id="dashGreet"></h2>
-          <div style="font-size:11px;color:#5a8a48;margin-top:4px;">採用コア｜Link Core</div>
-        </div>
-        <div id="dashHeader" style="display:flex;align-items:center;gap:12px;position:relative;">
-          <!-- キャラクター -->
-          <div style="display:flex;align-items:center;gap:0;flex-direction:row;">
-          <!-- 吹き出し（左） -->
-          <div id="dashBubble" style="background:#fff;border-radius:16px 16px 4px 16px;padding:10px 14px;box-shadow:0 2px 12px rgba(0,0,0,.1);font-size:11px;line-height:1.8;color:#1a1a1a;max-width:180px;margin-right:8px;position:relative;">
-            <div id="dashBubbleText" style="font-size:12px;">🐨 ただいま読み込み中...</div>
+    <!-- ============================================ -->
+    <!-- Step 2: モード選択ホーム画面（方向Cデザイン）  -->
+    <!-- 既存のダッシュボードはこの後に維持。
+         showSec('dashboard') が「ホーム」として呼ばれた時にこちらを表示する形にする。 -->
+    <!-- ============================================ -->
+    <div id="sec-mode-home" class="sec mode-home-screen" style="display:none;">
+      <!-- 背景装飾：薄い葉っぱ -->
+      <div class="mh-leaf mh-leaf-1">🌿</div>
+      <div class="mh-leaf mh-leaf-2">🌿</div>
+      <div class="mh-leaf mh-leaf-3">🌿</div>
+      <div class="mh-leaf mh-leaf-4">🌿</div>
+
+      <div class="mh-hero">
+        <div class="mh-eyebrow">WELCOME TO SAIYO CORE</div>
+        <h1 class="mh-title" id="mhGreeting">おかえりなさい</h1>
+        <div class="mh-subtitle" id="mhDate">どの世界に入りますか？</div>
+      </div>
+
+      <div class="mh-cards">
+        <!-- 採用運用カード -->
+        <div class="mh-card mh-card-operation" onclick="enterMode('operation', event)" id="mhCardOperation">
+          <!-- 上部に浮かぶコアラ -->
+          <div class="mh-koala-wrap">
+            <img id="mhKoalaOperation" src="assets/koala-good.png" alt="採用運用" class="mh-koala">
           </div>
-          <!-- キャラクター（右） -->
-          <img id="dashChar" src="assets/koala-pc.png" style="width:90px;height:90px;object-fit:contain;flex-shrink:0;">
+          <div class="mh-card-body">
+            <div class="mh-mode-no" style="color:#5a8a48;">MODE 01</div>
+            <div class="mh-mode-name">採用運用</div>
+            <div class="mh-mode-desc">応募者と向き合い、<br>一人ひとりを進める世界</div>
+            <!-- コアラのつぶやき -->
+            <div class="mh-bubble mh-bubble-operation" id="mhBubbleOperation">
+              <span>🐨</span><span id="mhBubbleOperationText">対応待ちを確認しよう</span>
+            </div>
+            <button class="mh-enter-btn mh-enter-operation">入る →</button>
+          </div>
         </div>
+
+        <!-- 採用分析カード -->
+        <div class="mh-card mh-card-analytics" onclick="enterMode('analytics', event)" id="mhCardAnalytics">
+          <div class="mh-koala-wrap">
+            <img id="mhKoalaAnalytics" src="assets/koala-pc.png" alt="採用分析" class="mh-koala">
+          </div>
+          <div class="mh-card-body">
+            <div class="mh-mode-no" style="color:#185FA5;">MODE 02</div>
+            <div class="mh-mode-name">採用分析</div>
+            <div class="mh-mode-desc">数字と向き合い、<br>改善を見つける世界</div>
+            <div class="mh-bubble mh-bubble-analytics" id="mhBubbleAnalytics">
+              <span>🐨</span><span id="mhBubbleAnalyticsText">データを見てみよう</span>
+            </div>
+            <button class="mh-enter-btn mh-enter-analytics">入る →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ボトム：コアラの一言 -->
+      <div class="mh-footer">
+        <span style="font-size:14px;">🐨</span>
+        <span id="mhFooterText">今日も一緒にがんばろう</span>
+      </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- Step 3: 採用運用ダッシュボード（昇格版）       -->
+    <!-- ============================================ -->
+    <div id="sec-dashboard" class="sec">
+      <!-- ダッシュヘッダー：タイトル + 担当者フィルタ + 自動更新表記 -->
+      <div class="op-dash-header">
+        <div class="op-dash-titlewrap">
+          <div class="op-dash-eyebrow">🏃 採用運用モード</div>
+          <h2 class="op-dash-title" id="dashGreet">採用運用ダッシュ</h2>
+          <div class="op-dash-date" id="dashDate"></div>
+        </div>
+        <div class="op-dash-actions">
+          <!-- 自分の担当のみ切替 -->
+          <label class="op-dash-mine-toggle" id="dashMineToggleWrap" title="自分が担当している応募者だけに絞る">
+            <input type="checkbox" id="dashMineOnly" onchange="onDashMineToggle(this.checked)">
+            <span>自分の担当のみ</span>
+          </label>
+          <!-- 自動更新表記 -->
+          <span class="op-dash-refresh" id="dashRefreshLabel">
+            <span class="op-dash-refresh-dot"></span>
+            <span id="dashRefreshText">5分ごと更新</span>
+          </span>
+          <button class="op-dash-refresh-btn" onclick="refreshOperationDash()" title="今すぐ更新">🔄</button>
+        </div>
+      </div>
+
+      <!-- コアラのアドバイス枠 -->
+      <div id="dashKoalaAdvice" class="op-dash-koala-box" style="display:none;">
+        <img id="dashChar" src="assets/koala-pc.png" class="op-dash-koala-img">
+        <div class="op-dash-koala-bubble">
+          <div class="op-dash-koala-label">コアラのひとこと</div>
+          <div id="dashBubbleText" style="font-size:12px;line-height:1.7;color:#1a1a1a;">ただいま読み込み中...</div>
         </div>
       </div>
 
@@ -616,8 +2026,17 @@
       <!-- 追加情報（媒体Top3 / 平均選考日数 / 滞留 / 30日推移） -->
       <div id="dashInsights"></div>
 
+      <!-- 今週の面接スケジュール（Step 3新規） -->
+      <div style="margin-top:1.5rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;">
+          <strong style="font-size:12px;">📅 今週の面接スケジュール</strong>
+          <button class="btn-sm" onclick="showSec('schedule')">スケジュール画面 →</button>
+        </div>
+        <div id="dashWeekInterviews" class="op-dash-week-list"></div>
+      </div>
+
       <!-- 直近の応募者 -->
-      <div style="margin-bottom:.5rem;display:flex;align-items:center;justify-content:space-between;">
+      <div style="margin-top:1.25rem;margin-bottom:.5rem;display:flex;align-items:center;justify-content:space-between;">
         <strong style="font-size:12px;">直近の応募者</strong>
         <button class="btn-sm" onclick="showSec('list')">全件表示 →</button>
       </div>
@@ -638,6 +2057,111 @@
           <button class="btn-sm" onclick="showSec('tasks')">全件表示 →</button>
         </div>
         <div id="dashTaskList"></div>
+      </div>
+
+      <!-- 議事録最新（Step 3新規） -->
+      <div style="margin-top:1.25rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+          <strong style="font-size:12px;">📝 最近の議事録</strong>
+          <button class="btn-sm" onclick="showSec('minutes')">全件表示 →</button>
+        </div>
+        <div id="dashRecentMinutes" class="op-dash-minutes-list"></div>
+      </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- Step 4: 採用分析ダッシュボード（新規）         -->
+    <!-- ============================================ -->
+    <div id="sec-analytics-dash" class="sec">
+      <!-- ヘッダー -->
+      <div class="an-dash-header">
+        <div class="an-dash-titlewrap">
+          <div class="an-dash-eyebrow">📊 採用分析モード</div>
+          <h2 class="an-dash-title">採用分析ダッシュ</h2>
+          <div class="an-dash-date" id="anDashDate"></div>
+        </div>
+        <div class="an-dash-actions">
+          <span class="an-dash-refresh">
+            <span class="an-dash-refresh-dot"></span>
+            <span>5分ごと更新</span>
+          </span>
+          <button class="an-dash-refresh-btn" onclick="refreshAnalyticsDash()" title="今すぐ更新">🔄</button>
+        </div>
+      </div>
+
+      <!-- コアラAI診断（要約版） -->
+      <div id="anDashKoala" class="an-dash-koala-box">
+        <img id="anDashKoalaImg" src="assets/koala-pc.png" class="an-dash-koala-img">
+        <div class="an-dash-koala-body">
+          <div class="an-dash-koala-label">🐨 コアラAI診断 ／ 今月のサマリー</div>
+          <div id="anDashKoalaText" style="font-size:13px;line-height:1.7;color:#1a1a1a;">データを読み込み中...</div>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;" id="anDashKoalaActions"></div>
+        </div>
+      </div>
+
+      <!-- メインKPI 4枚 -->
+      <div class="an-dash-kpi-grid" id="anDashKpiGrid">
+        <!-- カードはJSで描画 -->
+      </div>
+
+      <!-- 2カラム：月別推移 ＋ 改善求人TOP3 -->
+      <div class="an-dash-2col">
+        <!-- 月別推移サマリ -->
+        <div class="an-dash-panel">
+          <div class="an-dash-panel-head">
+            <div>
+              <div class="an-dash-panel-title">📈 月別推移</div>
+              <div class="an-dash-panel-sub">応募完了数の推移</div>
+            </div>
+            <button class="an-dash-more" onclick="showSec('ads')">詳しく見る →</button>
+          </div>
+          <div id="anDashMonthly" class="an-dash-bars"></div>
+        </div>
+
+        <!-- 改善求人 TOP3 -->
+        <div class="an-dash-panel">
+          <div class="an-dash-panel-head">
+            <div>
+              <div class="an-dash-panel-title">⚠️ 改善が必要な求人</div>
+              <div class="an-dash-panel-sub">費用かかってるのに応募ゼロ</div>
+            </div>
+            <button class="an-dash-more" onclick="showSec('ads')">詳しく見る →</button>
+          </div>
+          <div id="anDashWorstTop3" class="an-dash-worst-list"></div>
+        </div>
+      </div>
+
+      <!-- 重要アラート -->
+      <div id="anDashAlerts" class="an-dash-alerts" style="display:none;">
+        <!-- JSで描画 -->
+      </div>
+
+      <!-- フッター：各画面へのショートカット -->
+      <div class="an-dash-footer">
+        <div style="font-size:11px;color:#888;margin-bottom:10px;font-weight:500;">📋 もっと深く見る</div>
+        <div class="an-dash-footer-btns">
+          <button class="an-dash-footer-btn" onclick="showSec('analytics')">
+            <span style="font-size:18px;">📈</span>
+            <div>
+              <div style="font-weight:600;color:#1a1a1a;">応募者分析</div>
+              <div style="font-size:10px;color:#888;margin-top:1px;">媒体別・職種別・部署別の応募分析</div>
+            </div>
+          </button>
+          <button class="an-dash-footer-btn" onclick="showSec('budget')">
+            <span style="font-size:18px;">💰</span>
+            <div>
+              <div style="font-weight:600;color:#1a1a1a;">採用予算管理</div>
+              <div style="font-size:10px;color:#888;margin-top:1px;">媒体別費用対効果・シミュレーター</div>
+            </div>
+          </button>
+          <button class="an-dash-footer-btn" onclick="showSec('ads')">
+            <span style="font-size:18px;">📣</span>
+            <div>
+              <div style="font-weight:600;color:#1a1a1a;">有料広告実績</div>
+              <div style="font-size:10px;color:#888;margin-top:1px;">Indeed/AirWORKの詳細分析</div>
+            </div>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -2553,10 +4077,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260512k"></script>
-<script src="js/app.js?v=20260512k"></script>
-<script src="js/paste-feature.js?v=20260512k"></script>
-<script src="js/email-feature.js?v=20260512k"></script>
-<script src="js/chip-feature.js?v=20260512k"></script>
+<script src="js/router.js?v=20260512p"></script>
+<script src="js/app.js?v=20260512p"></script>
+<script src="js/paste-feature.js?v=20260512p"></script>
+<script src="js/email-feature.js?v=20260512p"></script>
+<script src="js/chip-feature.js?v=20260512p"></script>
 </body>
 </html>
