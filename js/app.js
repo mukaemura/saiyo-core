@@ -11563,5 +11563,482 @@ if (typeof window !== 'undefined') {
   window.adsJumpToMonth = adsJumpToMonth;
 }
 
+// ============================================================================
+// 📊 フェーズ2：分析画面 - パート3（求人別ランキング + ワーストランキング4種）
+// 2026/05/12 追加
+// ============================================================================
+
+let adsJobRankingMode = 'top';   // 'top' / 'cost' / 'click'
+let adsWorstActiveTab = 'cost';  // 'cost' / 'ctr' / 'start' / 'complete'
+
+// パート2の adsRefreshAnalytics を拡張
+const _origAdsRefreshAnalytics_v3 = window.adsRefreshAnalytics;
+window.adsRefreshAnalytics = function() {
+  if (typeof _origAdsRefreshAnalytics_v3 === 'function') _origAdsRefreshAnalytics_v3();
+  adsRenderJobRanking();
+  adsRenderWorstSections();
+};
+
+// --- 求人別ランキング ---
+function adsRenderJobRanking() {
+  const el = document.getElementById('adsJobRanking');
+  if (!el) return;
+  const result = adsFilterRowsByPeriod();
+  const rows = result.rows || [];
+
+  if (rows.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  // CPシェア基準セレクトの選択肢を作る（CP一覧）
+  const cpSet = new Set(rows.map(r => r.campaign).filter(c => c && c !== '-'));
+  const cpList = Array.from(cpSet).sort();
+
+  // CPシェア基準（デフォルト：先頭のCP）
+  const shareBasis = el.dataset.shareBasis || (cpList[0] || '');
+  // 各CPの合計応募完了数を計算（シェアの分母）
+  const cpTotals = {};
+  cpList.forEach(cp => {
+    cpTotals[cp] = rows.filter(r => r.campaign === cp).reduce((s, r) => s + (r.apply || 0), 0);
+  });
+  const totalApplyAll = rows.reduce((s, r) => s + (r.apply || 0), 0);
+
+  // 並び順
+  let sorted = [...rows];
+  if (adsJobRankingMode === 'top') {
+    sorted.sort((a, b) => (b.apply || 0) - (a.apply || 0));
+  } else if (adsJobRankingMode === 'cost') {
+    sorted.sort((a, b) => (Number(b.cost) || 0) - (Number(a.cost) || 0));
+  } else if (adsJobRankingMode === 'click') {
+    sorted.sort((a, b) => (b.click || 0) - (a.click || 0));
+  }
+  const top = sorted.slice(0, 10);
+
+  // CPシェア計算（シェア基準と該当行のCPが一致するときだけ計算）
+  function calcShare(r) {
+    let denom, basisLabel;
+    if (shareBasis === '__all__') {
+      denom = totalApplyAll;
+      basisLabel = '全期間';
+    } else {
+      denom = cpTotals[shareBasis] || 0;
+      basisLabel = shareBasis;
+    }
+    if (denom === 0) return { pct: null, applies: 0, denom };
+    // シェア基準のCPと一致する応募のみカウント
+    if (shareBasis !== '__all__' && r.campaign !== shareBasis) return { pct: null, applies: r.apply || 0, denom };
+    return { pct: ((r.apply || 0) / denom) * 100, applies: r.apply || 0, denom };
+  }
+
+  // 行HTML
+  const tableRows = top.map((r, idx) => {
+    const share = calcShare(r);
+    const shareCell = share.pct === null
+      ? `<span style="color:#aaa;font-size:9px;">基準外CP</span>`
+      : `<div style="display:flex;align-items:center;gap:4px;justify-content:flex-end;">
+           <div style="background:#eaf3de;width:36px;height:6px;border-radius:3px;"><div style="background:#5a8a48;width:${Math.min(100, share.pct * 5)}%;height:100%;border-radius:3px;"></div></div>
+           <span style="font-weight:500;color:#3B6D11;">${share.pct.toFixed(2)}%</span>
+         </div>`;
+    const urlLink = r.url ? `<a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" style="color:#185FA5;text-decoration:none;font-size:10px;cursor:pointer;">求人 →</a>` : '<span style="color:#aaa;font-size:10px;">—</span>';
+    return `<tr style="border-bottom:0.5px solid #f0f0ee;">
+      <td style="padding:6px 4px;color:#888;">${idx + 1}</td>
+      <td style="padding:6px 4px;font-weight:500;color:#1a1a1a;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.job_title || '')}">${escapeHtml(r.job_title || '—')}</td>
+      <td style="padding:6px 4px;color:#666;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.company || '')}">${escapeHtml(r.company || '—')}</td>
+      <td style="padding:6px 4px;text-align:right;">${(r.imp || 0).toLocaleString()}</td>
+      <td style="padding:6px 4px;text-align:right;">${(r.click || 0).toLocaleString()}</td>
+      <td style="padding:6px 4px;text-align:right;font-weight:500;color:#5a8a48;">${(r.apply || 0).toLocaleString()}</td>
+      <td style="padding:6px 4px;text-align:right;">¥${Math.round(Number(r.cost) || 0).toLocaleString()}</td>
+      <td style="padding:6px 4px;text-align:right;color:#666;">${(r.apply || 0) > 0 && Number(r.cost) > 0 ? '¥' + Math.round(Number(r.cost) / r.apply).toLocaleString() : '—'}</td>
+      <td style="padding:6px 4px;text-align:right;background:#fafdf7;border-left:2px solid #5a8a48;">${shareCell}</td>
+      <td style="padding:6px 4px;text-align:center;">${urlLink}</td>
+    </tr>`;
+  }).join('');
+
+  // セレクトオプション
+  let shareOptions = '';
+  if (cpList.length > 0) {
+    cpList.forEach(cp => {
+      const label = cp.length > 40 ? cp.slice(0, 38) + '…' : cp;
+      shareOptions += `<option value="${escapeHtml(cp)}" ${cp === shareBasis ? 'selected' : ''}>シェア基準：${escapeHtml(label)}</option>`;
+    });
+    shareOptions += `<option value="__all__" ${shareBasis === '__all__' ? 'selected' : ''}>シェア基準：全期間合算</option>`;
+  }
+
+  el.innerHTML = `
+    <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:14px 16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+        <div style="font-size:12px;font-weight:500;color:#1a1a1a;">🏆 求人別ランキング（TOP10）</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <select onchange="adsSetJobRankingMode(this.value)" style="padding:4px 8px;border:1px solid #e3e3e0;border-radius:5px;font-size:10px;background:#fff;font-family:inherit;">
+            <option value="top" ${adsJobRankingMode === 'top' ? 'selected' : ''}>並び：応募完了数</option>
+            <option value="cost" ${adsJobRankingMode === 'cost' ? 'selected' : ''}>並び：費用</option>
+            <option value="click" ${adsJobRankingMode === 'click' ? 'selected' : ''}>並び：クリック数</option>
+          </select>
+          ${cpList.length > 0 ? `<select onchange="adsSetJobShareBasis(this.value)" style="padding:4px 8px;border:1px solid #e3e3e0;border-radius:5px;font-size:10px;background:#fff;font-family:inherit;max-width:280px;">${shareOptions}</select>` : ''}
+          <button onclick="adsExportJobRankingCsv()" style="padding:4px 10px;background:#5a8a48;color:#fff;border:none;border-radius:5px;font-size:10px;font-family:inherit;cursor:pointer;font-weight:500;">CSV出力</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:780px;">
+          <thead>
+            <tr style="border-bottom:1px solid #e8ebe9;color:#666;text-align:left;">
+              <th style="padding:6px 4px;font-weight:500;width:20px;">#</th>
+              <th style="padding:6px 4px;font-weight:500;">求人</th>
+              <th style="padding:6px 4px;font-weight:500;">企業</th>
+              <th style="padding:6px 4px;font-weight:500;text-align:right;">表示</th>
+              <th style="padding:6px 4px;font-weight:500;text-align:right;">CL</th>
+              <th style="padding:6px 4px;font-weight:500;text-align:right;">応募</th>
+              <th style="padding:6px 4px;font-weight:500;text-align:right;">費用</th>
+              <th style="padding:6px 4px;font-weight:500;text-align:right;">CPA</th>
+              <th style="padding:6px 4px;font-weight:500;text-align:right;background:#f4f8f1;border-left:2px solid #5a8a48;">CPシェア</th>
+              <th style="padding:6px 4px;font-weight:500;text-align:center;">操作</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>
+      <div style="margin-top:8px;font-size:9px;color:#888;line-height:1.6;background:#fafaf8;padding:6px 10px;border-radius:5px;">
+        💡 CPシェア = 該当求人の応募完了数 ÷ 基準CP内の総応募完了数。フィルタで基準を切替可能。
+      </div>
+    </div>
+  `;
+}
+
+function adsSetJobRankingMode(m) {
+  adsJobRankingMode = m;
+  adsRenderJobRanking();
+}
+function adsSetJobShareBasis(v) {
+  const el = document.getElementById('adsJobRanking');
+  if (el) el.dataset.shareBasis = v;
+  adsRenderJobRanking();
+}
+
+// 求人別ランキングをCSV出力
+function adsExportJobRankingCsv() {
+  const result = adsFilterRowsByPeriod();
+  const rows = result.rows || [];
+  if (rows.length === 0) { alert('出力するデータがありません'); return; }
+  let sorted = [...rows];
+  if (adsJobRankingMode === 'top') sorted.sort((a, b) => (b.apply || 0) - (a.apply || 0));
+  else if (adsJobRankingMode === 'cost') sorted.sort((a, b) => (Number(b.cost) || 0) - (Number(a.cost) || 0));
+  else if (adsJobRankingMode === 'click') sorted.sort((a, b) => (b.click || 0) - (a.click || 0));
+
+  const header = ['順位','求人','企業','勤務地','媒体','キャンペーン','表示','クリック','応募開始','応募完了','費用','CTR','CPC','CPA','URL'];
+  const csvRows = [header.join(',')];
+  sorted.forEach((r, i) => {
+    const ctr = r.imp > 0 ? ((r.click || 0) / r.imp * 100).toFixed(2) + '%' : '';
+    const cpc = (r.click || 0) > 0 ? Math.round((Number(r.cost) || 0) / r.click) : '';
+    const cpa = (r.apply || 0) > 0 ? Math.round((Number(r.cost) || 0) / r.apply) : '';
+    const fields = [
+      i + 1,
+      `"${(r.job_title || '').replace(/"/g, '""')}"`,
+      `"${(r.company || '').replace(/"/g, '""')}"`,
+      `"${(r.prefecture || '') + (r.city || '')}"`,
+      r.media_type === 'indeed' ? 'Indeed' : 'AirWORK',
+      `"${(r.campaign || '').replace(/"/g, '""')}"`,
+      r.imp || 0, r.click || 0, r.apply_start || 0, r.apply || 0,
+      Math.round(Number(r.cost) || 0), ctr, cpc, cpa,
+      `"${(r.url || '').replace(/"/g, '""')}"`
+    ];
+    csvRows.push(fields.join(','));
+  });
+  const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  const fn = `job_ranking_${result.periodLabel.replace(/[\/\s]/g, '_')}.csv`;
+  link.download = fn;
+  link.click();
+}
+
+// --- ワーストランキング（改善が必要な求人） ---
+function adsRenderWorstSections() {
+  const el = document.getElementById('adsWorstSections');
+  if (!el) return;
+  const result = adsFilterRowsByPeriod();
+  const rows = result.rows || [];
+
+  if (rows.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  // ① 費用かかってるのに応募ゼロ
+  const w1 = rows.filter(r => (r.apply || 0) === 0 && (Number(r.cost) || 0) > 0)
+                 .sort((a, b) => (Number(b.cost) || 0) - (Number(a.cost) || 0));
+  const w1Cost = w1.reduce((s, r) => s + (Number(r.cost) || 0), 0);
+  const totalCost = rows.reduce((s, r) => s + (Number(r.cost) || 0), 0);
+
+  // ② 表示多いのにクリックされない
+  const w2 = rows.filter(r => (r.imp || 0) >= 100 && (r.click || 0) === 0 || ((r.imp || 0) >= 100 && (r.click || 0) / r.imp < 0.01))
+                 .sort((a, b) => (b.imp || 0) - (a.imp || 0));
+
+  // ③ クリック多いのに応募開始されない
+  const w3 = rows.filter(r => (r.click || 0) >= 20 && (r.apply_start || 0) === 0)
+                 .sort((a, b) => (b.click || 0) - (a.click || 0));
+
+  // ④ 応募開始してるのに完了されない
+  const w4 = rows.filter(r => (r.apply_start || 0) >= 3 && (r.apply || 0) / r.apply_start < 0.5)
+                 .sort((a, b) => (b.apply_start || 0) - (a.apply_start || 0));
+
+  // CP別費用集計（①シェア計算用）
+  const cpCostTotals = {};
+  rows.forEach(r => {
+    const cp = r.campaign || '(未設定)';
+    if (!cpCostTotals[cp]) cpCostTotals[cp] = 0;
+    cpCostTotals[cp] += Number(r.cost) || 0;
+  });
+
+  // タブの見た目
+  const tabBtn = (key, color, label, count, sub) => {
+    const isActive = adsWorstActiveTab === key;
+    const bg = isActive ? color.bg : '#fff';
+    const border = isActive ? color.border : '#e8ebe9';
+    const numColor = isActive ? color.numActive : color.num;
+    return `<button onclick="adsSetWorstTab('${key}')" style="background:${bg};border:1.5px solid ${border};border-radius:8px;padding:10px 12px;text-align:left;cursor:pointer;font-family:inherit;color:#1a1a1a;${isActive ? '' : 'filter:saturate(.6) opacity:.7;'}">
+      <div style="font-size:9px;color:${color.label};letter-spacing:.04em;font-weight:500;">${label}</div>
+      <div style="font-size:18px;font-weight:500;color:${numColor};margin-top:1px;">${count}<span style="font-size:10px;font-weight:400;color:#888;">件</span></div>
+      <div style="font-size:9px;color:${color.label};margin-top:1px;">${sub}</div>
+    </button>`;
+  };
+
+  const c1 = { bg: '#fdf2ee', border: '#F0997B', label: '#993C1D', num: '#712B13', numActive: '#712B13' };
+  const c2 = { bg: '#fef7e9', border: '#EF9F27', label: '#854F0B', num: '#633806', numActive: '#633806' };
+  const c3 = { bg: '#f5f4fd', border: '#AFA9EC', label: '#3C3489', num: '#26215C', numActive: '#26215C' };
+  const c4 = { bg: '#fbeaf0', border: '#ED93B1', label: '#993556', num: '#4B1528', numActive: '#4B1528' };
+
+  // 詳細テーブル
+  let detailHtml = '';
+  if (adsWorstActiveTab === 'cost') {
+    detailHtml = adsRenderWorstCost(w1, totalCost, cpCostTotals);
+  } else if (adsWorstActiveTab === 'ctr') {
+    detailHtml = adsRenderWorstCtr(w2);
+  } else if (adsWorstActiveTab === 'start') {
+    detailHtml = adsRenderWorstStart(w3);
+  } else if (adsWorstActiveTab === 'complete') {
+    detailHtml = adsRenderWorstComplete(w4);
+  }
+
+  el.innerHTML = `
+    <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:14px 16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div style="font-size:13px;font-weight:500;color:#1a1a1a;">⚠️ 改善が必要な求人</div>
+        <span style="font-size:10px;color:#888;">カードをクリックで詳細切替</span>
+      </div>
+      <div style="font-size:10.5px;color:#666;line-height:1.6;margin-bottom:14px;">応募ファネルの各段階で「進まなかった」求人を特定。改善余地が大きい順に並んでいます。</div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">
+        ${tabBtn('cost', c1, '①費用ムダ', w1.length, totalCost > 0 ? `¥${Math.round(w1Cost).toLocaleString()}を消費（${(w1Cost/totalCost*100).toFixed(1)}%）` : '対象なし')}
+        ${tabBtn('ctr', c2, '②CTR低', w2.length, '表示100+ & CTR1%未満')}
+        ${tabBtn('start', c3, '③応募開始0', w3.length, 'CL20+ & 応募開始0')}
+        ${tabBtn('complete', c4, '④応募完了率低', w4.length, '開始3+ & 完了率50%未満')}
+      </div>
+
+      ${detailHtml}
+    </div>
+  `;
+}
+
+function adsSetWorstTab(t) {
+  adsWorstActiveTab = t;
+  adsRenderWorstSections();
+}
+
+// 各ワーストランキングのテーブル描画
+function adsRenderWorstCost(list, totalCost, cpCostTotals) {
+  if (list.length === 0) return `<div style="background:#fdf2ee;border-left:3px solid #D85A30;border-radius:0 8px 8px 0;padding:14px;font-size:11px;color:#712B13;">✓ 応募ゼロで費用が出てる求人はありません。素晴らしい！</div>`;
+  const top5 = list.slice(0, 5);
+  const totalWaste = list.reduce((s, r) => s + (Number(r.cost) || 0), 0);
+
+  const tableRows = top5.map((r, i) => {
+    const cp = r.campaign || '(未設定)';
+    const cpTotal = cpCostTotals[cp] || 0;
+    const sharePct = cpTotal > 0 ? ((Number(r.cost) || 0) / cpTotal * 100) : 0;
+    const urlLink = r.url ? `<a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" style="color:#185FA5;text-decoration:none;font-size:10px;">求人 →</a>` : '<span style="color:#aaa;font-size:10px;">—</span>';
+    const maxBar = list[0].cost > 0 ? (Number(r.cost) / Number(list[0].cost)) * 100 : 0;
+    return `<tr style="border-bottom:0.5px solid rgba(0,0,0,.05);">
+      <td style="padding:5px 4px;color:#888;">${i + 1}</td>
+      <td style="padding:5px 4px;font-weight:500;color:#1a1a1a;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.job_title || '')}">${escapeHtml(r.job_title || '—')}</td>
+      <td style="padding:5px 4px;color:#666;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.company || '')}">${escapeHtml(r.company || '—')}</td>
+      <td style="padding:5px 4px;text-align:right;">${(r.imp || 0).toLocaleString()}</td>
+      <td style="padding:5px 4px;text-align:right;">${(r.click || 0).toLocaleString()}</td>
+      <td style="padding:5px 4px;text-align:right;font-weight:500;color:#712B13;">¥${Math.round(Number(r.cost) || 0).toLocaleString()}</td>
+      <td style="padding:5px 4px;text-align:right;background:rgba(216,90,48,.05);border-left:2px solid #D85A30;">
+        <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end;">
+          <div style="background:#fdf2ee;width:36px;height:6px;border-radius:3px;"><div style="background:#D85A30;width:${Math.min(100, sharePct * 5)}%;height:100%;border-radius:3px;"></div></div>
+          <span style="font-weight:500;color:#993C1D;">${sharePct.toFixed(2)}%</span>
+        </div>
+      </td>
+      <td style="padding:5px 4px;text-align:center;">${urlLink}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div style="background:#fdf2ee;border-left:3px solid #D85A30;border-radius:0 8px 8px 0;padding:12px 14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+      <div>
+        <div style="font-size:12px;font-weight:500;color:#712B13;">① 費用かかってるのに応募ゼロ TOP5</div>
+        <div style="font-size:10px;color:#993C1D;margin-top:1px;">合計 ¥${Math.round(totalWaste).toLocaleString()} ${totalCost > 0 ? `（全費用の${(totalWaste/totalCost*100).toFixed(1)}%）` : ''}が成果ゼロ ／ 全${list.length}件</div>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:700px;">
+        <thead>
+          <tr style="border-bottom:0.5px solid rgba(0,0,0,.08);color:#993C1D;text-align:left;">
+            <th style="padding:5px 4px;font-weight:500;width:20px;">#</th>
+            <th style="padding:5px 4px;font-weight:500;">求人</th>
+            <th style="padding:5px 4px;font-weight:500;">企業</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;">表示</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;">CL</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;">費用</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;background:rgba(216,90,48,.08);border-left:2px solid #D85A30;">CP内費用シェア</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:center;">操作</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    <div style="margin-top:6px;font-size:9px;color:#993C1D;line-height:1.6;">※ CP内費用シェア = 該当求人の費用 ÷ そのCP内の総費用</div>
+  </div>`;
+}
+
+function adsRenderWorstCtr(list) {
+  if (list.length === 0) return `<div style="background:#fef7e9;border-left:3px solid #BA7517;border-radius:0 8px 8px 0;padding:14px;font-size:11px;color:#854F0B;">✓ 表示が多いのにクリックされない求人はありません</div>`;
+  const top5 = list.slice(0, 5);
+  const tableRows = top5.map((r, i) => {
+    const ctr = (r.imp || 0) > 0 ? ((r.click || 0) / r.imp * 100).toFixed(2) : '0.00';
+    const urlLink = r.url ? `<a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" style="color:#185FA5;text-decoration:none;font-size:10px;">求人 →</a>` : '<span style="color:#aaa;font-size:10px;">—</span>';
+    return `<tr style="border-bottom:0.5px solid rgba(0,0,0,.05);">
+      <td style="padding:5px 4px;color:#888;">${i + 1}</td>
+      <td style="padding:5px 4px;font-weight:500;color:#1a1a1a;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.job_title || '')}">${escapeHtml(r.job_title || '—')}</td>
+      <td style="padding:5px 4px;color:#666;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.company || '')}">${escapeHtml(r.company || '—')}</td>
+      <td style="padding:5px 4px;text-align:right;font-weight:500;">${(r.imp || 0).toLocaleString()}</td>
+      <td style="padding:5px 4px;text-align:right;">${(r.click || 0).toLocaleString()}</td>
+      <td style="padding:5px 4px;text-align:right;font-weight:500;color:#854F0B;">${ctr}%</td>
+      <td style="padding:5px 4px;text-align:right;">¥${Math.round(Number(r.cost) || 0).toLocaleString()}</td>
+      <td style="padding:5px 4px;text-align:center;">${urlLink}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div style="background:#fef7e9;border-left:3px solid #BA7517;border-radius:0 8px 8px 0;padding:12px 14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+      <div>
+        <div style="font-size:12px;font-weight:500;color:#854F0B;">② 表示多いのにクリックされない TOP5</div>
+        <div style="font-size:10px;color:#BA7517;margin-top:1px;">求人タイトル・画像・冒頭文を改善する余地大 ／ 全${list.length}件</div>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:680px;">
+        <thead>
+          <tr style="border-bottom:0.5px solid rgba(0,0,0,.08);color:#854F0B;text-align:left;">
+            <th style="padding:5px 4px;font-weight:500;width:20px;">#</th>
+            <th style="padding:5px 4px;font-weight:500;">求人</th>
+            <th style="padding:5px 4px;font-weight:500;">企業</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;">表示</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;">CL</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;">CTR</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;">費用</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:center;">操作</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function adsRenderWorstStart(list) {
+  if (list.length === 0) return `<div style="background:#f5f4fd;border-left:3px solid #534AB7;border-radius:0 8px 8px 0;padding:14px;font-size:11px;color:#3C3489;">✓ クリックされた求人はちゃんと応募開始まで進んでいます！</div>`;
+  const top5 = list.slice(0, 5);
+  const tableRows = top5.map((r, i) => {
+    const urlLink = r.url ? `<a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" style="color:#185FA5;text-decoration:none;font-size:10px;">求人 →</a>` : '<span style="color:#aaa;font-size:10px;">—</span>';
+    return `<tr style="border-bottom:0.5px solid rgba(0,0,0,.05);">
+      <td style="padding:5px 4px;color:#888;">${i + 1}</td>
+      <td style="padding:5px 4px;font-weight:500;color:#1a1a1a;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.job_title || '')}">${escapeHtml(r.job_title || '—')}</td>
+      <td style="padding:5px 4px;color:#666;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.company || '')}">${escapeHtml(r.company || '—')}</td>
+      <td style="padding:5px 4px;text-align:right;font-weight:500;">${(r.click || 0).toLocaleString()}</td>
+      <td style="padding:5px 4px;text-align:right;font-weight:500;color:#D85A30;">0</td>
+      <td style="padding:5px 4px;text-align:right;">¥${Math.round(Number(r.cost) || 0).toLocaleString()}</td>
+      <td style="padding:5px 4px;text-align:center;">${urlLink}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div style="background:#f5f4fd;border-left:3px solid #534AB7;border-radius:0 8px 8px 0;padding:12px 14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+      <div>
+        <div style="font-size:12px;font-weight:500;color:#26215C;">③ クリックされてるのに応募開始されない TOP5</div>
+        <div style="font-size:10px;color:#3C3489;margin-top:1px;">タイトルで惹けてるが、求人内容で離脱 → 本文改善余地大 ／ 全${list.length}件</div>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:680px;">
+        <thead>
+          <tr style="border-bottom:0.5px solid rgba(0,0,0,.08);color:#3C3489;text-align:left;">
+            <th style="padding:5px 4px;font-weight:500;width:20px;">#</th>
+            <th style="padding:5px 4px;font-weight:500;">求人</th>
+            <th style="padding:5px 4px;font-weight:500;">企業</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;">CL</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;">応募開始</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;">費用</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:center;">操作</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function adsRenderWorstComplete(list) {
+  if (list.length === 0) return `<div style="background:#fbeaf0;border-left:3px solid #D4537E;border-radius:0 8px 8px 0;padding:14px;font-size:11px;color:#993556;">✓ 応募開始した人はほぼ完了まで進んでいます！</div>`;
+  const top5 = list.slice(0, 5);
+  const tableRows = top5.map((r, i) => {
+    const rate = (r.apply_start || 0) > 0 ? ((r.apply || 0) / r.apply_start * 100).toFixed(0) : '0';
+    const urlLink = r.url ? `<a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" style="color:#185FA5;text-decoration:none;font-size:10px;">求人 →</a>` : '<span style="color:#aaa;font-size:10px;">—</span>';
+    return `<tr style="border-bottom:0.5px solid rgba(0,0,0,.05);">
+      <td style="padding:5px 4px;color:#888;">${i + 1}</td>
+      <td style="padding:5px 4px;font-weight:500;color:#1a1a1a;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.job_title || '')}">${escapeHtml(r.job_title || '—')}</td>
+      <td style="padding:5px 4px;color:#666;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.company || '')}">${escapeHtml(r.company || '—')}</td>
+      <td style="padding:5px 4px;text-align:right;font-weight:500;">${r.apply_start || 0}</td>
+      <td style="padding:5px 4px;text-align:right;">${r.apply || 0}</td>
+      <td style="padding:5px 4px;text-align:right;font-weight:500;color:#D4537E;">${rate}%</td>
+      <td style="padding:5px 4px;text-align:center;">${urlLink}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div style="background:#fbeaf0;border-left:3px solid #D4537E;border-radius:0 8px 8px 0;padding:12px 14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+      <div>
+        <div style="font-size:12px;font-weight:500;color:#4B1528;">④ 応募開始してるのに完了されない TOP5</div>
+        <div style="font-size:10px;color:#993556;margin-top:1px;">応募フォームが長すぎ・難しすぎ → 簡素化で改善可 ／ 全${list.length}件</div>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:10.5px;min-width:680px;">
+        <thead>
+          <tr style="border-bottom:0.5px solid rgba(0,0,0,.08);color:#993556;text-align:left;">
+            <th style="padding:5px 4px;font-weight:500;width:20px;">#</th>
+            <th style="padding:5px 4px;font-weight:500;">求人</th>
+            <th style="padding:5px 4px;font-weight:500;">企業</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;">応募開始</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;">応募完了</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:right;">完了率</th>
+            <th style="padding:5px 4px;font-weight:500;text-align:center;">操作</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// グローバル公開
+if (typeof window !== 'undefined') {
+  window.adsSetJobRankingMode = adsSetJobRankingMode;
+  window.adsSetJobShareBasis = adsSetJobShareBasis;
+  window.adsExportJobRankingCsv = adsExportJobRankingCsv;
+  window.adsSetWorstTab = adsSetWorstTab;
+}
+
 // 起動完了ログ
 console.log('[app.js] 読み込み完了');
