@@ -11301,38 +11301,67 @@ function adsRenderMonthlyTrend() {
 
   let body = '';
   if (adsMonthlyView === 'table') {
+    // 列幅を固定して、ヘッダーと数値の位置を一致させる
+    // tbl-fixedレイアウトで各列の幅を厳密に制御
+    const colWidths = {
+      month:      '12%',
+      imp:        '11%',
+      click:      '10%',
+      ctr:         '8%',
+      applyStart:  '10%',
+      apply:       '10%',
+      completion:  '9%',
+      cost:       '12%',
+      cpa:        '12%',
+      arrow:       '6%',
+    };
+    // 数値セルの共通スタイル：右寄せ＋右側に少し余白
+    const numTh = `padding:7px 14px 7px 6px;font-weight:500;text-align:right;`;
+    const numTd = `padding:8px 14px 8px 6px;text-align:right;`;
     body = `<div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:780px;">
+      <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:780px;table-layout:fixed;">
+        <colgroup>
+          <col style="width:${colWidths.month}">
+          <col style="width:${colWidths.imp}">
+          <col style="width:${colWidths.click}">
+          <col style="width:${colWidths.ctr}">
+          <col style="width:${colWidths.applyStart}">
+          <col style="width:${colWidths.apply}">
+          <col style="width:${colWidths.completion}">
+          <col style="width:${colWidths.cost}">
+          <col style="width:${colWidths.cpa}">
+          <col style="width:${colWidths.arrow}">
+        </colgroup>
         <thead>
-          <tr style="border-bottom:1px solid #e8ebe9;color:#666;text-align:right;">
-            <th style="padding:7px 6px;font-weight:500;text-align:left;width:80px;">月</th>
-            <th style="padding:7px 6px;font-weight:500;">表示</th>
-            <th style="padding:7px 6px;font-weight:500;">クリック</th>
-            <th style="padding:7px 6px;font-weight:500;">CTR</th>
-            <th style="padding:7px 6px;font-weight:500;">応募開始</th>
-            <th style="padding:7px 6px;font-weight:500;">応募完了</th>
-            <th style="padding:7px 6px;font-weight:500;">完了率</th>
-            <th style="padding:7px 6px;font-weight:500;">費用</th>
-            <th style="padding:7px 6px;font-weight:500;">CPA</th>
-            <th style="padding:7px 6px;font-weight:500;text-align:center;width:24px;"></th>
+          <tr style="border-bottom:1px solid #e8ebe9;color:#666;">
+            <th style="padding:7px 6px;font-weight:500;text-align:left;">月</th>
+            <th style="${numTh}">表示</th>
+            <th style="${numTh}">クリック</th>
+            <th style="${numTh}">CTR</th>
+            <th style="${numTh}">応募開始</th>
+            <th style="${numTh}">応募完了</th>
+            <th style="${numTh}">完了率</th>
+            <th style="${numTh}">費用</th>
+            <th style="${numTh}">CPA</th>
+            <th style="padding:7px 6px;font-weight:500;text-align:center;"></th>
           </tr>
         </thead>
-        <tbody style="text-align:right;">
+        <tbody>
           ${monthData.map(d => {
             const isLatest = d.month === latestMonth;
             const rowBg = isLatest ? 'background:#fafdf7;' : '';
             const a = d.agg;
             const monthLabel = `${d.month.replace('-', '年')}月`;
             return `<tr style="border-bottom:0.5px solid #f0f0ee;${rowBg}">
-              <td style="padding:8px 6px;text-align:left;font-weight:500;color:#1a1a1a;">${monthLabel}${isLatest ? ' <span style="font-size:9px;color:#5a8a48;font-weight:500;background:#eaf3de;padding:1px 5px;border-radius:8px;margin-left:3px;">最新</span>' : ''}</td>
-              <td style="padding:8px 6px;${isLatest ? 'font-weight:500;' : ''}">${a.imp.toLocaleString()}</td>
-              <td style="padding:8px 6px;${isLatest ? 'font-weight:500;' : ''}">${a.click.toLocaleString()}</td>
-              <td style="padding:8px 6px;color:#666;">${(a.ctr * 100).toFixed(2)}%</td>
-              <td style="padding:8px 6px;${isLatest ? 'font-weight:500;' : ''}">${a.apply_start.toLocaleString()}</td>
-              <td style="padding:8px 6px;font-weight:500;color:#5a8a48;">${a.apply.toLocaleString()}</td>
-              <td style="padding:8px 6px;color:#666;">${(a.completion_rate * 100).toFixed(1)}%</td>
-              <td style="padding:8px 6px;${isLatest ? 'font-weight:500;' : ''}">¥${Math.round(a.cost).toLocaleString()}</td>
-              <td style="padding:8px 6px;color:#666;">${a.apply > 0 ? '¥' + Math.round(a.cpa).toLocaleString() : '—'}</td>
+              <td style="padding:8px 6px;text-align:left;font-weight:500;color:#1a1a1a;white-space:nowrap;">${monthLabel}${isLatest ? ' <span style="font-size:9px;color:#5a8a48;font-weight:500;background:#eaf3de;padding:1px 5px;border-radius:8px;margin-left:3px;">最新</span>' : ''}</td>
+              <td style="${numTd}${isLatest ? 'font-weight:500;' : ''}">${a.imp.toLocaleString()}</td>
+              <td style="${numTd}${isLatest ? 'font-weight:500;' : ''}">${a.click.toLocaleString()}</td>
+              <td style="${numTd}color:#666;">${(a.ctr * 100).toFixed(2)}%</td>
+              <td style="${numTd}${isLatest ? 'font-weight:500;' : ''}">${a.apply_start.toLocaleString()}</td>
+              <td style="${numTd}font-weight:500;color:#5a8a48;">${a.apply.toLocaleString()}</td>
+              <td style="${numTd}color:#666;">${(a.completion_rate * 100).toFixed(1)}%</td>
+              <td style="${numTd}${isLatest ? 'font-weight:500;' : ''}">¥${Math.round(a.cost).toLocaleString()}</td>
+              <td style="${numTd}color:#666;">${a.apply > 0 ? '¥' + Math.round(a.cpa).toLocaleString() : '—'}</td>
               <td style="padding:8px 6px;text-align:center;color:#5a8a48;cursor:pointer;" onclick="adsJumpToMonth('${d.month}')" title="この月にフィルタ">▶</td>
             </tr>`;
           }).join('')}
