@@ -4,1537 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
-<!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260512v">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260512v">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260512v">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260512v">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260512v">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260512v">
-<style>
-  /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
-  body { background:#f7f6f1 !important; }
-  .app { background:#f7f6f1 !important; }
-
-  /* ヘッダー：白基調 + 細枠でフラットに */
-  .header {
-    background:#fff !important;
-    border-bottom:0.5px solid #e8ebe9 !important;
-    box-shadow:none !important;
-  }
-
-  /* ナビボタン：ログイン画面の角丸・色味 */
-  .nav-btn {
-    border-radius:8px !important;
-    border:1px solid #e3e3e0 !important;
-    background:#fff !important;
-  }
-  .nav-btn:hover {
-    border-color:#5a8a48 !important;
-    background:#f4f8f1 !important;
-  }
-  .nav-btn.active {
-    background:#1a1a1a !important;
-    color:#fff !important;
-    border-color:#1a1a1a !important;
-  }
-
-  /* カード共通：オフホワイト → 白＋細枠でログインカードと統一 */
-  .card, .panel, .kpi-card, .stat-card, .data-card {
-    background:#fff !important;
-    border:0.5px solid #e8ebe9 !important;
-    border-radius:12px !important;
-    box-shadow:0 1px 3px rgba(0,0,0,.02) !important;
-  }
-
-  /* プライマリボタン：緑系を統一色 #5a8a48 に */
-  .btn-primary, button.primary, .submit-btn {
-    background:#5a8a48 !important;
-    border:none !important;
-    border-radius:8px !important;
-    font-weight:500 !important;
-    box-shadow:none !important;
-  }
-  .btn-primary:hover, button.primary:hover, .submit-btn:hover {
-    background:#4a7339 !important;
-  }
-
-  /* クライアントバッジ：薄緑→ロゴ色系統に */
-  .client-badge {
-    background:#eef3e8 !important;
-    color:#5a8a48 !important;
-    border:1px solid #d5e3c9 !important;
-  }
-
-  /* ログアウトボタン（オレンジ系）：トーン調整 */
-  .logout-btn {
-    background:#fdf2ee !important;
-    color:#D85A30 !important;
-    border:1px solid #f4d4c4 !important;
-    border-radius:8px !important;
-    font-weight:500 !important;
-    box-shadow:none !important;
-  }
-  .logout-btn:hover {
-    background:#fae4dc !important;
-  }
-
-  /* 入力欄：角丸統一 */
-  input[type="text"], input[type="email"], input[type="password"],
-  input[type="number"], input[type="date"], input[type="search"],
-  textarea, select {
-    border-radius:8px !important;
-  }
-
-  /* ===== v2.9 グローバルホバー演出（F案：浮上＋拡大＋緑グロー）拡大版 ===== */
-  /* バウンスeasing：行き過ぎてから戻る → 「ポコッ」感 */
-  .nav-btn,
-  .card, .panel, .kpi-card, .stat-card, .data-card,
-  .applicant-row, .applicant-card, .staff-card,
-  .task-row, .task-card, .schedule-row, .schedule-card,
-  .minute-row, .minute-card,
-  .btn-primary, .btn-secondary, button.primary, .submit-btn,
-  .logout-btn,
-  /* === v2.9 追加：期間切替・タブ・ドロップダウン === */
-  .period-btn, .tab-btn, .filter-btn, .toggle-btn, .chip, .badge-btn,
-  /* === v2.9 追加：すべての button 要素（汎用） === */
-  button:not(.no-hover-fx),
-  /* === v2.9 追加：クリックできる行・カード全般 === */
-  [onclick]:not(.no-hover-fx),
-  /* === v2.9 追加：選択肢・チェック === */
-  label.clickable, .selectable, .option-card,
-  /* === v2.9 追加：リンク全般 === */
-  a.btn, a.action-link {
-    transition:transform .22s cubic-bezier(.34,1.56,.64,1),
-               box-shadow .22s cubic-bezier(.34,1.56,.64,1),
-               border-color .18s ease,
-               background .18s ease,
-               color .18s ease !important;
-  }
-
-  /* === ナビボタン === */
-  .nav-btn:hover:not(.active):not(:disabled) {
-    transform:translateY(-4px) scale(1.03) !important;
-    box-shadow:
-      0 0 0 3px rgba(90,138,72,.16),
-      0 12px 24px rgba(90,138,72,.20),
-      0 3px 6px rgba(0,0,0,.05) !important;
-    border-color:#5a8a48 !important;
-    background:#f7faf4 !important;
-  }
-  .nav-btn.active { transform:none !important; }
-
-  /* === 期間切替・タブ・チップ系（今日/今週/今月/累計などの細長ボタン） === */
-  .period-btn:hover:not(.active):not(:disabled),
-  .tab-btn:hover:not(.active):not(:disabled),
-  .filter-btn:hover:not(.active):not(:disabled),
-  .toggle-btn:hover:not(.active):not(:disabled),
-  .chip:hover:not(.active),
-  .badge-btn:hover:not(.active) {
-    transform:translateY(-3px) scale(1.04) !important;
-    box-shadow:
-      0 0 0 3px rgba(90,138,72,.16),
-      0 10px 20px rgba(90,138,72,.18),
-      0 2px 4px rgba(0,0,0,.04) !important;
-    border-color:#5a8a48 !important;
-    background:#f7faf4 !important;
-  }
-
-  /* === カード／パネル類 === */
-  .card:hover, .panel:hover, .kpi-card:hover, .stat-card:hover, .data-card:hover {
-    transform:translateY(-5px) scale(1.015) !important;
-    box-shadow:
-      0 0 0 3px rgba(90,138,72,.14),
-      0 14px 28px rgba(90,138,72,.18),
-      0 4px 8px rgba(0,0,0,.05) !important;
-    border-color:#5a8a48 !important;
-  }
-
-  /* === 担当者カード === */
-  .staff-card:hover {
-    transform:translateY(-5px) scale(1.03) !important;
-    box-shadow:
-      0 0 0 4px rgba(90,138,72,.16),
-      0 16px 32px rgba(90,138,72,.22),
-      0 4px 8px rgba(0,0,0,.06) !important;
-    border-color:#5a8a48 !important;
-    background:#f7faf4 !important;
-  }
-
-  /* === 応募者一覧・タスク・スケジュール・議事録の行 === */
-  .applicant-row:hover, .task-row:hover, .schedule-row:hover, .minute-row:hover,
-  .applicant-card:hover, .task-card:hover, .schedule-card:hover, .minute-card:hover {
-    transform:translateY(-3px) scale(1.005) !important;
-    box-shadow:
-      0 0 0 2px rgba(90,138,72,.12),
-      0 10px 20px rgba(90,138,72,.14),
-      0 2px 4px rgba(0,0,0,.04) !important;
-    border-color:#5a8a48 !important;
-    background:#fafdf7 !important;
-    z-index:5;
-    position:relative;
-  }
-
-  /* === テーブル行 === */
-  table.applicant-table tbody tr:hover,
-  table tbody tr.row-hover-fx:hover,
-  table tbody tr[onclick]:hover {
-    background:#fafdf7 !important;
-    transform:translateY(-2px) !important;
-    box-shadow:0 6px 14px rgba(90,138,72,.12), 0 0 0 2px rgba(90,138,72,.10) !important;
-    position:relative;
-    z-index:3;
-  }
-
-  /* === ボタン全般（プライマリ） === */
-  .btn-primary:hover:not(:disabled),
-  button.primary:hover:not(:disabled),
-  .submit-btn:hover:not(:disabled) {
-    transform:translateY(-3px) scale(1.03) !important;
-    box-shadow:
-      0 0 0 4px rgba(90,138,72,.20),
-      0 12px 24px rgba(90,138,72,.30),
-      0 3px 6px rgba(0,0,0,.06) !important;
-    background:#4a7339 !important;
-  }
-  .btn-secondary:hover:not(:disabled) {
-    transform:translateY(-3px) scale(1.02) !important;
-    box-shadow:
-      0 0 0 3px rgba(90,138,72,.14),
-      0 10px 20px rgba(0,0,0,.10) !important;
-    border-color:#5a8a48 !important;
-  }
-  .logout-btn:hover {
-    transform:translateY(-3px) scale(1.02) !important;
-    box-shadow:
-      0 0 0 3px rgba(216,90,48,.16),
-      0 10px 20px rgba(216,90,48,.18) !important;
-    background:#fae4dc !important;
-  }
-
-  /* === 汎用button要素（クラス指定なし） === */
-  button:not(.no-hover-fx):not(.nav-btn):not(.btn-primary):not(.btn-secondary):not(.submit-btn):not(.logout-btn):not(.period-btn):not(.tab-btn):not(.filter-btn):not(.toggle-btn):not(.chip):not(.badge-btn):not(:disabled):hover {
-    transform:translateY(-2px) scale(1.02) !important;
-    box-shadow:
-      0 0 0 2px rgba(90,138,72,.12),
-      0 6px 14px rgba(90,138,72,.14) !important;
-    border-color:#5a8a48 !important;
-    filter:brightness(1.02);
-  }
-
-  /* === select / プルダウン === */
-  select:hover:not(:disabled) {
-    transform:translateY(-2px) !important;
-    box-shadow:
-      0 0 0 2px rgba(90,138,72,.12),
-      0 4px 10px rgba(90,138,72,.10) !important;
-    border-color:#5a8a48 !important;
-  }
-
-  /* === [onclick]属性が付いた任意の要素 === */
-  [onclick]:not(.no-hover-fx):not(button):not(.nav-btn):not(.card):not(.applicant-row):not(.task-row):not(.schedule-row):not(.minute-row):not(.staff-card):not(.kpi-card):hover {
-    transform:translateY(-2px) !important;
-    filter:brightness(1.04);
-    cursor:pointer;
-  }
-
-  /* === ラベル・選択肢 === */
-  label.clickable:hover, .selectable:hover, .option-card:hover {
-    transform:translateY(-2px) scale(1.02) !important;
-    box-shadow:0 0 0 2px rgba(90,138,72,.14), 0 6px 12px rgba(90,138,72,.12) !important;
-    background:#f7faf4 !important;
-    border-color:#5a8a48 !important;
-  }
-
-  /* === クリック時：少し沈み込む === */
-  .nav-btn:active,
-  .card:active, .staff-card:active,
-  .applicant-row:active, .task-row:active, .schedule-row:active,
-  .btn-primary:active, button.primary:active, .submit-btn:active,
-  .btn-secondary:active, .logout-btn:active,
-  .period-btn:active, .tab-btn:active, .filter-btn:active, .toggle-btn:active,
-  button:active {
-    transform:translateY(-1px) scale(.99) !important;
-    transition:transform .08s ease !important;
-  }
-
-  /* ============================================ */
-  /* Step 1: モードタブ＋サブナビUI                */
-  /* ============================================ */
-  /* ヘッダー上段：白背景 */
-  .header-top {
-    background:#fff !important;
-    border-bottom:0.5px solid #eaeae6 !important;
-    padding:12px 24px !important;
-  }
-  /* ヘッダー中段：モードタブ帯 */
-  .header-modes {
-    background:#fff;
-    border-bottom:0.5px solid #eaeae6;
-    padding:8px 24px;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    flex-wrap:wrap;
-    gap:8px;
-  }
-  /* ホームに戻るボタン */
-  .mode-home-btn {
-    display:inline-flex;
-    align-items:center;
-    gap:5px;
-    padding:7px 12px;
-    background:transparent;
-    border:none;
-    border-radius:7px;
-    font-size:12px;
-    color:#666;
-    font-family:inherit;
-    font-weight:500;
-    cursor:pointer;
-    transition:all .15s ease;
-  }
-  .mode-home-btn:hover {
-    background:#f7f6f1;
-    color:#1a1a1a;
-  }
-  /* モードタブグループ：pill型セグメント */
-  .mode-tabs {
-    display:inline-flex;
-    gap:3px;
-    background:#f7f6f1;
-    padding:3px;
-    border-radius:9px;
-  }
-  .mode-tab {
-    display:inline-flex;
-    align-items:center;
-    gap:5px;
-    padding:7px 14px;
-    background:transparent;
-    border:none;
-    border-radius:7px;
-    font-size:12px;
-    color:#888;
-    font-family:inherit;
-    font-weight:500;
-    cursor:pointer;
-    transition:all .2s ease;
-  }
-  .mode-tab:hover:not(.active) {
-    color:#1a1a1a;
-    background:rgba(255,255,255,.5);
-  }
-  .mode-tab.active {
-    background:#fff;
-    color:#1a1a1a;
-    font-weight:600;
-    box-shadow:0 1px 2px rgba(0,0,0,0.04);
-    border:0.5px solid #eaeae6;
-  }
-  .mode-tab.active[data-mode="operation"] {
-    color:#3B6D11;
-  }
-  .mode-tab.active[data-mode="analytics"] {
-    color:#0C447C;
-  }
-  .mode-tab.active[data-mode="admin_settings"] {
-    color:#444441;
-  }
-  .mode-tab.disabled {
-    opacity:0.4;
-    cursor:not-allowed;
-  }
-  .mode-tab-icon {
-    font-size:13px;
-  }
-  /* ヘッダー下段：サブナビ */
-  .header-subnav {
-    background:#fff;
-    border-bottom:0.5px solid #eaeae6;
-    padding:10px 24px;
-  }
-  .sub-nav {
-    display:flex;
-    gap:6px;
-    flex-wrap:wrap;
-    align-items:center;
-  }
-  /* サブナビボタン（モダンな下線型ではなく、運用しやすいピル型） */
-  .snb {
-    padding:7px 13px;
-    background:#fff;
-    border:1px solid #e3e3e0;
-    border-radius:7px;
-    font-size:12px;
-    color:#666;
-    font-family:inherit;
-    font-weight:500;
-    cursor:pointer;
-    transition:all .15s ease;
-  }
-  .snb:hover {
-    border-color:#5a8a48;
-    background:#f4f8f1;
-    color:#1a1a1a;
-  }
-  .snb.active {
-    background:#1a1a1a;
-    color:#fff;
-    border-color:#1a1a1a;
-    font-weight:600;
-  }
-  /* モード別アクセント：採用運用 */
-  body[data-active-mode="operation"] .snb.active {
-    background:#5a8a48;
-    border-color:#5a8a48;
-  }
-  /* モード別アクセント：採用分析（背景クールに） */
-  body[data-active-mode="analytics"] {
-    background:#f4f6fa;
-  }
-  body[data-active-mode="analytics"] .snb.active {
-    background:#185FA5;
-    border-color:#185FA5;
-  }
-  body[data-active-mode="analytics"] .snb:hover:not(.active) {
-    border-color:#185FA5;
-    background:#e6f1fb;
-  }
-  /* モード別アクセント：管理設定 */
-  body[data-active-mode="admin_settings"] .snb.active {
-    background:#5F5E5A;
-    border-color:#5F5E5A;
-  }
-  body[data-active-mode="admin_settings"] .snb:hover:not(.active) {
-    border-color:#5F5E5A;
-    background:#f1efe8;
-  }
-  /* モード切替フェード */
-  .sub-nav, .sec {
-    animation: modeFadeIn 0.25s ease-out;
-  }
-  @keyframes modeFadeIn {
-    from { opacity:0.4; transform:translateY(-3px); }
-    to { opacity:1; transform:translateY(0); }
-  }
-  /* モバイル：モードタブ縮小 */
-  @media (max-width: 640px) {
-    .header-top, .header-modes, .header-subnav {
-      padding-left:14px !important;
-      padding-right:14px !important;
-    }
-    .mode-tab {
-      padding:6px 10px;
-      font-size:11px;
-    }
-    .mode-tab span:not(.mode-tab-icon) {
-      display:none;
-    }
-    .mode-home-btn span:not(:first-child) {
-      display:none;
-    }
-  }
-
-  /* ============================================ */
-  /* Step 2: モード選択ホーム画面（方向C）         */
-  /* ============================================ */
-  .mode-home-screen {
-    padding:48px 32px 40px !important;
-    text-align:center;
-    background:linear-gradient(180deg,#fafdf7 0%,#fafaf8 100%);
-    border-radius:0 !important;
-    box-shadow:none !important;
-    position:relative;
-    overflow:hidden;
-    min-height:calc(100vh - 250px);
-    animation: mhFadeIn 0.4s ease-out;
-  }
-  @keyframes mhFadeIn {
-    from { opacity:0; transform:translateY(8px); }
-    to { opacity:1; transform:translateY(0); }
-  }
-  /* 背景装飾：薄い葉っぱ */
-  .mh-leaf {
-    position:absolute;
-    font-size:18px;
-    opacity:0.12;
-    pointer-events:none;
-    user-select:none;
-  }
-  .mh-leaf-1 { top:30px; left:8%; transform:rotate(-20deg); }
-  .mh-leaf-2 { top:110px; right:12%; transform:rotate(30deg); font-size:14px; }
-  .mh-leaf-3 { bottom:70px; left:14%; transform:rotate(45deg); font-size:14px; }
-  .mh-leaf-4 { bottom:120px; right:8%; transform:rotate(-30deg); }
-  /* ヒーロー */
-  .mh-hero {
-    margin-bottom:48px;
-    position:relative;
-    z-index:1;
-  }
-  .mh-eyebrow {
-    font-size:11px;
-    color:#5a8a48;
-    letter-spacing:0.14em;
-    font-weight:500;
-    margin-bottom:10px;
-  }
-  .mh-title {
-    font-size:28px;
-    font-weight:600;
-    color:#1a1a1a;
-    margin:0 0 8px;
-    line-height:1.3;
-  }
-  .mh-subtitle {
-    font-size:13px;
-    color:#888;
-  }
-  /* モードカード群 */
-  .mh-cards {
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:24px;
-    max-width:640px;
-    margin:48px auto 0;  /* コアラが上に飛び出すぶんのスペース */
-    position:relative;
-    z-index:1;
-  }
-  /* カード本体 */
-  .mh-card {
-    background:#fff;
-    border:0.5px solid #eaeae6;
-    border-radius:16px;
-    padding:64px 24px 24px;  /* 上は64pxにしてコアラ円の下半分のスペース確保 */
-    cursor:pointer;
-    position:relative;
-    transition:all 0.25s cubic-bezier(.34,1.56,.64,1);
-    box-shadow:0 1px 3px rgba(0,0,0,0.03);
-    overflow:visible;  /* 明示的に上はみ出しOK */
-  }
-  .mh-card:hover {
-    transform:translateY(-4px);
-    box-shadow:0 10px 30px rgba(0,0,0,0.08);
-  }
-  .mh-card-operation:hover {
-    border-color:#c8d8b8;
-    box-shadow:0 10px 30px rgba(90,138,72,0.12);
-  }
-  .mh-card-analytics:hover {
-    border-color:#cfe0f0;
-    box-shadow:0 10px 30px rgba(24,95,165,0.12);
-  }
-  /* カード上部のコアララッパー（カード上端から飛び出す） */
-  .mh-koala-wrap {
-    width:96px;
-    height:96px;
-    background:#eaf3de;
-    border-radius:50%;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    border:4px solid #fafaf8;
-    /* カード上端から半分飛び出す配置 */
-    position:absolute;
-    top:-48px;
-    left:50%;
-    transform:translateX(-50%);
-    transition:transform 0.3s cubic-bezier(.34,1.56,.64,1);
-    z-index:2;
-  }
-  .mh-card-analytics .mh-koala-wrap {
-    background:#e6f1fb;
-  }
-  .mh-card:hover .mh-koala-wrap {
-    transform:translateX(-50%) scale(1.08) translateY(-2px);
-  }
-  /* コアラ画像本体 */
-  .mh-koala {
-    width:72px;
-    height:72px;
-    object-fit:contain;
-    transition:opacity 0.4s ease;
-  }
-  .mh-koala.koala-fade-out {
-    opacity:0;
-  }
-  /* カード本文 */
-  .mh-card-body {
-    text-align:center;
-  }
-  .mh-mode-no {
-    font-size:10px;
-    letter-spacing:0.08em;
-    font-weight:500;
-    margin-bottom:6px;
-  }
-  .mh-mode-name {
-    font-size:20px;
-    font-weight:600;
-    color:#1a1a1a;
-    margin-bottom:6px;
-  }
-  .mh-mode-desc {
-    font-size:11px;
-    color:#888;
-    line-height:1.7;
-    margin-bottom:16px;
-  }
-  /* つぶやき吹き出し */
-  .mh-bubble {
-    background:#fafdf7;
-    border:0.5px solid #eaf3de;
-    border-radius:8px;
-    padding:8px 12px;
-    font-size:11px;
-    line-height:1.5;
-    display:flex;
-    align-items:center;
-    gap:6px;
-    justify-content:center;
-    margin-bottom:14px;
-  }
-  .mh-bubble-operation {
-    background:#fafdf7;
-    border-color:#eaf3de;
-    color:#3B6D11;
-  }
-  .mh-bubble-analytics {
-    background:#f4f8fc;
-    border-color:#e6f1fb;
-    color:#0C447C;
-  }
-  /* 入るボタン */
-  .mh-enter-btn {
-    width:100%;
-    padding:10px;
-    border:none;
-    border-radius:8px;
-    font-size:12px;
-    font-weight:500;
-    font-family:inherit;
-    color:#fff;
-    cursor:pointer;
-    transition:all 0.15s ease;
-  }
-  .mh-enter-operation {
-    background:#5a8a48;
-  }
-  .mh-enter-operation:hover {
-    background:#4a7339;
-  }
-  .mh-enter-analytics {
-    background:#185FA5;
-  }
-  .mh-enter-analytics:hover {
-    background:#0C447C;
-  }
-  /* フッターのコアラ一言 */
-  .mh-footer {
-    margin-top:40px;
-    display:inline-flex;
-    align-items:center;
-    gap:8px;
-    background:#fff;
-    border:0.5px solid #eaeae6;
-    border-radius:24px;
-    padding:8px 16px;
-    font-size:11px;
-    color:#666;
-    position:relative;
-    z-index:1;
-  }
-  /* モバイル */
-  @media (max-width: 640px) {
-    .mode-home-screen {
-      padding:32px 16px 32px !important;
-    }
-    .mh-cards {
-      grid-template-columns:1fr;
-      gap:60px;  /* コアラ円が浮き出てるので縦間隔広め */
-      max-width:340px;
-      margin-top:42px;
-    }
-    .mh-title {
-      font-size:22px;
-    }
-    .mh-card {
-      padding-top:56px;
-    }
-    .mh-koala-wrap {
-      width:84px;
-      height:84px;
-      top:-42px;
-    }
-    .mh-card:hover .mh-koala-wrap {
-      transform:translateX(-50%) scale(1.05) translateY(-2px);
-    }
-    .mh-koala {
-      width:64px;
-      height:64px;
-    }
-  }
-
-  /* ============================================ */
-  /* Step 3: 採用運用ダッシュ                      */
-  /* ============================================ */
-  .op-dash-header {
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-end;
-    margin-bottom:1.25rem;
-    background:linear-gradient(135deg,#f5f9f1 0%,#fafdf7 100%);
-    border-radius:12px;
-    padding:18px 22px;
-    border:0.5px solid #eaeae6;
-    flex-wrap:wrap;
-    gap:12px;
-  }
-  .op-dash-eyebrow {
-    font-size:10px;
-    color:#5a8a48;
-    letter-spacing:0.06em;
-    font-weight:500;
-    margin-bottom:4px;
-  }
-  .op-dash-title {
-    font-size:20px;
-    font-weight:600;
-    color:#1a1a1a;
-    margin:0 0 4px;
-  }
-  .op-dash-date {
-    font-size:11px;
-    color:#888;
-  }
-  .op-dash-actions {
-    display:flex;
-    align-items:center;
-    gap:10px;
-    flex-wrap:wrap;
-  }
-  .op-dash-mine-toggle {
-    display:inline-flex;
-    align-items:center;
-    gap:6px;
-    padding:6px 10px;
-    background:#fff;
-    border:0.5px solid #eaeae6;
-    border-radius:7px;
-    cursor:pointer;
-    font-size:11px;
-    color:#666;
-    transition:all .15s ease;
-  }
-  .op-dash-mine-toggle:hover {
-    border-color:#5a8a48;
-    color:#1a1a1a;
-  }
-  .op-dash-mine-toggle input {
-    margin:0;
-    cursor:pointer;
-  }
-  .op-dash-refresh {
-    display:inline-flex;
-    align-items:center;
-    gap:5px;
-    padding:6px 10px;
-    background:#fff;
-    border:0.5px solid #eaeae6;
-    border-radius:7px;
-    font-size:10px;
-    color:#888;
-  }
-  .op-dash-refresh-dot {
-    display:inline-block;
-    width:6px;
-    height:6px;
-    background:#5a8a48;
-    border-radius:50%;
-    animation: dashRefreshPulse 2s ease-in-out infinite;
-  }
-  @keyframes dashRefreshPulse {
-    0%, 100% { opacity:0.4; }
-    50% { opacity:1; transform:scale(1.2); }
-  }
-  .op-dash-refresh-btn {
-    padding:6px 10px;
-    background:#fff;
-    border:0.5px solid #eaeae6;
-    border-radius:7px;
-    font-size:13px;
-    cursor:pointer;
-    transition:all .15s ease;
-  }
-  .op-dash-refresh-btn:hover {
-    border-color:#5a8a48;
-    background:#f4f8f1;
-    transform:rotate(180deg);
-  }
-  /* コアラのアドバイス枠 */
-  .op-dash-koala-box {
-    display:flex;
-    gap:14px;
-    align-items:flex-start;
-    background:#fff;
-    border:0.5px solid #eaeae6;
-    border-radius:12px;
-    padding:14px 16px;
-    margin-bottom:1.25rem;
-  }
-  .op-dash-koala-img {
-    width:64px;
-    height:64px;
-    object-fit:contain;
-    flex-shrink:0;
-  }
-  .op-dash-koala-bubble {
-    flex:1;
-  }
-  .op-dash-koala-label {
-    font-size:9px;
-    color:#5a8a48;
-    letter-spacing:0.04em;
-    font-weight:500;
-    margin-bottom:4px;
-  }
-  /* 今週の面接リスト */
-  .op-dash-week-list {
-    display:flex;
-    flex-direction:column;
-    gap:6px;
-  }
-  .op-dash-week-item {
-    display:flex;
-    align-items:center;
-    gap:12px;
-    padding:10px 14px;
-    background:#fff;
-    border:0.5px solid #eaeae6;
-    border-radius:8px;
-    font-size:12px;
-    cursor:pointer;
-    transition:all .15s ease;
-  }
-  .op-dash-week-item:hover {
-    border-color:#5a8a48;
-    background:#fafdf7;
-  }
-  .op-dash-week-day {
-    flex-shrink:0;
-    width:56px;
-    text-align:center;
-    padding:4px 0;
-    background:#f5f5f3;
-    border-radius:6px;
-    font-size:10px;
-    color:#666;
-    font-weight:500;
-  }
-  .op-dash-week-day.today {
-    background:#eaf3de;
-    color:#3B6D11;
-    font-weight:600;
-  }
-  .op-dash-week-empty {
-    padding:14px;
-    text-align:center;
-    color:#aaa;
-    font-size:11px;
-    background:#fafafa;
-    border-radius:8px;
-  }
-  /* 議事録最新 */
-  .op-dash-minutes-list {
-    display:flex;
-    flex-direction:column;
-    gap:6px;
-  }
-  .op-dash-minute-item {
-    display:flex;
-    align-items:center;
-    gap:10px;
-    padding:10px 14px;
-    background:#fff;
-    border:0.5px solid #eaeae6;
-    border-radius:8px;
-    font-size:12px;
-    cursor:pointer;
-    transition:all .15s ease;
-  }
-  .op-dash-minute-item:hover {
-    border-color:#5a8a48;
-    background:#fafdf7;
-  }
-  .op-dash-minute-empty {
-    padding:14px;
-    text-align:center;
-    color:#aaa;
-    font-size:11px;
-    background:#fafafa;
-    border-radius:8px;
-  }
-  /* KPIカードクリック誘導：ホバーで矢印表示 */
-  .op-dash-clickable {
-    cursor:pointer !important;
-    transition:all .15s ease;
-    position:relative;
-  }
-  .op-dash-clickable::after {
-    content:'→';
-    position:absolute;
-    top:8px;
-    right:10px;
-    opacity:0;
-    transition:opacity .15s ease;
-    color:#5a8a48;
-    font-size:14px;
-  }
-  .op-dash-clickable:hover {
-    transform:translateY(-2px);
-    box-shadow:0 4px 12px rgba(90,138,72,0.10);
-  }
-  .op-dash-clickable:hover::after {
-    opacity:1;
-  }
-  /* モバイル */
-  @media (max-width: 640px) {
-    .op-dash-header {
-      padding:14px 16px;
-      flex-direction:column;
-      align-items:flex-start;
-    }
-    .op-dash-actions {
-      width:100%;
-      justify-content:flex-start;
-    }
-    .op-dash-koala-box {
-      flex-direction:column;
-      align-items:center;
-      text-align:center;
-    }
-  }
-
-  /* ============================================ */
-  /* Step 4: 採用分析ダッシュ                      */
-  /* ============================================ */
-  .an-dash-header {
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-end;
-    margin-bottom:1.25rem;
-    background:linear-gradient(135deg,#f4f8fc 0%,#fafcff 100%);
-    border-radius:12px;
-    padding:18px 22px;
-    border:0.5px solid #e6ebf3;
-    flex-wrap:wrap;
-    gap:12px;
-  }
-  .an-dash-eyebrow {
-    font-size:10px;
-    color:#185FA5;
-    letter-spacing:0.06em;
-    font-weight:500;
-    margin-bottom:4px;
-  }
-  .an-dash-title {
-    font-size:20px;
-    font-weight:600;
-    color:#1a1a1a;
-    margin:0 0 4px;
-  }
-  .an-dash-date {
-    font-size:11px;
-    color:#888;
-  }
-  .an-dash-actions {
-    display:flex;
-    align-items:center;
-    gap:10px;
-    flex-wrap:wrap;
-  }
-  .an-dash-refresh {
-    display:inline-flex;
-    align-items:center;
-    gap:5px;
-    padding:6px 10px;
-    background:#fff;
-    border:0.5px solid #e6ebf3;
-    border-radius:7px;
-    font-size:10px;
-    color:#888;
-  }
-  .an-dash-refresh-dot {
-    display:inline-block;
-    width:6px;
-    height:6px;
-    background:#185FA5;
-    border-radius:50%;
-    animation: dashRefreshPulse 2s ease-in-out infinite;
-  }
-  .an-dash-refresh-btn {
-    padding:6px 10px;
-    background:#fff;
-    border:0.5px solid #e6ebf3;
-    border-radius:7px;
-    font-size:13px;
-    cursor:pointer;
-    transition:all .15s ease;
-  }
-  .an-dash-refresh-btn:hover {
-    border-color:#185FA5;
-    background:#f4f8fc;
-    transform:rotate(180deg);
-  }
-  /* コアラAI診断（採用分析用） */
-  .an-dash-koala-box {
-    display:flex;
-    gap:16px;
-    align-items:flex-start;
-    background:#fff;
-    border:0.5px solid #e6ebf3;
-    border-radius:12px;
-    padding:18px 22px;
-    margin-bottom:1.5rem;
-    position:relative;
-    overflow:hidden;
-  }
-  .an-dash-koala-box::before {
-    content:'';
-    position:absolute;
-    top:-20px;
-    right:-20px;
-    width:120px;
-    height:120px;
-    background:radial-gradient(circle,rgba(24,95,165,0.04) 0%,transparent 70%);
-  }
-  .an-dash-koala-img {
-    width:72px;
-    height:72px;
-    object-fit:contain;
-    flex-shrink:0;
-    position:relative;
-    z-index:1;
-  }
-  .an-dash-koala-body {
-    flex:1;
-    position:relative;
-    z-index:1;
-  }
-  .an-dash-koala-label {
-    font-size:10px;
-    color:#185FA5;
-    letter-spacing:0.04em;
-    font-weight:500;
-    margin-bottom:6px;
-  }
-  /* メインKPI 4枚 */
-  .an-dash-kpi-grid {
-    display:grid;
-    grid-template-columns:repeat(4,1fr);
-    gap:12px;
-    margin-bottom:1.5rem;
-  }
-  .an-dash-kpi-card {
-    background:#fff;
-    border:0.5px solid #e6ebf3;
-    border-radius:10px;
-    padding:14px 16px;
-    border-left:3px solid #185FA5;
-    cursor:pointer;
-    transition:all .2s ease;
-  }
-  .an-dash-kpi-card:hover {
-    transform:translateY(-2px);
-    box-shadow:0 6px 16px rgba(24,95,165,0.08);
-  }
-  .an-dash-kpi-label {
-    font-size:10px;
-    color:#0C447C;
-    font-weight:500;
-    letter-spacing:0.04em;
-  }
-  .an-dash-kpi-value {
-    font-size:22px;
-    font-weight:600;
-    color:#1a1a1a;
-    margin-top:6px;
-    line-height:1.1;
-  }
-  .an-dash-kpi-unit {
-    font-size:11px;
-    color:#888;
-    font-weight:400;
-    margin-left:2px;
-  }
-  .an-dash-kpi-trend {
-    font-size:10px;
-    margin-top:4px;
-    font-weight:500;
-  }
-  .an-dash-kpi-trend.up-good {
-    color:#3B6D11;
-  }
-  .an-dash-kpi-trend.down-good {
-    color:#3B6D11;
-  }
-  .an-dash-kpi-trend.up-bad {
-    color:#D85A30;
-  }
-  .an-dash-kpi-trend.down-bad {
-    color:#D85A30;
-  }
-  .an-dash-kpi-trend.flat {
-    color:#888;
-  }
-  /* 2カラムレイアウト */
-  .an-dash-2col {
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:14px;
-    margin-bottom:1.5rem;
-  }
-  .an-dash-panel {
-    background:#fff;
-    border:0.5px solid #e6ebf3;
-    border-radius:10px;
-    padding:16px 18px;
-  }
-  .an-dash-panel-head {
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-start;
-    margin-bottom:14px;
-  }
-  .an-dash-panel-title {
-    font-size:13px;
-    font-weight:600;
-    color:#1a1a1a;
-  }
-  .an-dash-panel-sub {
-    font-size:10px;
-    color:#888;
-    margin-top:2px;
-  }
-  .an-dash-more {
-    font-size:10px;
-    padding:5px 10px;
-    background:transparent;
-    border:0.5px solid #185FA5;
-    color:#185FA5;
-    border-radius:6px;
-    font-family:inherit;
-    cursor:pointer;
-    font-weight:500;
-    transition:all .15s ease;
-  }
-  .an-dash-more:hover {
-    background:#185FA5;
-    color:#fff;
-  }
-  /* 月別推移バー */
-  .an-dash-bars {
-    display:flex;
-    gap:6px;
-    align-items:flex-end;
-    height:140px;
-    padding:8px 4px 4px;
-  }
-  .an-dash-bar {
-    flex:1;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:4px;
-    cursor:default;
-  }
-  .an-dash-bar-num {
-    font-size:10px;
-    font-weight:500;
-    color:#185FA5;
-  }
-  .an-dash-bar-fill {
-    width:100%;
-    background:#cfe0f0;
-    border-radius:3px 3px 0 0;
-    min-height:2px;
-    transition:opacity 0.15s;
-  }
-  .an-dash-bar-fill.latest {
-    background:#185FA5;
-  }
-  .an-dash-bar-label {
-    font-size:9px;
-    color:#888;
-  }
-  .an-dash-bar-label.latest {
-    color:#185FA5;
-    font-weight:600;
-  }
-  .an-dash-empty {
-    padding:24px;
-    text-align:center;
-    color:#aaa;
-    font-size:11px;
-  }
-  /* ワーストリスト */
-  .an-dash-worst-list {
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-  }
-  .an-dash-worst-item {
-    background:#fdf2ee;
-    border:0.5px solid #f4d4c4;
-    border-radius:7px;
-    padding:10px 12px;
-    cursor:pointer;
-    transition:all .15s ease;
-  }
-  .an-dash-worst-item:hover {
-    border-color:#D85A30;
-    transform:translateX(2px);
-  }
-  .an-dash-worst-title {
-    font-size:11px;
-    font-weight:500;
-    color:#1a1a1a;
-    line-height:1.4;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-  }
-  .an-dash-worst-meta {
-    font-size:10px;
-    color:#993C1D;
-    margin-top:3px;
-  }
-  /* アラートゾーン */
-  .an-dash-alerts {
-    margin-bottom:1.5rem;
-  }
-  .an-dash-alert-item {
-    background:#fef7e9;
-    border:0.5px solid #FAC775;
-    border-left:3px solid #EF9F27;
-    border-radius:8px;
-    padding:10px 14px;
-    margin-bottom:8px;
-    display:flex;
-    align-items:center;
-    gap:10px;
-    font-size:12px;
-    color:#854F0B;
-  }
-  .an-dash-alert-item.danger {
-    background:#fcebeb;
-    border-color:#F09595;
-    border-left-color:#E24B4A;
-    color:#A32D2D;
-  }
-  /* フッター */
-  .an-dash-footer {
-    background:#fff;
-    border:0.5px solid #e6ebf3;
-    border-radius:10px;
-    padding:16px 18px;
-  }
-  .an-dash-footer-btns {
-    display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:10px;
-  }
-  .an-dash-footer-btn {
-    display:flex;
-    align-items:center;
-    gap:10px;
-    padding:12px 14px;
-    background:#fafcff;
-    border:0.5px solid #e6ebf3;
-    border-radius:8px;
-    cursor:pointer;
-    text-align:left;
-    font-family:inherit;
-    font-size:12px;
-    transition:all .15s ease;
-  }
-  .an-dash-footer-btn:hover {
-    background:#f4f8fc;
-    border-color:#185FA5;
-    transform:translateY(-1px);
-  }
-  /* モバイル */
-  @media (max-width: 768px) {
-    .an-dash-kpi-grid {
-      grid-template-columns:repeat(2,1fr);
-    }
-    .an-dash-2col {
-      grid-template-columns:1fr;
-    }
-    .an-dash-footer-btns {
-      grid-template-columns:1fr;
-    }
-    .an-dash-header {
-      padding:14px 16px;
-      flex-direction:column;
-      align-items:flex-start;
-    }
-    .an-dash-koala-box {
-      flex-direction:column;
-      text-align:center;
-      align-items:center;
-    }
-  }
-
-  /* ============================================ */
-  /* Step 5: 仕上げ                                */
-  /* ============================================ */
-
-  /* アバター円 */
-  .staff-avatar {
-    width:30px;
-    height:30px;
-    border-radius:50%;
-    background:#eaf3de;
-    color:#3B6D11;
-    font-size:13px;
-    font-weight:600;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    border:1.5px solid #fff;
-    box-shadow:0 0 0 1px #c0dd97;
-    flex-shrink:0;
-    user-select:none;
-    transition:all .2s ease;
-  }
-  body[data-active-mode="analytics"] .staff-avatar {
-    background:#e6f1fb;
-    color:#0C447C;
-    box-shadow:0 0 0 1px #85B7EB;
-  }
-  body[data-active-mode="admin_settings"] .staff-avatar {
-    background:#f1efe8;
-    color:#444441;
-    box-shadow:0 0 0 1px #B4B2A9;
-  }
-
-  /* モード概要バー（KPI帯） */
-  .mode-quick-stats {
-    display:inline-flex;
-    align-items:center;
-    gap:14px;
-    margin-left:auto;
-    padding:4px 12px;
-    background:#fff;
-    border:0.5px solid #eaeae6;
-    border-radius:7px;
-    animation: mqsFadeIn 0.3s ease-out;
-  }
-  @keyframes mqsFadeIn {
-    from { opacity:0; transform:translateX(8px); }
-    to { opacity:1; transform:translateX(0); }
-  }
-  .mqs-item {
-    display:inline-flex;
-    align-items:center;
-    gap:5px;
-    font-size:10px;
-    color:#666;
-  }
-  .mqs-label {
-    color:#888;
-  }
-  .mqs-value {
-    font-weight:600;
-    color:#1a1a1a;
-  }
-  .mqs-value.warn {
-    color:#854F0B;
-  }
-  .mqs-value.danger {
-    color:#A32D2D;
-  }
-  .mqs-value.good {
-    color:#3B6D11;
-  }
-  .mqs-divider {
-    width:1px;
-    height:14px;
-    background:#eaeae6;
-  }
-  @media (max-width: 900px) {
-    .mode-quick-stats {
-      display:none;  /* 狭い画面では非表示 */
-    }
-  }
-
-  /* 数値カウントアップアニメ用：JSで使う */
-  .countup {
-    transition:none;
-    font-variant-numeric:tabular-nums;
-  }
-
-  /* リップル風クリック演出（モードカード用） */
-  /* overflow:hidden だとコアラの円が切れるので、リップル要素側で対応 */
-  .mh-card .ripple {
-    position:absolute;
-    border-radius:50%;
-    pointer-events:none;
-    transform:scale(0);
-    animation:rippleEffect 0.6s ease-out;
-    opacity:0.5;
-    /* コアラの円より下の本体エリアにクリップするマスク */
-    clip-path: inset(48px 0 0 0 round 0);  /* 上48pxはコアラ円エリアなので隠す */
-  }
-  .mh-card-operation .ripple { background:rgba(90,138,72,0.3); }
-  .mh-card-analytics .ripple { background:rgba(24,95,165,0.25); }
-  @keyframes rippleEffect {
-    to {
-      transform:scale(2.5);
-      opacity:0;
-    }
-  }
-
-  /* ============================================ */
-  /* Step 5: アップグレードモーダル                 */
-  /* ============================================ */
-  .upgrade-modal-overlay {
-    position:fixed;
-    inset:0;
-    background:rgba(20,20,18,0.55);
-    backdrop-filter:blur(2px);
-    z-index:9999;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    animation:upgradeOverlayIn 0.2s ease-out;
-    padding:16px;
-  }
-  @keyframes upgradeOverlayIn {
-    from { opacity:0; }
-    to { opacity:1; }
-  }
-  .upgrade-modal {
-    background:#fff;
-    border-radius:14px;
-    padding:30px 28px 26px;
-    max-width:420px;
-    width:100%;
-    box-shadow:0 20px 50px rgba(0,0,0,0.18);
-    text-align:center;
-    animation:upgradeModalIn 0.3s cubic-bezier(.34,1.56,.64,1);
-    position:relative;
-  }
-  @keyframes upgradeModalIn {
-    from { opacity:0; transform:scale(0.85) translateY(20px); }
-    to { opacity:1; transform:scale(1) translateY(0); }
-  }
-  .upgrade-modal-koala {
-    width:80px;
-    height:80px;
-    margin:0 auto 16px;
-    background:#eaf3de;
-    border-radius:50%;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-  }
-  .upgrade-modal-koala img {
-    width:60px;
-    height:60px;
-    object-fit:contain;
-  }
-  .upgrade-modal-title {
-    font-size:18px;
-    font-weight:600;
-    color:#1a1a1a;
-    margin-bottom:8px;
-  }
-  .upgrade-modal-mode {
-    display:inline-block;
-    background:#fafafa;
-    border:0.5px solid #eaeae6;
-    border-radius:14px;
-    padding:4px 12px;
-    font-size:12px;
-    color:#5a8a48;
-    font-weight:500;
-    margin-bottom:14px;
-  }
-  .upgrade-modal-desc {
-    font-size:13px;
-    color:#666;
-    line-height:1.7;
-    margin-bottom:22px;
-  }
-  .upgrade-modal-actions {
-    display:flex;
-    gap:8px;
-  }
-  .upgrade-modal-btn {
-    flex:1;
-    padding:11px;
-    border-radius:9px;
-    font-size:13px;
-    font-weight:500;
-    font-family:inherit;
-    cursor:pointer;
-    transition:all .15s ease;
-    border:none;
-  }
-  .upgrade-modal-btn.primary {
-    background:#1a1a1a;
-    color:#fff;
-  }
-  .upgrade-modal-btn.primary:hover {
-    background:#000;
-  }
-  .upgrade-modal-btn.secondary {
-    background:#f5f5f3;
-    color:#666;
-  }
-  .upgrade-modal-btn.secondary:hover {
-    background:#eaeae6;
-  }
-  .upgrade-modal-close {
-    position:absolute;
-    top:14px;
-    right:14px;
-    width:28px;
-    height:28px;
-    background:transparent;
-    border:none;
-    font-size:16px;
-    color:#888;
-    cursor:pointer;
-    border-radius:50%;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-  }
-  .upgrade-modal-close:hover {
-    background:#f5f5f3;
-    color:#1a1a1a;
-  }
-
-  /* グレーアウトされたモードタブは点線で示唆 */
-  .mode-tab.disabled {
-    opacity:0.5;
-    cursor:not-allowed;
-    position:relative;
-  }
-  .mode-tab.disabled::after {
-    content:'🔒';
-    margin-left:4px;
-    font-size:10px;
-    opacity:0.6;
-  }
-</style>
+<link rel="stylesheet" href="css/style.css?v=20260522a">
 <script>
   // file:// プロトコルで開かれた場合の警告（CSS/JS/画像が正常に読み込めない）
   if (location.protocol === 'file:') {
@@ -1552,59 +26,77 @@
 <!-- ===== Supabase設定（ここを書き換える） ===== -->
 <!-- Supabase設定とメインJSは js/app.js に統合 -->
 
-<!-- ===== ログイン画面（v2.4 リファイン） ===== -->
-<div id="loginScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f7f6f1;position:relative;overflow:hidden;padding:48px 16px;box-sizing:border-box;">
+<!-- ===== ログイン画面 ===== -->
+<div id="loginScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,#e8f7f3 0%,#f0faf8 40%,#fef9f2 100%);position:relative;overflow:hidden;">
+
+  <!-- 背景デコ -->
+  <div style="position:absolute;top:-80px;left:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(106,180,154,.15) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;bottom:-60px;right:-60px;width:280px;height:280px;background:radial-gradient(circle,rgba(55,138,221,.08) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;top:18%;left:5%;width:10px;height:10px;background:#6ab49a;border-radius:50%;opacity:.2;animation:floatDot 4s ease-in-out infinite;"></div>
+  <div style="position:absolute;top:10%;right:7%;width:7px;height:7px;background:#378ADD;border-radius:50%;opacity:.18;animation:floatDot 5s ease-in-out infinite reverse;"></div>
+  <div style="position:absolute;bottom:20%;right:10%;width:5px;height:5px;background:#6ab49a;border-radius:50%;opacity:.25;animation:floatDot 3.5s ease-in-out infinite;"></div>
 
   <!-- カード全体 -->
-  <div style="position:relative;width:100%;max-width:680px;">
+  <div style="position:relative;width:100%;max-width:460px;margin:2rem 1rem;">
 
-    <!-- ロゴ（カードより少し大きめに、幅いっぱい） -->
-    <div style="text-align:center;margin-bottom:24px;">
-      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260512v" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
-    </div>
+    <!-- 上部：ロゴ＋キャラクター（横並び・浮遊） -->
+    <div style="display:flex;align-items:flex-end;justify-content:center;gap:16px;margin-bottom:-20px;position:relative;z-index:2;pointer-events:none;">
 
-    <!-- ログインカード本体（少し狭め、中央寄せ） -->
-    <div style="background:#fff;border-radius:14px;padding:36px 36px 28px;border:0.5px solid #e8ebe9;box-shadow:0 1px 3px rgba(0,0,0,.02);position:relative;z-index:1;width:100%;max-width:560px;box-sizing:border-box;margin:0 auto;">
-
-      <!-- 見出し -->
-      <div style="text-align:center;margin-bottom:24px;">
-        <div style="font-size:15px;font-weight:500;color:#1a1a1a;letter-spacing:.04em;margin-bottom:4px;">ログイン</div>
-        <div style="font-size:11px;color:#999;letter-spacing:.03em;">アカウント情報を入力してください</div>
+      <!-- ロゴ（浮遊・影付き） -->
+      <div style="animation:floatLogo 3.5s ease-in-out infinite;filter:drop-shadow(0 10px 20px rgba(0,0,0,.15));">
+        <img id="loginLogoImg" src="assets/logo.png" alt="ロゴ" style="width:90px;height:90px;object-fit:contain;">
       </div>
 
+      <!-- キャラクター（ロゴと逆位相で浮遊） -->
+      <div style="animation:floatChar 3.2s ease-in-out infinite;filter:drop-shadow(0 8px 16px rgba(0,0,0,.1));">
+        <img id="loginCharImg" src="assets/character.png" alt="キャラクター" style="width:110px;height:110px;object-fit:contain;">
+      </div>
+    </div>
+
+    <!-- ログインカード本体 -->
+    <div style="background:#fff;border-radius:24px;padding:2.5rem 2.5rem 2rem;box-shadow:0 8px 40px rgba(0,0,0,.07),0 2px 8px rgba(106,180,154,.12);position:relative;z-index:1;">
+
+      <!-- サービス名 -->
+      <div style="text-align:center;margin-bottom:1.75rem;">
+        <div style="font-size:26px;font-weight:800;color:#1a1a1a;letter-spacing:-.04em;margin-bottom:6px;">採用<span style="color:#6ab49a;">コア</span></div>
+        <div style="font-size:11px;color:#aab;letter-spacing:.07em;font-weight:500;">採用管理システム | Link Core</div>
+      </div>
+
+      <div style="height:1px;background:linear-gradient(to right,transparent,#deeee9,transparent);margin-bottom:1.75rem;"></div>
+
       <!-- 入力フォーム -->
-      <div style="display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;flex-direction:column;gap:1rem;">
         <div>
-          <label style="font-size:11px;font-weight:500;color:#555;display:block;margin-bottom:6px;letter-spacing:.04em;">メールアドレス</label>
-          <input type="email" id="loginId" placeholder="name@company.com" autocomplete="email"
+          <label style="font-size:11px;font-weight:700;color:#667;display:block;margin-bottom:6px;letter-spacing:.04em;">メールアドレス</label>
+          <input type="email" id="loginId" placeholder="例: client@example.com" autocomplete="email"
             onkeydown="if(event.key==='Enter')doLogin()"
-            style="width:100%;padding:11px 13px;border:1px solid #e3e3e0;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;outline:none;box-sizing:border-box;transition:all .2s;"
-            onfocus="this.style.borderColor='#5a8a48';this.style.boxShadow='0 0 0 3px rgba(90,138,72,.12)'"
-            onblur="this.style.borderColor='#e3e3e0';this.style.boxShadow='none'">
+            style="width:100%;padding:13px 16px;border:1.5px solid #deeee9;border-radius:12px;font-size:14px;font-family:inherit;background:#f7fcfa;outline:none;box-sizing:border-box;transition:all .2s;"
+            onfocus="this.style.borderColor='#6ab49a';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(106,180,154,.12)'"
+            onblur="this.style.borderColor='#deeee9';this.style.background='#f7fcfa';this.style.boxShadow='none'">
         </div>
         <div>
-          <label style="font-size:11px;font-weight:500;color:#555;display:block;margin-bottom:6px;letter-spacing:.04em;">パスワード</label>
-          <input type="password" id="loginPw" placeholder="••••••••" autocomplete="current-password"
+          <label style="font-size:11px;font-weight:700;color:#667;display:block;margin-bottom:6px;letter-spacing:.04em;">パスワード</label>
+          <input type="password" id="loginPw" placeholder="パスワードを入力" autocomplete="current-password"
             onkeydown="if(event.key==='Enter')doLogin()"
-            style="width:100%;padding:11px 13px;border:1px solid #e3e3e0;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;outline:none;box-sizing:border-box;transition:all .2s;"
-            onfocus="this.style.borderColor='#5a8a48';this.style.boxShadow='0 0 0 3px rgba(90,138,72,.12)'"
-            onblur="this.style.borderColor='#e3e3e0';this.style.boxShadow='none'">
+            style="width:100%;padding:13px 16px;border:1.5px solid #deeee9;border-radius:12px;font-size:14px;font-family:inherit;background:#f7fcfa;outline:none;box-sizing:border-box;transition:all .2s;"
+            onfocus="this.style.borderColor='#6ab49a';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(106,180,154,.12)'"
+            onblur="this.style.borderColor='#deeee9';this.style.background='#f7fcfa';this.style.boxShadow='none'">
         </div>
 
-        <div id="loginErr" style="display:none;font-size:12px;color:#c04040;background:#fdf2f2;border-radius:8px;padding:9px 12px;text-align:center;border:1px solid #f4d4d4;">
+        <div id="loginErr" style="display:none;font-size:12px;color:#e05555;background:#fff5f5;border-radius:8px;padding:9px 12px;text-align:center;border:1px solid #fdd;">
           メールアドレスまたはパスワードが正しくありません
         </div>
 
         <button id="loginBtn" onclick="doLogin()"
-          style="width:100%;padding:12px;background:#5a8a48;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;letter-spacing:.05em;transition:background .2s;margin-top:6px;"
-          onmouseover="this.style.background='#4a7339'"
-          onmouseout="this.style.background='#5a8a48'">
+          style="width:100%;padding:14px;background:linear-gradient(135deg,#72bda6,#5aaa8e);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.05em;transition:all .25s;box-shadow:0 4px 14px rgba(106,180,154,.3);margin-top:4px;"
+          onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 7px 22px rgba(106,180,154,.42)'"
+          onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 14px rgba(106,180,154,.3)'">
           ログイン
         </button>
       </div>
 
-      <div style="text-align:center;margin-top:20px;font-size:10px;color:#bbb;line-height:1.7;letter-spacing:.04em;">
-        © 2025 Link Core, Inc.｜採用コア
+      <div style="text-align:center;margin-top:1.75rem;font-size:10px;color:#ccc;line-height:1.9;">
+        © 2025 Link Core｜採用コア<br>ご不明な点は管理会社までお問い合わせください
       </div>
     </div>
   </div>
@@ -1612,107 +104,136 @@
 </div>
 
 <!-- ============================================ -->
-<!-- ログインローディングオーバーレイ（v2.4 リファイン） -->
+<!-- ログインローディングオーバーレイ -->
 <!-- 2モード: jump（ログイン直後）/ walk（担当者選択後） -->
-<!-- 旧コアラアニメ → 新ロゴ＋スピナーに置き換え -->
 <!-- ============================================ -->
-<div id="loginLoadingOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:#f7f6f1;align-items:center;justify-content:center;flex-direction:column;opacity:0;transition:opacity 0.4s ease;">
+<div id="loginLoadingOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:linear-gradient(145deg,#e8f7f3 0%,#f0faf8 40%,#fef9f2 100%);align-items:center;justify-content:center;flex-direction:column;opacity:0;transition:opacity 0.4s ease;">
+  <div style="position:absolute;top:-80px;left:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(106,180,154,.15) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;bottom:-60px;right:-60px;width:280px;height:280px;background:radial-gradient(circle,rgba(55,138,221,.08) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;top:18%;left:5%;width:10px;height:10px;background:#6ab49a;border-radius:50%;opacity:.2;animation:floatDot 4s ease-in-out infinite;"></div>
+  <div style="position:absolute;top:10%;right:7%;width:7px;height:7px;background:#378ADD;border-radius:50%;opacity:.18;animation:floatDot 5s ease-in-out infinite reverse;"></div>
+  <div style="position:absolute;bottom:20%;right:10%;width:5px;height:5px;background:#6ab49a;border-radius:50%;opacity:.25;animation:floatDot 3.5s ease-in-out infinite;"></div>
 
-  <!-- ジャンプモード相当：ログインボタン押下後（2秒） -->
-  <div id="loadingJumpStage" style="display:none;flex-direction:column;align-items:center;justify-content:center;">
-    <div style="position:relative;width:280px;height:120px;display:flex;align-items:center;justify-content:center;">
-      <img id="loadingLogoJumper" src="assets/logo-v2.png" alt="採用コア" style="width:240px;max-width:100%;height:auto;object-fit:contain;animation:logoPulse 1.6s ease-in-out infinite;">
-    </div>
+  <!-- ジャンプモード：ログインボタン押下後（2秒） -->
+  <div id="loadingJumpStage" style="display:none;position:relative;width:240px;height:200px;align-items:flex-end;justify-content:center;">
+    <!-- 手フリ「👋」 -->
+    <div id="loadingHand" style="position:absolute;top:30px;right:50px;font-size:42px;opacity:0;transition:opacity 0.2s ease;line-height:1;user-select:none;">👋</div>
+    <!-- ジャンプするコアラ -->
+    <img id="loadingKoalaJumper" src="assets/character.png" alt="コアラ" style="width:140px;height:140px;object-fit:contain;display:block;transform-origin:center bottom;filter:drop-shadow(0 6px 12px rgba(0,0,0,.1));">
   </div>
 
-  <!-- 歩くモード相当：担当者選択後（5秒） -->
-  <div id="loadingWalkStage" style="display:none;flex-direction:column;align-items:center;justify-content:center;">
-    <div style="position:relative;width:280px;height:120px;display:flex;align-items:center;justify-content:center;">
-      <img id="loadingLogoWalker" src="assets/logo-v2.png" alt="採用コア" style="width:240px;max-width:100%;height:auto;object-fit:contain;opacity:.95;">
+  <!-- 歩くモード：担当者選択後（5秒） -->
+  <div id="loadingWalkStage" style="display:none;position:relative;width:90%;max-width:520px;height:180px;">
+    <div style="position:absolute;bottom:18px;left:5%;right:5%;height:2px;background:rgba(0,0,0,.06);border-radius:2px;"></div>
+    <div id="loadingKoalaWalker" style="position:absolute;bottom:20px;left:10%;transform-origin:center bottom;animation:koalaWalkLR 5s ease-in-out infinite;">
+      <img id="loadingKoala" src="assets/character.png" alt="コアラ" style="width:120px;height:120px;object-fit:contain;animation:koalaBob 0.4s ease-in-out infinite;display:block;filter:drop-shadow(0 6px 12px rgba(0,0,0,.1));">
     </div>
-    <!-- スピナー（細い円形プログレス） -->
-    <div style="margin-top:8px;width:24px;height:24px;border:2px solid #e3e3e0;border-top-color:#5a8a48;border-radius:50%;animation:spinSlim 0.9s linear infinite;"></div>
   </div>
 
   <!-- メッセージ -->
-  <div id="loadingMessage" style="margin-top:20px;font-size:13px;font-weight:500;color:#666;letter-spacing:.05em;transition:opacity 0.3s ease;text-align:center;min-height:20px;">
+  <div id="loadingMessage" style="margin-top:18px;font-size:17px;font-weight:700;color:#3D4A42;letter-spacing:.04em;transition:opacity 0.3s ease;text-align:center;min-height:26px;">
     ログイン中...
   </div>
 </div>
 
 <style>
-  @keyframes logoPulse {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50%      { transform: scale(1.04); opacity: .85; }
+  @keyframes koalaWalkLR {
+    0%   { left: 10%; transform: scaleX(1); }
+    24%  { transform: scaleX(1); }
+    25%  { left: 78%; transform: scaleX(-1); }
+    49%  { left: 78%; transform: scaleX(-1); }
+    50%  { transform: scaleX(-1); }
+    74%  { transform: scaleX(-1); }
+    75%  { left: 10%; transform: scaleX(1); }
+    100% { left: 10%; transform: scaleX(1); }
   }
-  @keyframes spinSlim {
-    0%   { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+  @keyframes koalaBob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
   }
-  /* 旧コアラアニメは互換のため定義のみ残す（廃止） */
-  @keyframes koalaWalkLR { 0%,100%{left:10%;} }
-  @keyframes koalaBob { 0%,100%{transform:translateY(0);} }
-  @keyframes koalaJump { 0%,100%{transform:translateY(0);} }
-  @keyframes handWave { 0%,100%{transform:rotate(0);} }
+  @keyframes koalaJump {
+    0%   { transform: translateY(0) rotate(0deg); }
+    30%  { transform: translateY(-50px) rotate(-5deg); }
+    50%  { transform: translateY(0) rotate(0deg); }
+    65%  { transform: translateY(-35px) rotate(5deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+  }
+  @keyframes handWave {
+    0%, 100% { transform: rotate(-15deg); }
+    50% { transform: rotate(20deg); }
+  }
+  .koala-jumping { animation: koalaJump 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important; }
+  .hand-waving { animation: handWave 0.4s ease-in-out infinite !important; }
 </style>
 
-<!-- ===== パスワードリセット画面（v2.5 リファイン） ===== -->
-<div id="resetPwScreen" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:#f7f6f1;position:relative;overflow:hidden;padding:48px 16px;box-sizing:border-box;">
+<!-- ===== パスワードリセット画面 ===== -->
+<div id="resetPwScreen" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(145deg,#e8f7f3 0%,#f0faf8 40%,#fef9f2 100%);position:relative;overflow:hidden;">
+
+  <!-- 背景デコ -->
+  <div style="position:absolute;top:-80px;left:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(106,180,154,.15) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;bottom:-60px;right:-60px;width:280px;height:280px;background:radial-gradient(circle,rgba(55,138,221,.08) 0%,transparent 70%);pointer-events:none;"></div>
 
   <!-- カード全体 -->
-  <div style="position:relative;width:100%;max-width:420px;">
+  <div style="position:relative;width:100%;max-width:460px;margin:2rem 1rem;">
 
-    <!-- ロゴ -->
-    <div style="text-align:center;margin-bottom:28px;">
-      <img src="assets/logo-v2.png" alt="採用コア" style="width:260px;max-width:100%;height:auto;object-fit:contain;display:inline-block;">
+    <!-- 上部：ロゴ＋キャラクター -->
+    <div style="display:flex;align-items:flex-end;justify-content:center;gap:16px;margin-bottom:-20px;position:relative;z-index:2;pointer-events:none;">
+      <div style="animation:floatLogo 3.5s ease-in-out infinite;filter:drop-shadow(0 10px 20px rgba(0,0,0,.15));">
+        <img src="assets/logo.png" alt="ロゴ" style="width:90px;height:90px;object-fit:contain;">
+      </div>
+      <div style="animation:floatChar 3.2s ease-in-out infinite;filter:drop-shadow(0 8px 16px rgba(0,0,0,.1));">
+        <img src="assets/character.png" alt="キャラクター" style="width:110px;height:110px;object-fit:contain;">
+      </div>
     </div>
 
     <!-- リセットカード本体 -->
-    <div style="background:#fff;border-radius:14px;padding:36px 36px 28px;border:0.5px solid #e8ebe9;box-shadow:0 1px 3px rgba(0,0,0,.02);position:relative;z-index:1;">
+    <div style="background:#fff;border-radius:24px;padding:2.5rem 2.5rem 2rem;box-shadow:0 8px 40px rgba(0,0,0,.07),0 2px 8px rgba(106,180,154,.12);position:relative;z-index:1;">
 
       <!-- タイトル -->
-      <div style="text-align:center;margin-bottom:24px;">
-        <div style="font-size:15px;font-weight:500;color:#1a1a1a;letter-spacing:.04em;margin-bottom:4px;">パスワード再設定</div>
-        <div style="font-size:11px;color:#999;letter-spacing:.03em;">新しいパスワードを設定してください</div>
+      <div style="text-align:center;margin-bottom:1.75rem;">
+        <div style="font-size:24px;font-weight:800;color:#1a1a1a;letter-spacing:-.04em;margin-bottom:6px;">🔐 パスワード再設定</div>
+        <div style="font-size:11px;color:#aab;letter-spacing:.07em;font-weight:500;">新しいパスワードを設定してください</div>
       </div>
 
+      <div style="height:1px;background:linear-gradient(to right,transparent,#deeee9,transparent);margin-bottom:1.75rem;"></div>
+
       <!-- 入力フォーム -->
-      <div style="display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;flex-direction:column;gap:1rem;">
         <div>
-          <label style="font-size:11px;font-weight:500;color:#555;display:block;margin-bottom:6px;letter-spacing:.04em;">新しいパスワード（6文字以上）</label>
+          <label style="font-size:11px;font-weight:700;color:#667;display:block;margin-bottom:6px;letter-spacing:.04em;">新しいパスワード（6文字以上）</label>
           <input type="password" id="resetPw1" placeholder="新しいパスワード" autocomplete="new-password"
             onkeydown="if(event.key==='Enter')document.getElementById('resetPw2').focus()"
-            style="width:100%;padding:11px 13px;border:1px solid #e3e3e0;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;outline:none;box-sizing:border-box;transition:all .2s;"
-            onfocus="this.style.borderColor='#5a8a48';this.style.boxShadow='0 0 0 3px rgba(90,138,72,.12)'"
-            onblur="this.style.borderColor='#e3e3e0';this.style.boxShadow='none'">
+            style="width:100%;padding:13px 16px;border:1.5px solid #deeee9;border-radius:12px;font-size:14px;font-family:inherit;background:#f7fcfa;outline:none;box-sizing:border-box;transition:all .2s;"
+            onfocus="this.style.borderColor='#6ab49a';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(106,180,154,.12)'"
+            onblur="this.style.borderColor='#deeee9';this.style.background='#f7fcfa';this.style.boxShadow='none'">
         </div>
         <div>
-          <label style="font-size:11px;font-weight:500;color:#555;display:block;margin-bottom:6px;letter-spacing:.04em;">確認のためもう一度</label>
+          <label style="font-size:11px;font-weight:700;color:#667;display:block;margin-bottom:6px;letter-spacing:.04em;">確認のためもう一度</label>
           <input type="password" id="resetPw2" placeholder="同じパスワードを再入力" autocomplete="new-password"
             onkeydown="if(event.key==='Enter')doResetPassword()"
-            style="width:100%;padding:11px 13px;border:1px solid #e3e3e0;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;outline:none;box-sizing:border-box;transition:all .2s;"
-            onfocus="this.style.borderColor='#5a8a48';this.style.boxShadow='0 0 0 3px rgba(90,138,72,.12)'"
-            onblur="this.style.borderColor='#e3e3e0';this.style.boxShadow='none'">
+            style="width:100%;padding:13px 16px;border:1.5px solid #deeee9;border-radius:12px;font-size:14px;font-family:inherit;background:#f7fcfa;outline:none;box-sizing:border-box;transition:all .2s;"
+            onfocus="this.style.borderColor='#6ab49a';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(106,180,154,.12)'"
+            onblur="this.style.borderColor='#deeee9';this.style.background='#f7fcfa';this.style.boxShadow='none'">
         </div>
 
-        <div id="resetPwErr" style="display:none;font-size:12px;color:#c04040;background:#fdf2f2;border-radius:8px;padding:9px 12px;text-align:center;border:1px solid #f4d4d4;"></div>
+        <div id="resetPwErr" style="display:none;font-size:12px;color:#e05555;background:#fff5f5;border-radius:8px;padding:9px 12px;text-align:center;border:1px solid #fdd;"></div>
         <div id="resetPwOk" style="display:none;font-size:12px;color:#3B6D11;background:#f3faf0;border-radius:8px;padding:9px 12px;text-align:center;border:1px solid #c8e6c9;"></div>
 
         <button id="resetPwBtn" onclick="doResetPassword()"
-          style="width:100%;padding:12px;background:#5a8a48;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;letter-spacing:.05em;transition:background .2s;margin-top:6px;"
-          onmouseover="this.style.background='#4a7339'"
-          onmouseout="this.style.background='#5a8a48'">
+          style="width:100%;padding:14px;background:linear-gradient(135deg,#72bda6,#5aaa8e);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.05em;transition:all .25s;box-shadow:0 4px 14px rgba(106,180,154,.3);margin-top:4px;"
+          onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 7px 22px rgba(106,180,154,.42)'"
+          onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 14px rgba(106,180,154,.3)'">
           パスワードを設定する
         </button>
 
         <button onclick="cancelResetPassword()"
-          style="width:100%;padding:10px;background:transparent;color:#888;border:1px solid #e3e3e0;border-radius:8px;font-size:12px;font-family:inherit;cursor:pointer;margin-top:4px;">
+          style="width:100%;padding:10px;background:transparent;color:#888;border:1px solid #deeee9;border-radius:12px;font-size:12px;font-family:inherit;cursor:pointer;margin-top:4px;">
           キャンセル（ログイン画面に戻る）
         </button>
       </div>
 
-      <div style="text-align:center;margin-top:20px;font-size:10px;color:#bbb;line-height:1.7;letter-spacing:.04em;">
-        © 2025 Link Core, Inc.｜採用コア
+      <div style="text-align:center;margin-top:1.75rem;font-size:10px;color:#ccc;line-height:1.9;">
+        © 2025 Link Core｜採用コア
       </div>
     </div>
   </div>
@@ -1744,71 +265,62 @@
 }
 </style>
 
-<!-- ===== Step 5: アップグレードモーダル（プラン誘導、将来用） ===== -->
-<div id="upgradeModalOverlay" class="upgrade-modal-overlay" style="display:none;" onclick="closeUpgradeModal(event)">
-  <div class="upgrade-modal" onclick="event.stopPropagation()">
-    <button class="upgrade-modal-close" onclick="closeUpgradeModal()" aria-label="閉じる">×</button>
-    <div class="upgrade-modal-koala">
-      <img src="assets/koala-think.png" alt="">
-    </div>
-    <div class="upgrade-modal-mode" id="upgradeModalMode">📊 採用分析</div>
-    <h3 class="upgrade-modal-title">このモードは現在のプランでは<br>ご利用いただけません</h3>
-    <div class="upgrade-modal-desc">
-      お申し込みのプランをアップグレードすると、<br>
-      <strong id="upgradeModalModeName">このモード</strong>をご利用いただけるようになります。
-    </div>
-    <div class="upgrade-modal-actions">
-      <button class="upgrade-modal-btn secondary" onclick="closeUpgradeModal()">閉じる</button>
-      <button class="upgrade-modal-btn primary" onclick="contactForUpgrade()">お問い合わせ →</button>
-    </div>
-  </div>
-</div>
+<!-- ===== 担当者選択画面（Phase B-2） ===== -->
+<div id="staffSelectScreen" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(145deg,#e8f7f3 0%,#f0faf8 40%,#fef9f2 100%);position:relative;overflow:hidden;">
 
-<!-- ===== 担当者選択画面（Phase B-2 / v2.5 リファイン） ===== -->
-<div id="staffSelectScreen" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:#f7f6f1;position:relative;overflow:hidden;padding:48px 16px;box-sizing:border-box;">
+  <!-- 背景デコ -->
+  <div style="position:absolute;top:-80px;left:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(106,180,154,.15) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;bottom:-60px;right:-60px;width:280px;height:280px;background:radial-gradient(circle,rgba(55,138,221,.08) 0%,transparent 70%);pointer-events:none;"></div>
 
   <!-- カード全体 -->
-  <div style="position:relative;width:100%;max-width:520px;">
+  <div style="position:relative;width:100%;max-width:560px;margin:2rem 1rem;">
 
-    <!-- 上部：ヒーローコアラのみ -->
-    <div style="text-align:center;margin-bottom:-24px;position:relative;z-index:2;pointer-events:none;">
-      <img src="assets/koala-kira.png" alt="採用コア" style="width:120px;height:120px;object-fit:contain;display:inline-block;filter:drop-shadow(0 6px 14px rgba(0,0,0,.08));">
+    <!-- 上部：ロゴ＋キャラクター -->
+    <div style="display:flex;align-items:flex-end;justify-content:center;gap:16px;margin-bottom:-20px;position:relative;z-index:2;pointer-events:none;">
+      <div style="animation:floatLogo 3.5s ease-in-out infinite;filter:drop-shadow(0 10px 20px rgba(0,0,0,.15));">
+        <img src="assets/logo.png" alt="ロゴ" style="width:80px;height:80px;object-fit:contain;">
+      </div>
+      <div style="animation:floatChar 3.2s ease-in-out infinite;filter:drop-shadow(0 8px 16px rgba(0,0,0,.1));">
+        <img src="assets/character.png" alt="キャラクター" style="width:100px;height:100px;object-fit:contain;">
+      </div>
     </div>
 
     <!-- カード本体 -->
-    <div style="background:#fff;border-radius:14px;padding:48px 36px 28px;border:0.5px solid #e8ebe9;box-shadow:0 1px 3px rgba(0,0,0,.02);position:relative;z-index:1;">
+    <div style="background:#fff;border-radius:24px;padding:2.5rem 2.5rem 2rem;box-shadow:0 8px 40px rgba(0,0,0,.07),0 2px 8px rgba(106,180,154,.12);position:relative;z-index:1;">
 
       <!-- タイトル -->
-      <div style="text-align:center;margin-bottom:24px;">
-        <div style="font-size:16px;font-weight:500;color:#1a1a1a;letter-spacing:.04em;margin-bottom:6px;">担当者を選択してください</div>
-        <div style="font-size:11px;color:#999;letter-spacing:.03em;" id="staffSelectClientName"></div>
+      <div style="text-align:center;margin-bottom:.5rem;">
+        <div style="font-size:22px;font-weight:800;color:#1a1a1a;letter-spacing:-.04em;margin-bottom:6px;">担当者を選択してください</div>
+        <div style="font-size:11px;color:#aab;letter-spacing:.07em;font-weight:500;" id="staffSelectClientName"></div>
       </div>
 
+      <div style="height:1px;background:linear-gradient(to right,transparent,#deeee9,transparent);margin:1.25rem 0;"></div>
+
       <!-- 担当者リスト（カード形式） -->
-      <div id="staffSelectList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:1rem;">
+      <div id="staffSelectList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:1rem;">
         <!-- ここに担当者カードが動的生成 -->
       </div>
 
-      <!-- 担当者ゼロ時のメッセージ -->
+      <!-- 担当者ゼロ時のメッセージ（renderStaffSelect内で切替） -->
       <div id="staffSelectEmpty" style="display:none;text-align:center;padding:1.5rem 0;">
         <div style="font-size:13px;color:#888;margin-bottom:1rem;">担当者がまだ登録されていません</div>
         <button onclick="continueWithoutStaff()"
-          style="padding:11px 22px;background:#5a8a48;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;letter-spacing:.04em;">
+          style="padding:10px 22px;background:linear-gradient(135deg,#72bda6,#5aaa8e);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:0 4px 14px rgba(106,180,154,.3);">
           このまま続ける
         </button>
         <div style="font-size:10px;color:#aab;margin-top:8px;">※ ログイン後に「担当者管理」から追加できます</div>
       </div>
 
       <!-- 下部のキャンセル -->
-      <div style="text-align:center;margin-top:14px;">
+      <div style="text-align:center;margin-top:1rem;">
         <button onclick="cancelStaffSelect()"
-          style="padding:8px 16px;background:transparent;color:#888;border:1px solid #e3e3e0;border-radius:8px;font-size:11px;font-family:inherit;cursor:pointer;">
+          style="padding:8px 16px;background:transparent;color:#888;border:1px solid #deeee9;border-radius:10px;font-size:11px;font-family:inherit;cursor:pointer;">
           ログアウトしてやり直す
         </button>
       </div>
 
-      <div style="text-align:center;margin-top:20px;font-size:10px;color:#bbb;line-height:1.7;letter-spacing:.04em;">
-        © 2025 Link Core, Inc.｜採用コア
+      <div style="text-align:center;margin-top:1.5rem;font-size:10px;color:#ccc;line-height:1.9;">
+        © 2025 Link Core｜採用コア
       </div>
     </div>
   </div>
@@ -1816,34 +328,21 @@
 </div>
 
   <div class="app" id="mainApp" style="display:none;">
-    <!-- ============================================ -->
-    <!-- ヘッダー上段：ロゴ＋クライアント＋担当者＋通知 -->
-    <!-- ============================================ -->
-    <div class="header header-top">
-      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-        <!-- ロゴ＋プラットフォームサブテキスト -->
-        <a href="#" onclick="goHome();return false;" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;cursor:pointer;" title="ホームに戻る">
-          <img src="assets/saiyo_mark.png?v=20260512v" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
-          <div style="line-height:1;">
-            <div style="font-size:14px;font-weight:600;color:#1a1a1a;">採用コア</div>
-            <div style="font-size:9px;color:#888;letter-spacing:0.08em;margin-top:3px;">RECRUITING PLATFORM</div>
-          </div>
-        </a>
+    <div class="header">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:6px;"><img src="assets/header-icon.png" style="width:28px;height:28px;object-fit:contain;"><div class="logo">採用<span>コア</span></div></div>
         <span class="client-badge" id="clientBadge"></span>
-        <!-- 担当者表示エリア：アバター円 + プルダウン -->
-        <div id="staffSwitcher" style="display:none;align-items:center;gap:8px;">
-          <!-- アバター円（イニシャル表示） -->
-          <div id="staffAvatar" class="staff-avatar" title="担当者">向</div>
+        <!-- 担当者表示エリア（Phase B-2） -->
+        <div id="staffSwitcher" style="display:none;align-items:center;gap:6px;">
+          <span style="font-size:10px;color:#aaa;">担当：</span>
           <select id="staffSwitcherSelect" onchange="switchActiveStaff(this.value)"
             style="padding:4px 8px;border:1px solid #deeee9;border-radius:6px;background:#f7fcfa;color:#1a1a1a;font-size:12px;font-family:inherit;font-weight:600;cursor:pointer;outline:none;">
           </select>
         </div>
         <!-- admin時の表示 -->
         <span id="adminStaffBadge" style="display:none;font-size:11px;color:#185FA5;background:#e8f1fc;border:1px solid #c8ddf5;border-radius:20px;padding:3px 10px;font-weight:600;">管理者</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <!-- ベル通知 -->
-        <div id="bellWrap" style="position:relative;">
+        <!-- ベル通知（Phase E） -->
+        <div id="bellWrap" style="position:relative;margin-left:6px;">
           <button id="bellBtn" onclick="toggleBellPanel()" style="position:relative;background:#fff;border:1px solid #e8e8e6;border-radius:50%;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;padding:0;">
             🔔
             <span id="bellBadge" style="display:none;position:absolute;top:-3px;right:-3px;background:#D85A30;color:#fff;border-radius:9px;padding:0 5px;font-size:9px;font-weight:600;min-width:14px;height:14px;line-height:14px;text-align:center;">0</span>
@@ -1858,159 +357,43 @@
             </div>
           </div>
         </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+        <nav class="nav" id="mainNav">
+          <button class="nb active" onclick="showSec('dashboard')">ダッシュボード</button>
+          <button class="nb" onclick="showSec('list')">応募者一覧</button>
+          <button class="nb" onclick="showSec('schedule')" id="scheduleNavBtn">📅 スケジュール</button>
+          <button class="nb" onclick="showSec('analytics')">分析</button>
+          <button class="nb" onclick="showSec('minutes')">議事録</button>
+          <button class="nb" onclick="showSec('tasks')" id="taskNavBtn">タスク</button>
+          <button class="nb" onclick="showSec('budget')">💰 予算管理</button>
+          <button class="nb" onclick="showSec('master')">マスター管理</button>
+          <button class="nb" onclick="showSec('staff')">担当者管理</button>
+        </nav>
+        <button id="adminNavBtn" class="nb" style="display:none;border-color:#378ADD;color:#378ADD;" onclick="showSec('admin')">クライアント管理</button>
         <button class="nb-logout" onclick="confirmLogout()">ログアウト</button>
       </div>
     </div>
-
-    <!-- ============================================ -->
-    <!-- ヘッダー中段：モードタブ＋ホーム/モード選択戻る -->
-    <!-- ============================================ -->
-    <div class="header-modes" id="modeTabsBar">
-      <div style="display:flex;align-items:center;gap:6px;">
-        <!-- 「ホームに戻る」ボタン -->
-        <button class="mode-home-btn" onclick="goHome()" title="モード選択ホームへ">
-          <span style="font-size:13px;">🏠</span><span>ホーム</span>
-        </button>
-        <div style="width:1px;height:20px;background:#eaeae6;margin:0 4px;"></div>
-        <!-- モードタブ群 -->
-        <div class="mode-tabs" id="modeTabsGroup">
-          <button class="mode-tab" data-mode="operation" onclick="setMode('operation')">
-            <span class="mode-tab-icon">🏃</span><span>採用運用</span>
-          </button>
-          <button class="mode-tab" data-mode="analytics" onclick="setMode('analytics')">
-            <span class="mode-tab-icon">📊</span><span>採用分析</span>
-          </button>
-          <button class="mode-tab" data-mode="admin_settings" onclick="setMode('admin_settings')">
-            <span class="mode-tab-icon">⚙️</span><span>管理設定</span>
-          </button>
-        </div>
-      </div>
-      <div id="modeContextLabel" style="font-size:10px;color:#888;letter-spacing:0.04em;"></div>
-      <!-- Step 5: モード別 概要バー（KPI帯） -->
-      <div id="modeQuickStats" class="mode-quick-stats" style="display:none;"></div>
-    </div>
-
-    <!-- ============================================ -->
-    <!-- ヘッダー下段：サブナビ（モードに応じて切替） -->
-    <!-- ============================================ -->
-    <div class="header-subnav" id="subNavBar">
-      <!-- 採用運用モードのサブナビ -->
-      <nav class="sub-nav" id="subNavOperation" data-mode="operation" style="display:none;">
-        <button class="snb" onclick="showSec('dashboard')">📊 運用ダッシュボード</button>
-        <button class="snb" onclick="showSec('list')">応募者一覧</button>
-        <button class="snb" onclick="showSec('schedule')" id="scheduleNavBtn">📅 対応スケジュール確認</button>
-        <button class="snb" onclick="showSec('minutes')">議事録</button>
-        <button class="snb" onclick="showSec('tasks')" id="taskNavBtn">タスク</button>
-      </nav>
-      <!-- 採用分析モードのサブナビ -->
-      <nav class="sub-nav" id="subNavAnalytics" data-mode="analytics" style="display:none;">
-        <button class="snb" onclick="showSec('analytics-dash')">📊 分析ダッシュボード</button>
-        <button class="snb" onclick="showSec('analytics')">📈 応募者分析</button>
-        <button class="snb" onclick="showSec('budget')">💰 採用予算管理</button>
-        <button class="snb" onclick="showSec('ads')">📣 有料広告実績</button>
-      </nav>
-      <!-- 管理設定モードのサブナビ -->
-      <nav class="sub-nav" id="subNavAdminSettings" data-mode="admin_settings" style="display:none;">
-        <button class="snb" onclick="showSec('master')">マスター管理</button>
-        <button class="snb" onclick="showSec('staff')">担当者管理</button>
-        <button id="adminNavBtn" class="snb" style="display:none;" onclick="showSec('admin')">クライアント管理</button>
-      </nav>
-    </div>
     <div class="status-bar" id="statusBar"></div>
 
-    <!-- ============================================ -->
-    <!-- Step 2: モード選択ホーム画面（方向Cデザイン）  -->
-    <!-- 既存のダッシュボードはこの後に維持。
-         showSec('dashboard') が「ホーム」として呼ばれた時にこちらを表示する形にする。 -->
-    <!-- ============================================ -->
-    <div id="sec-mode-home" class="sec mode-home-screen" style="display:none;">
-      <!-- 背景装飾：薄い葉っぱ -->
-      <div class="mh-leaf mh-leaf-1">🌿</div>
-      <div class="mh-leaf mh-leaf-2">🌿</div>
-      <div class="mh-leaf mh-leaf-3">🌿</div>
-      <div class="mh-leaf mh-leaf-4">🌿</div>
-
-      <div class="mh-hero">
-        <div class="mh-eyebrow">WELCOME TO SAIYO CORE</div>
-        <h1 class="mh-title" id="mhGreeting">おかえりなさい</h1>
-        <div class="mh-subtitle" id="mhDate">どの世界に入りますか？</div>
-      </div>
-
-      <div class="mh-cards">
-        <!-- 採用運用カード -->
-        <div class="mh-card mh-card-operation" onclick="enterMode('operation', event)" id="mhCardOperation">
-          <!-- 上部に浮かぶコアラ -->
-          <div class="mh-koala-wrap">
-            <img id="mhKoalaOperation" src="assets/koala-good.png" alt="採用運用" class="mh-koala">
-          </div>
-          <div class="mh-card-body">
-            <div class="mh-mode-no" style="color:#5a8a48;">MODE 01</div>
-            <div class="mh-mode-name">採用運用</div>
-            <div class="mh-mode-desc">応募者と向き合い、<br>一人ひとりを進める世界</div>
-            <!-- コアラのつぶやき -->
-            <div class="mh-bubble mh-bubble-operation" id="mhBubbleOperation">
-              <span>🐨</span><span id="mhBubbleOperationText">対応待ちを確認しよう</span>
-            </div>
-            <button class="mh-enter-btn mh-enter-operation">入る →</button>
-          </div>
+    <!-- ダッシュボード -->
+    <div id="sec-dashboard" class="sec active">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;background:linear-gradient(135deg,#f0faf6,#fdf8f0);border-radius:12px;padding:1.25rem 1.5rem;">
+        <div>
+          <div style="font-size:11px;color:#999;" id="dashDate"></div>
+          <h2 style="font-size:18px;font-weight:700;margin-top:4px;color:#1a1a1a;" id="dashGreet"></h2>
+          <div style="font-size:11px;color:#6ab49a;margin-top:4px;">採用コア｜Link Core</div>
         </div>
-
-        <!-- 採用分析カード -->
-        <div class="mh-card mh-card-analytics" onclick="enterMode('analytics', event)" id="mhCardAnalytics">
-          <div class="mh-koala-wrap">
-            <img id="mhKoalaAnalytics" src="assets/koala-pc.png" alt="採用分析" class="mh-koala">
+        <div id="dashHeader" style="display:flex;align-items:center;gap:12px;position:relative;">
+          <!-- キャラクター -->
+          <div style="display:flex;align-items:center;gap:0;flex-direction:row;">
+          <!-- 吹き出し（左） -->
+          <div id="dashBubble" style="background:#fff;border-radius:16px 16px 4px 16px;padding:10px 14px;box-shadow:0 2px 12px rgba(0,0,0,.1);font-size:11px;line-height:1.8;color:#1a1a1a;max-width:180px;margin-right:8px;position:relative;">
+            <div id="dashBubbleText" style="font-size:12px;">🐨 ただいま読み込み中...</div>
           </div>
-          <div class="mh-card-body">
-            <div class="mh-mode-no" style="color:#185FA5;">MODE 02</div>
-            <div class="mh-mode-name">採用分析</div>
-            <div class="mh-mode-desc">数字と向き合い、<br>改善を見つける世界</div>
-            <div class="mh-bubble mh-bubble-analytics" id="mhBubbleAnalytics">
-              <span>🐨</span><span id="mhBubbleAnalyticsText">データを見てみよう</span>
-            </div>
-            <button class="mh-enter-btn mh-enter-analytics">入る →</button>
-          </div>
+          <!-- キャラクター（右） -->
+          <img id="dashChar" src="assets/koala-pc.png" style="width:90px;height:90px;object-fit:contain;flex-shrink:0;">
         </div>
-      </div>
-
-      <!-- ボトム：コアラの一言 -->
-      <div class="mh-footer">
-        <span style="font-size:14px;">🐨</span>
-        <span id="mhFooterText">今日も一緒にがんばろう</span>
-      </div>
-    </div>
-
-    <!-- ============================================ -->
-    <!-- Step 3: 採用運用ダッシュボード（昇格版）       -->
-    <!-- ============================================ -->
-    <div id="sec-dashboard" class="sec">
-      <!-- ダッシュヘッダー：タイトル + 担当者フィルタ + 自動更新表記 -->
-      <div class="op-dash-header">
-        <div class="op-dash-titlewrap">
-          <div class="op-dash-eyebrow">🏃 採用運用モード</div>
-          <h2 class="op-dash-title" id="dashGreet">採用運用ダッシュ</h2>
-          <div class="op-dash-date" id="dashDate"></div>
-        </div>
-        <div class="op-dash-actions">
-          <!-- 自分の担当のみ切替 -->
-          <label class="op-dash-mine-toggle" id="dashMineToggleWrap" title="自分が担当している応募者だけに絞る">
-            <input type="checkbox" id="dashMineOnly" onchange="onDashMineToggle(this.checked)">
-            <span>自分の担当のみ</span>
-          </label>
-          <!-- 自動更新表記 -->
-          <span class="op-dash-refresh" id="dashRefreshLabel">
-            <span class="op-dash-refresh-dot"></span>
-            <span id="dashRefreshText">5分ごと更新</span>
-          </span>
-          <button class="op-dash-refresh-btn" onclick="refreshOperationDash()" title="今すぐ更新">🔄</button>
-        </div>
-      </div>
-
-      <!-- コアラのアドバイス枠 -->
-      <div id="dashKoalaAdvice" class="op-dash-koala-box" style="display:none;">
-        <img id="dashChar" src="assets/koala-pc.png" class="op-dash-koala-img">
-        <div class="op-dash-koala-bubble">
-          <div class="op-dash-koala-label">コアラのひとこと</div>
-          <div id="dashBubbleText" style="font-size:12px;line-height:1.7;color:#1a1a1a;">ただいま読み込み中...</div>
         </div>
       </div>
 
@@ -2037,17 +420,8 @@
       <!-- 追加情報（媒体Top3 / 平均選考日数 / 滞留 / 30日推移） -->
       <div id="dashInsights"></div>
 
-      <!-- 今週の面接スケジュール（Step 3新規） -->
-      <div style="margin-top:1.5rem;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;">
-          <strong style="font-size:12px;">📅 今週の面接スケジュール</strong>
-          <button class="btn-sm" onclick="showSec('schedule')">スケジュール画面 →</button>
-        </div>
-        <div id="dashWeekInterviews" class="op-dash-week-list"></div>
-      </div>
-
       <!-- 直近の応募者 -->
-      <div style="margin-top:1.25rem;margin-bottom:.5rem;display:flex;align-items:center;justify-content:space-between;">
+      <div style="margin-bottom:.5rem;display:flex;align-items:center;justify-content:space-between;">
         <strong style="font-size:12px;">直近の応募者</strong>
         <button class="btn-sm" onclick="showSec('list')">全件表示 →</button>
       </div>
@@ -2068,111 +442,6 @@
           <button class="btn-sm" onclick="showSec('tasks')">全件表示 →</button>
         </div>
         <div id="dashTaskList"></div>
-      </div>
-
-      <!-- 議事録最新（Step 3新規） -->
-      <div style="margin-top:1.25rem;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
-          <strong style="font-size:12px;">📝 最近の議事録</strong>
-          <button class="btn-sm" onclick="showSec('minutes')">全件表示 →</button>
-        </div>
-        <div id="dashRecentMinutes" class="op-dash-minutes-list"></div>
-      </div>
-    </div>
-
-    <!-- ============================================ -->
-    <!-- Step 4: 採用分析ダッシュボード（新規）         -->
-    <!-- ============================================ -->
-    <div id="sec-analytics-dash" class="sec">
-      <!-- ヘッダー -->
-      <div class="an-dash-header">
-        <div class="an-dash-titlewrap">
-          <div class="an-dash-eyebrow">📊 採用分析モード</div>
-          <h2 class="an-dash-title">採用分析ダッシュ</h2>
-          <div class="an-dash-date" id="anDashDate"></div>
-        </div>
-        <div class="an-dash-actions">
-          <span class="an-dash-refresh">
-            <span class="an-dash-refresh-dot"></span>
-            <span>5分ごと更新</span>
-          </span>
-          <button class="an-dash-refresh-btn" onclick="refreshAnalyticsDash()" title="今すぐ更新">🔄</button>
-        </div>
-      </div>
-
-      <!-- コアラAI診断（要約版） -->
-      <div id="anDashKoala" class="an-dash-koala-box">
-        <img id="anDashKoalaImg" src="assets/koala-pc.png" class="an-dash-koala-img">
-        <div class="an-dash-koala-body">
-          <div class="an-dash-koala-label">🐨 コアラAI診断 ／ 今月のサマリー</div>
-          <div id="anDashKoalaText" style="font-size:13px;line-height:1.7;color:#1a1a1a;">データを読み込み中...</div>
-          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;" id="anDashKoalaActions"></div>
-        </div>
-      </div>
-
-      <!-- メインKPI 4枚 -->
-      <div class="an-dash-kpi-grid" id="anDashKpiGrid">
-        <!-- カードはJSで描画 -->
-      </div>
-
-      <!-- 2カラム：月別推移 ＋ 改善求人TOP3 -->
-      <div class="an-dash-2col">
-        <!-- 月別推移サマリ -->
-        <div class="an-dash-panel">
-          <div class="an-dash-panel-head">
-            <div>
-              <div class="an-dash-panel-title">📈 月別推移</div>
-              <div class="an-dash-panel-sub">応募完了数の推移</div>
-            </div>
-            <button class="an-dash-more" onclick="showSec('ads')">詳しく見る →</button>
-          </div>
-          <div id="anDashMonthly" class="an-dash-bars"></div>
-        </div>
-
-        <!-- 改善求人 TOP3 -->
-        <div class="an-dash-panel">
-          <div class="an-dash-panel-head">
-            <div>
-              <div class="an-dash-panel-title">⚠️ 改善が必要な求人</div>
-              <div class="an-dash-panel-sub">費用かかってるのに応募ゼロ</div>
-            </div>
-            <button class="an-dash-more" onclick="showSec('ads')">詳しく見る →</button>
-          </div>
-          <div id="anDashWorstTop3" class="an-dash-worst-list"></div>
-        </div>
-      </div>
-
-      <!-- 重要アラート -->
-      <div id="anDashAlerts" class="an-dash-alerts" style="display:none;">
-        <!-- JSで描画 -->
-      </div>
-
-      <!-- フッター：各画面へのショートカット -->
-      <div class="an-dash-footer">
-        <div style="font-size:11px;color:#888;margin-bottom:10px;font-weight:500;">📋 もっと深く見る</div>
-        <div class="an-dash-footer-btns">
-          <button class="an-dash-footer-btn" onclick="showSec('analytics')">
-            <span style="font-size:18px;">📈</span>
-            <div>
-              <div style="font-weight:600;color:#1a1a1a;">応募者分析</div>
-              <div style="font-size:10px;color:#888;margin-top:1px;">媒体別・職種別・部署別の応募分析</div>
-            </div>
-          </button>
-          <button class="an-dash-footer-btn" onclick="showSec('budget')">
-            <span style="font-size:18px;">💰</span>
-            <div>
-              <div style="font-weight:600;color:#1a1a1a;">採用予算管理</div>
-              <div style="font-size:10px;color:#888;margin-top:1px;">媒体別費用対効果・シミュレーター</div>
-            </div>
-          </button>
-          <button class="an-dash-footer-btn" onclick="showSec('ads')">
-            <span style="font-size:18px;">📣</span>
-            <div>
-              <div style="font-weight:600;color:#1a1a1a;">有料広告実績</div>
-              <div style="font-size:10px;color:#888;margin-top:1px;">Indeed/AirWORKの詳細分析</div>
-            </div>
-          </button>
-        </div>
       </div>
     </div>
 
@@ -3478,309 +1747,6 @@
       </div>
     </div>
 
-    <!-- ===== 📣 有料広告実績（Indeed / AirWORK） ===== -->
-    <div id="sec-ads" class="sec" style="padding:0;background:transparent;box-shadow:none;">
-
-      <!-- サブタブ：分析 / アップロード管理 -->
-      <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:8px;margin-bottom:12px;display:flex;gap:4px;">
-        <button class="ads-subtab active" onclick="adsSwitchSubTab('analytics')" id="adsSubtabAnalytics" style="flex:1;padding:9px 14px;background:#5a8a48;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;">📊 分析</button>
-        <button class="ads-subtab" onclick="adsSwitchSubTab('upload')" id="adsSubtabUpload" style="flex:1;padding:9px 14px;background:#fff;color:#666;border:none;border-radius:6px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;">📁 アップロード管理</button>
-      </div>
-
-      <!-- ▼ 分析画面 -->
-      <div id="adsAnalyticsPane">
-
-        <!-- データが無い場合のプレースホルダー -->
-        <div id="adsAnalyticsEmpty" style="display:none;background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:48px 24px;text-align:center;">
-          <div style="font-size:36px;margin-bottom:10px;">📊</div>
-          <div style="font-size:14px;font-weight:500;color:#1a1a1a;margin-bottom:6px;">まだ分析対象のデータがありません</div>
-          <div style="font-size:11px;color:#888;line-height:1.7;">「アップロード管理」からCSVファイルを取り込むと、ここに分析結果が表示されます。</div>
-          <button onclick="adsSwitchSubTab('upload')" style="margin-top:14px;padding:8px 18px;background:#5a8a48;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;">アップロード管理へ →</button>
-        </div>
-
-        <!-- 分析画面本体（データがあるときに表示） -->
-        <div id="adsAnalyticsContent" style="display:none;">
-
-          <!-- 上部コントロール：媒体タブ・期間切替・フィルタ -->
-          <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:12px 14px;margin-bottom:12px;">
-
-            <!-- 媒体タブ -->
-            <div id="adsMediaTabs" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;"></div>
-
-            <!-- 期間 + キャンペーン フィルタ行 -->
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <span style="font-size:11px;color:#888;font-weight:500;">期間：</span>
-              <div style="background:#fafaf8;border:1px solid #e3e3e0;border-radius:8px;padding:2px;display:flex;gap:0;">
-                <button class="ads-period-btn" data-period="prev_month" onclick="adsSetPeriodMode('prev_month')" style="padding:5px 11px;background:#5a8a48;color:#fff;border:none;font-size:11px;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:500;">前月</button>
-                <button class="ads-period-btn" data-period="single" onclick="adsSetPeriodMode('single')" style="padding:5px 11px;background:transparent;color:#666;border:none;font-size:11px;border-radius:6px;cursor:pointer;font-family:inherit;">単月</button>
-                <button class="ads-period-btn" data-period="range" onclick="adsSetPeriodMode('range')" style="padding:5px 11px;background:transparent;color:#666;border:none;font-size:11px;border-radius:6px;cursor:pointer;font-family:inherit;">期間</button>
-                <button class="ads-period-btn" data-period="compare" onclick="adsSetPeriodMode('compare')" style="padding:5px 11px;background:transparent;color:#666;border:none;font-size:11px;border-radius:6px;cursor:pointer;font-family:inherit;">比較</button>
-              </div>
-
-              <!-- 単月モード -->
-              <div id="adsPeriodSingle" style="display:none;align-items:center;gap:4px;">
-                <input type="month" id="adsSingleMonth" onchange="adsRefreshAnalytics()" style="padding:5px 8px;border:1px solid #e3e3e0;border-radius:6px;font-size:11px;background:#fff;font-family:inherit;">
-              </div>
-
-              <!-- 期間モード -->
-              <div id="adsPeriodRange" style="display:none;align-items:center;gap:4px;">
-                <input type="month" id="adsRangeFrom" onchange="adsRefreshAnalytics()" style="padding:5px 8px;border:1px solid #e3e3e0;border-radius:6px;font-size:11px;background:#fff;font-family:inherit;">
-                <span style="font-size:11px;color:#aaa;">〜</span>
-                <input type="month" id="adsRangeTo" onchange="adsRefreshAnalytics()" style="padding:5px 8px;border:1px solid #e3e3e0;border-radius:6px;font-size:11px;background:#fff;font-family:inherit;">
-              </div>
-
-              <!-- 比較モード -->
-              <div id="adsPeriodCompare" style="display:none;align-items:center;gap:4px;flex-wrap:wrap;">
-                <span style="font-size:10px;color:#185FA5;font-weight:500;">A：</span>
-                <input type="month" id="adsCompareA" onchange="adsRefreshAnalytics()" style="padding:5px 8px;border:1px solid #185FA5;border-radius:6px;font-size:11px;background:#fff;font-family:inherit;">
-                <span style="font-size:11px;color:#aaa;">vs</span>
-                <span style="font-size:10px;color:#D85A30;font-weight:500;">B：</span>
-                <input type="month" id="adsCompareB" onchange="adsRefreshAnalytics()" style="padding:5px 8px;border:1px solid #D85A30;border-radius:6px;font-size:11px;background:#fff;font-family:inherit;">
-              </div>
-
-              <span style="margin-left:auto;font-size:11px;color:#888;" id="adsPeriodInfo"></span>
-
-              <select id="adsCampaignFilter" onchange="adsRefreshAnalytics()" style="padding:5px 10px;border:1px solid #e3e3e0;border-radius:6px;font-size:11px;background:#fff;font-family:inherit;">
-                <option value="">キャンペーン：全て</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- コアラ診断カード -->
-          <div id="adsKoalaDiagnosisCard" style="margin-bottom:12px;"></div>
-
-          <!-- メインKPI 5枚 -->
-          <div id="adsKpiMain" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px;"></div>
-
-          <!-- サブ指標 4枚 -->
-          <div id="adsKpiSub" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;"></div>
-
-          <!-- 応募ファネル -->
-          <div id="adsFunnel" style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:14px 16px;margin-bottom:12px;"></div>
-
-          <!-- パート2以降のセクション -->
-          <div id="adsMonthlyTrend" style="margin-bottom:12px;"></div>
-          <div id="adsCampaignPerf" style="margin-bottom:12px;"></div>
-          <div id="adsPrefTop" style="margin-bottom:12px;"></div>
-          <div id="adsJobRanking" style="margin-bottom:12px;"></div>
-          <div id="adsWorstSections" style="margin-bottom:12px;"></div>
-
-        </div>
-      </div>
-
-      <!-- ▼ アップロード管理画面 -->
-      <div id="adsUploadPane" style="display:none;">
-
-        <!-- 画面ヘッダー -->
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
-          <div>
-            <h2 style="font-size:14px;font-weight:600;color:#1a1a1a;margin:0;">アップロード管理</h2>
-            <p style="font-size:11px;color:#888;margin:2px 0 0;">Indeed / AirWORK からエクスポートしたCSVを取り込み・管理</p>
-          </div>
-          <button onclick="adsOpenUploadModal()" style="padding:9px 18px;background:#5a8a48;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;letter-spacing:.04em;">
-            ＋ 新規アップロード
-          </button>
-        </div>
-
-        <!-- フィルタ行 -->
-        <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <input type="text" id="adsFileSearch" placeholder="🔍 ファイル名で検索" oninput="adsRenderFileList()" style="padding:6px 10px;border:1px solid #e3e3e0;border-radius:6px;font-size:11px;width:200px;background:#fff;font-family:inherit;">
-          <select id="adsFilterMedia" onchange="adsRenderFileList()" style="padding:6px 10px;border:1px solid #e3e3e0;border-radius:6px;font-size:11px;background:#fff;font-family:inherit;">
-            <option value="">媒体：全て</option>
-            <option value="indeed">📘 Indeed</option>
-            <option value="airwork">📙 AirWORK</option>
-          </select>
-          <select id="adsFilterStatus" onchange="adsRenderFileList()" style="padding:6px 10px;border:1px solid #e3e3e0;border-radius:6px;font-size:11px;background:#fff;font-family:inherit;">
-            <option value="active">ステータス：分析対象のみ</option>
-            <option value="">全ステータス</option>
-            <option value="superseded">旧版のみ</option>
-          </select>
-          <span id="adsFileCount" style="margin-left:auto;font-size:11px;color:#888;"></span>
-        </div>
-
-        <!-- KPIサマリ -->
-        <div id="adsKpiRow" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px;"></div>
-
-        <!-- ファイル一覧テーブル -->
-        <div style="background:#fff;border:0.5px solid #e8ebe9;border-radius:10px;overflow:hidden;">
-          <div style="overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:900px;">
-              <thead>
-                <tr style="background:#fafaf8;border-bottom:1px solid #e8ebe9;">
-                  <th style="padding:10px 8px;text-align:left;font-weight:500;color:#555;">ファイル名</th>
-                  <th style="padding:10px 8px;text-align:left;font-weight:500;color:#555;width:80px;">媒体</th>
-                  <th style="padding:10px 8px;text-align:left;font-weight:500;color:#555;">対象期間</th>
-                  <th style="padding:10px 8px;text-align:right;font-weight:500;color:#555;width:80px;">件数</th>
-                  <th style="padding:10px 8px;text-align:left;font-weight:500;color:#555;width:90px;">ステータス</th>
-                  <th style="padding:10px 8px;text-align:left;font-weight:500;color:#555;">アップロード日時</th>
-                  <th style="padding:10px 8px;text-align:left;font-weight:500;color:#555;">アップロード者</th>
-                  <th style="padding:10px 8px;text-align:center;font-weight:500;color:#555;width:120px;">操作</th>
-                </tr>
-              </thead>
-              <tbody id="adsFileTableBody"></tbody>
-            </table>
-          </div>
-          <div id="adsFileEmpty" style="display:none;padding:48px 24px;text-align:center;">
-            <div style="font-size:36px;margin-bottom:10px;opacity:.5;">📁</div>
-            <div style="font-size:13px;color:#666;margin-bottom:4px;">まだファイルがありません</div>
-            <div style="font-size:11px;color:#aaa;">右上の「＋ 新規アップロード」からCSVをアップロードしてください</div>
-          </div>
-        </div>
-
-      </div>
-
-    </div>
-
-    <!-- ===== 新規アップロードモーダル ===== -->
-    <div id="adsUploadModal" onclick="adsCloseUploadModalBg(event)" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.45);align-items:center;justify-content:center;padding:20px;">
-      <div onclick="event.stopPropagation()" style="background:#fff;border-radius:14px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.18);">
-
-        <!-- ヘッダー -->
-        <div style="padding:18px 24px;border-bottom:0.5px solid #e8ebe9;display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-size:15px;font-weight:500;color:#1a1a1a;letter-spacing:.04em;">
-            📤 有料広告実績データ アップロード
-          </div>
-          <button onclick="adsCloseUploadModal()" style="background:none;border:none;color:#888;cursor:pointer;font-size:20px;line-height:1;padding:0;">×</button>
-        </div>
-
-        <!-- 本体 -->
-        <div style="padding:22px 24px;">
-
-          <!-- 抽出方法の案内 -->
-          <div style="background:#f4f8f1;border-left:3px solid #5a8a48;border-radius:6px;padding:12px 14px;margin-bottom:16px;">
-            <div style="font-size:11px;font-weight:500;color:#1a1a1a;margin-bottom:6px;">📋 各媒体での抽出方法</div>
-            <div style="font-size:10.5px;color:#555;line-height:1.85;">
-              <strong style="color:#185FA5;font-weight:500;">📘 Indeed:</strong> アナリティクス → 求人とキャンペーン → 詳細レポート → 求人 → 全てをエクスポート<br>
-              <strong style="color:#BA7517;font-weight:500;">📙 AirWORK:</strong> 有料広告 → 効果を分析 → 有料広告実績データ/求人 → データを作成する
-            </div>
-            <div style="font-size:9.5px;color:#888;margin-top:6px;line-height:1.6;">※ ファイル名はそのまま（リネーム不要）でアップロードしてください。媒体・期間を自動判定します</div>
-          </div>
-
-          <!-- ドロップエリア -->
-          <div id="adsDropZone" onclick="document.getElementById('adsFileInput').click()" style="border:2px dashed #d6dbd2;border-radius:10px;padding:28px;text-align:center;background:#fafbf8;cursor:pointer;transition:all .15s;">
-            <div style="font-size:36px;margin-bottom:8px;color:#5a8a48;">📁</div>
-            <div style="font-size:13px;color:#1a1a1a;margin-bottom:4px;font-weight:500;">CSVファイルをドラッグ&ドロップ</div>
-            <div style="font-size:11px;color:#888;">またはクリックしてファイル選択</div>
-            <input type="file" id="adsFileInput" accept=".csv" style="display:none;" onchange="adsHandleFileSelect(event)">
-          </div>
-
-          <!-- 解析結果プレビュー（ファイル選択後に表示） -->
-          <div id="adsPreviewArea" style="display:none;margin-top:14px;">
-            <div style="background:#fafaf8;border-radius:8px;padding:14px;font-size:11px;">
-              <div style="color:#888;margin-bottom:8px;font-size:10px;letter-spacing:.04em;">📄 解析結果</div>
-              <table style="width:100%;border-collapse:collapse;">
-                <tr><td style="padding:4px 0;color:#666;width:35%;">ファイル名</td><td style="padding:4px 0;color:#1a1a1a;" id="adsPvFileName">—</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">媒体</td><td style="padding:4px 0;color:#1a1a1a;" id="adsPvMedia">—</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">対象期間</td><td style="padding:4px 0;color:#1a1a1a;" id="adsPvPeriod">—</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">取込件数</td><td style="padding:4px 0;color:#1a1a1a;" id="adsPvRows">—</td></tr>
-                <tr><td style="padding:4px 0;color:#666;">キャンペーン</td><td style="padding:4px 0;color:#1a1a1a;" id="adsPvCampaigns">—</td></tr>
-              </table>
-            </div>
-
-            <!-- 同月既存ファイル警告 -->
-            <div id="adsSupersedeWarning" style="display:none;margin-top:12px;background:#fef7e9;border-left:3px solid #BA7517;border-radius:6px;padding:10px 14px;font-size:11px;line-height:1.7;color:#854F0B;">
-              <div style="font-weight:500;margin-bottom:3px;">⚠ 同月の既存ファイルがあります</div>
-              <div id="adsSupersedeMsg" style="font-size:10.5px;color:#555;"></div>
-            </div>
-
-            <!-- 重複ファイル警告 -->
-            <div id="adsDuplicateError" style="display:none;margin-top:12px;background:#fdf2ee;border-left:3px solid #D85A30;border-radius:6px;padding:10px 14px;font-size:11px;line-height:1.7;color:#712B13;">
-              <div style="font-weight:500;margin-bottom:3px;">⛔ 完全に同じ内容のファイルが既に登録されています</div>
-              <div id="adsDuplicateMsg" style="font-size:10.5px;color:#555;"></div>
-            </div>
-
-            <!-- パースエラー -->
-            <div id="adsParseError" style="display:none;margin-top:12px;background:#fdf2ee;border-left:3px solid #D85A30;border-radius:6px;padding:10px 14px;font-size:11px;line-height:1.7;color:#712B13;">
-              <div style="font-weight:500;margin-bottom:3px;">⛔ ファイルの解析に失敗しました</div>
-              <div id="adsParseErrorMsg" style="font-size:10.5px;color:#555;"></div>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- フッター -->
-        <div style="padding:14px 24px;background:#fafaf8;display:flex;justify-content:flex-end;gap:8px;border-top:0.5px solid #e8ebe9;">
-          <button onclick="adsCloseUploadModal()" style="padding:9px 16px;background:#fff;color:#666;border:1px solid #e3e3e0;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;">キャンセル</button>
-          <button id="adsUploadConfirmBtn" onclick="adsConfirmUpload()" disabled style="padding:9px 22px;background:#5a8a48;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;letter-spacing:.04em;opacity:.4;">取り込む</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== コアラ詳細診断モーダル ===== -->
-    <div id="adsKoalaDetailModal" onclick="adsCloseKoalaDetailBg(event)" style="display:none;position:fixed;inset:0;z-index:9002;background:rgba(0,0,0,.45);align-items:center;justify-content:center;padding:20px;">
-      <div onclick="event.stopPropagation()" style="background:#fff;border-radius:14px;max-width:680px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.18);">
-        <div style="padding:18px 24px;border-bottom:0.5px solid #e8ebe9;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#fafdf7 0%,#f4f8f1 100%);">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <img src="assets/koala-think.png" alt="コアラ" style="width:40px;height:40px;object-fit:contain;">
-            <div>
-              <div style="font-size:14px;font-weight:500;color:#1a1a1a;letter-spacing:.04em;">🐨 コアラの詳しい診断</div>
-              <div style="font-size:10px;color:#5a8a48;" id="adsKoalaDetailPeriod">—</div>
-            </div>
-          </div>
-          <button onclick="adsCloseKoalaDetail()" style="background:none;border:none;color:#888;cursor:pointer;font-size:20px;line-height:1;padding:0;">×</button>
-        </div>
-        <div id="adsKoalaDetailBody" style="padding:22px 24px;font-size:12px;color:#444;line-height:1.8;"></div>
-        <div style="padding:14px 24px;background:#fafaf8;border-top:0.5px solid #e8ebe9;display:flex;justify-content:flex-end;">
-          <button onclick="adsCloseKoalaDetail()" style="padding:8px 18px;background:#5a8a48;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;">閉じる</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== コアラに質問モーダル ===== -->
-    <div id="adsKoalaChatModal" onclick="adsCloseKoalaChatBg(event)" style="display:none;position:fixed;inset:0;z-index:9002;background:rgba(0,0,0,.45);align-items:center;justify-content:center;padding:20px;">
-      <div onclick="event.stopPropagation()" style="background:#fff;border-radius:14px;max-width:560px;width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.18);">
-        <div style="padding:18px 24px;border-bottom:0.5px solid #e8ebe9;display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-size:14px;font-weight:500;color:#1a1a1a;letter-spacing:.04em;">💬 コアラに質問</div>
-          <button onclick="adsCloseKoalaChat()" style="background:none;border:none;color:#888;cursor:pointer;font-size:20px;line-height:1;padding:0;">×</button>
-        </div>
-        <div id="adsKoalaChatBody" style="padding:18px 24px;flex:1;overflow-y:auto;min-height:200px;"></div>
-        <div style="padding:14px 24px;background:#fafaf8;border-top:0.5px solid #e8ebe9;">
-          <div style="font-size:10px;color:#888;margin-bottom:6px;">質問例（クリックで送信）：</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
-            <button onclick="adsAskKoala('先月と比べてCPAが上がった理由は？')" style="padding:4px 9px;background:#fff;border:1px solid #e3e3e0;border-radius:14px;font-size:10px;color:#5a8a48;cursor:pointer;font-family:inherit;">先月と比べてCPAが上がった理由は？</button>
-            <button onclick="adsAskKoala('予算の使い方で改善できる点は？')" style="padding:4px 9px;background:#fff;border:1px solid #e3e3e0;border-radius:14px;font-size:10px;color:#5a8a48;cursor:pointer;font-family:inherit;">予算の使い方で改善できる点は？</button>
-            <button onclick="adsAskKoala('応募が少ない求人を増やすには？')" style="padding:4px 9px;background:#fff;border:1px solid #e3e3e0;border-radius:14px;font-size:10px;color:#5a8a48;cursor:pointer;font-family:inherit;">応募が少ない求人を増やすには？</button>
-          </div>
-          <div style="display:flex;gap:6px;">
-            <input type="text" id="adsKoalaChatInput" placeholder="質問を入力（Enterで送信）" onkeydown="if(event.key==='Enter')adsAskKoala()" style="flex:1;padding:8px 12px;border:1px solid #e3e3e0;border-radius:8px;font-size:12px;font-family:inherit;">
-            <button onclick="adsAskKoala()" style="padding:8px 16px;background:#5a8a48;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;">送信</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== 削除確認モーダル ===== -->
-    <div id="adsDeleteModal" onclick="adsCloseDeleteModalBg(event)" style="display:none;position:fixed;inset:0;z-index:9001;background:rgba(0,0,0,.45);align-items:center;justify-content:center;padding:20px;">
-      <div onclick="event.stopPropagation()" style="background:#fff;border-radius:14px;max-width:440px;width:100%;padding:28px 30px;box-shadow:0 12px 40px rgba(0,0,0,.18);">
-
-        <div style="text-align:center;margin-bottom:14px;">
-          <div style="width:56px;height:56px;background:#fdf2ee;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:28px;">🗑</div>
-        </div>
-
-        <div style="text-align:center;font-size:16px;font-weight:500;color:#1a1a1a;margin-bottom:6px;letter-spacing:.04em;">このファイルを完全削除しますか？</div>
-        <div style="text-align:center;font-size:12px;color:#666;margin-bottom:18px;line-height:1.7;">
-          このファイル由来の<strong id="adsDelRowCount" style="color:#D85A30;font-weight:500;">—</strong>行のデータが<br>
-          分析対象から完全に削除されます
-        </div>
-
-        <div style="background:#f7f6f1;border-radius:8px;padding:11px 14px;margin-bottom:16px;font-size:11px;color:#555;line-height:1.8;">
-          <div><strong style="color:#1a1a1a;font-weight:500;">ファイル名：</strong><span id="adsDelFileName">—</span></div>
-          <div><strong style="color:#1a1a1a;font-weight:500;">媒体：</strong><span id="adsDelMedia">—</span></div>
-          <div><strong style="color:#1a1a1a;font-weight:500;">期間：</strong><span id="adsDelPeriod">—</span></div>
-          <div><strong style="color:#1a1a1a;font-weight:500;">取込件数：</strong><span id="adsDelRowCountText">—</span></div>
-        </div>
-
-        <div style="background:#fdf2ee;border-left:3px solid #D85A30;padding:8px 12px;font-size:10.5px;color:#712B13;line-height:1.6;margin-bottom:18px;border-radius:4px;">
-          ⚠ <strong style="font-weight:500;">削除は即座に実行され、復元できません。</strong>誤って削除した場合は、再アップロードしてください。
-        </div>
-
-        <div style="display:flex;gap:8px;">
-          <button onclick="adsCloseDeleteModal()" style="flex:1;padding:11px;background:#fff;color:#666;border:1px solid #e3e3e0;border-radius:8px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;">キャンセル</button>
-          <button onclick="adsExecuteDelete()" id="adsExecDelBtn" style="flex:2;padding:11px;background:#D85A30;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;letter-spacing:.04em;">削除する</button>
-        </div>
-      </div>
-    </div>
-
     <!-- マスター管理 -->
     <div id="sec-master" class="sec">
       <!-- sec-masterキャラ -->
@@ -4088,10 +2054,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260512v"></script>
-<script src="js/app.js?v=20260512v"></script>
-<script src="js/paste-feature.js?v=20260512v"></script>
-<script src="js/email-feature.js?v=20260512v"></script>
-<script src="js/chip-feature.js?v=20260512v"></script>
+<script src="js/router.js?v=20260522a"></script>
+<script src="js/app.js?v=20260522a"></script>
+<script src="js/paste-feature.js?v=20260522a"></script>
+<script src="js/email-feature.js?v=20260522a"></script>
+<script src="js/chip-feature.js?v=20260522a"></script>
 </body>
 </html>
