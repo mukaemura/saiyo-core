@@ -1656,7 +1656,7 @@ function showSec(s) {
     'dashboard': 'operation',  // Step 3: ダッシュは採用運用モード配下
     'list': 'operation', 'add': 'operation', 'add-choice': 'operation',
     'add-paste': 'operation', 'import': 'operation',
-    'schedule': 'operation', 'minutes': 'operation', 'tasks': 'operation',
+    'schedule': 'operation', 'interview-cal': 'operation', 'minutes': 'operation', 'tasks': 'operation',
     'analytics-dash': 'analytics',  // Step 4: 分析ダッシュは採用分析モードのデフォルト
     'analytics': 'analytics', 'budget': 'analytics', 'ads': 'analytics',
     'master': 'admin_settings', 'staff': 'admin_settings', 'admin': 'admin_settings'
@@ -1702,6 +1702,7 @@ function showSec(s) {
   if (s === 'dashboard') renderDashboard();
   if (s === 'list') { closeDetail(); renderList(); }
   if (s === 'schedule') renderSchedule();
+  if (s === 'interview-cal') renderIvCal();
   if (s === 'analytics') { setPeriod('all'); }
   if (s === 'master') renderManage();
   if (s === 'admin') renderAdmin();
@@ -7964,6 +7965,164 @@ function shiftMonth(inputId, renderFn, delta) {
   if (renderFn === 'renderMinutesCalendar') renderMinutesCalendar();
   else if (renderFn === 'renderTaskCalendar') renderTaskCalendar();
   else if (renderFn === 'renderMinutes') renderMinutes();
+}
+
+// ========================================
+// 面接管理カレンダー
+// ========================================
+let ivCalView = 'week'; // 'week' | 'month'
+let ivCalBaseDate = new Date();
+
+function setIvCalView(view) {
+  ivCalView = view;
+  const wBtn = document.getElementById('ivCalWeekBtn');
+  const mBtn = document.getElementById('ivCalMonthBtn');
+  if (wBtn && mBtn) {
+    if (view === 'week') {
+      wBtn.style.background = '#9B59B6'; wBtn.style.color = '#fff'; wBtn.style.fontWeight = '600';
+      mBtn.style.background = '#fff'; mBtn.style.color = '#666'; mBtn.style.fontWeight = '500';
+    } else {
+      mBtn.style.background = '#9B59B6'; mBtn.style.color = '#fff'; mBtn.style.fontWeight = '600';
+      wBtn.style.background = '#fff'; wBtn.style.color = '#666'; wBtn.style.fontWeight = '500';
+    }
+  }
+  renderIvCal();
+}
+
+function ivCalPrev() {
+  if (ivCalView === 'week') ivCalBaseDate.setDate(ivCalBaseDate.getDate() - 7);
+  else ivCalBaseDate.setMonth(ivCalBaseDate.getMonth() - 1);
+  renderIvCal();
+}
+function ivCalNext() {
+  if (ivCalView === 'week') ivCalBaseDate.setDate(ivCalBaseDate.getDate() + 7);
+  else ivCalBaseDate.setMonth(ivCalBaseDate.getMonth() + 1);
+  renderIvCal();
+}
+function ivCalToday() {
+  ivCalBaseDate = new Date();
+  renderIvCal();
+}
+
+function getIvCalInterviews() {
+  const list = [];
+  applicants.forEach(a => {
+    (a.interviews || []).forEach(iv => {
+      if (!iv.scheduled_at) return;
+      list.push({ applicantId: a.id, name: a.name || '', type: iv.interview_type === 'other' ? (iv.type_other || 'その他') : (iv.interview_type || '面接'), result: iv.result || 'pending', date: iv.scheduled_at.slice(0, 10), time: iv.scheduled_at.length > 10 ? iv.scheduled_at.slice(11, 16) : '', clientId: a.clientId });
+    });
+  });
+  return list;
+}
+
+function ivResultStyle(result) {
+  if (result === 'pass') return { bg: '#E8F5E9', color: '#2E7D32', label: '合格' };
+  if (result === 'fail') return { bg: '#FFEBEE', color: '#C62828', label: '不合格' };
+  if (result === 'no_show') return { bg: '#F5F5F5', color: '#888', label: '不来場' };
+  return { bg: '#E3F2FD', color: '#1565C0', label: '未実施' };
+}
+
+function renderIvCal() {
+  const body = document.getElementById('ivCalBody');
+  const label = document.getElementById('ivCalLabel');
+  if (!body) return;
+  const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const all = getIvCalInterviews();
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (ivCalView === 'week') {
+    const base = new Date(ivCalBaseDate);
+    const dow = base.getDay();
+    const mon = new Date(base); mon.setDate(base.getDate() - ((dow + 6) % 7));
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(mon); d.setDate(mon.getDate() + i);
+      days.push(d.toISOString().slice(0, 10));
+    }
+    const sunLabel = days[6];
+    if (label) label.textContent = `${days[0].slice(5).replace('-', '/')} 〜 ${sunLabel.slice(5).replace('-', '/')}`;
+
+    const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
+    let html = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;">';
+    days.forEach((ds, i) => {
+      const isToday = ds === today;
+      const isSun = i === 6, isSat = i === 5;
+      const dayColor = isSun ? '#C62828' : isSat ? '#1565C0' : '#333';
+      const dayBg = isToday ? '#9B59B6' : 'transparent';
+      const dayFg = isToday ? '#fff' : dayColor;
+      const dayItems = all.filter(iv => iv.date === ds);
+      dayItems.sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+
+      html += `<div style="background:#fff;border-radius:10px;border:1px solid ${isToday ? '#9B59B6' : '#eee'};min-height:120px;padding:8px;">`;
+      html += `<div style="text-align:center;margin-bottom:6px;"><span style="font-size:10px;color:${dayColor};font-weight:600;">${dayNames[i]}</span><br>`;
+      html += `<span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:${dayBg};color:${dayFg};font-size:13px;font-weight:700;">${parseInt(ds.slice(8))}</span></div>`;
+
+      if (!dayItems.length) {
+        html += `<div style="text-align:center;color:#ccc;font-size:10px;padding-top:8px;">-</div>`;
+      } else {
+        dayItems.forEach(iv => {
+          const rs = ivResultStyle(iv.result);
+          const timeStr = iv.time ? `<span style="font-size:9px;color:#888;">${iv.time}</span> ` : '';
+          html += `<div onclick="openApplicantEdit('${iv.applicantId}')" style="background:${rs.bg};border-left:3px solid ${rs.color};border-radius:6px;padding:5px 7px;margin-bottom:4px;cursor:pointer;transition:box-shadow .15s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow='none'">`;
+          html += `<div>${timeStr}<span style="font-size:11px;font-weight:600;color:#1a1a1a;">${esc(iv.name)}</span></div>`;
+          html += `<div style="font-size:9.5px;color:${rs.color};font-weight:500;margin-top:2px;">${esc(iv.type)} ・ ${rs.label}</div>`;
+          html += `</div>`;
+        });
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+    body.innerHTML = html;
+
+  } else {
+    const y = ivCalBaseDate.getFullYear(), m = ivCalBaseDate.getMonth();
+    if (label) label.textContent = `${y}年${m + 1}月`;
+    const fd = new Date(y, m, 1).getDay();
+    const dim = new Date(y, m + 1, 0).getDate();
+    const startOffset = (fd + 6) % 7;
+    const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
+
+    let html = '<div style="background:#fff;border-radius:10px;border:1px solid #eee;overflow:hidden;">';
+    html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);">';
+    dayNames.forEach((dn, i) => {
+      const c = i === 6 ? '#C62828' : i === 5 ? '#1565C0' : '#333';
+      html += `<div style="text-align:center;padding:8px 4px;font-size:11px;font-weight:700;color:${c};border-bottom:2px solid #eee;">${dn}</div>`;
+    });
+    html += '</div>';
+
+    html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);">';
+    const totalCells = Math.ceil((startOffset + dim) / 7) * 7;
+    for (let i = 0; i < totalCells; i++) {
+      const day = i - startOffset + 1;
+      const valid = day >= 1 && day <= dim;
+      const ds = valid ? `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : '';
+      const isToday = ds === today;
+      const isSun = i % 7 === 6, isSat = i % 7 === 5;
+      const dayColor = isSun ? '#C62828' : isSat ? '#1565C0' : '#333';
+      const cellBg = isToday ? '#F3E5F5' : valid ? '#fff' : '#fafafa';
+
+      html += `<div style="min-height:70px;padding:4px;border:1px solid #f0f0ee;background:${cellBg};vertical-align:top;">`;
+      if (valid) {
+        const dayBg = isToday ? '#9B59B6' : 'transparent';
+        const dayFg = isToday ? '#fff' : dayColor;
+        html += `<div style="margin-bottom:3px;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${dayBg};color:${dayFg};font-size:11px;font-weight:600;">${day}</span></div>`;
+        const dayItems = all.filter(iv => iv.date === ds);
+        dayItems.sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+        const show = dayItems.slice(0, 3);
+        show.forEach(iv => {
+          const rs = ivResultStyle(iv.result);
+          const shortType = (iv.type || '').replace('面接', '').replace('面談', '') || '面接';
+          html += `<div onclick="openApplicantEdit('${iv.applicantId}')" style="font-size:9.5px;padding:2px 4px;margin-bottom:2px;border-radius:4px;background:${rs.bg};color:${rs.color};cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:2px solid ${rs.color};" title="${esc(iv.name)} ${esc(iv.type)}">${esc(iv.name)} <span style="font-weight:600;">${esc(shortType)}</span></div>`;
+        });
+        if (dayItems.length > 3) {
+          html += `<div style="font-size:9px;color:#888;padding:1px 4px;">+${dayItems.length - 3}件</div>`;
+        }
+      }
+      html += '</div>';
+    }
+    html += '</div></div>';
+    body.innerHTML = html;
+  }
 }
 
 function renderStyledCalendar(containerId, ym, markedDates, onDayClick, opts) {
