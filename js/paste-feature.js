@@ -797,10 +797,10 @@ function renderMappingConfig(idx, m) {
         ${masters.media.map(v => `<option value="${escapeHtml(v)}" ${m.config?.value === v ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('')}
       </select>`;
     }
-    if (m.target === 'status' && typeof masters !== 'undefined' && masters?.status?.length) {
+    if (m.target === 'status' && typeof detailStatuses !== 'undefined' && detailStatuses?.length) {
       return `<select class="te-target-select" onchange="updateMappingConfig(${idx}, 'value', this.value)">
         <option value="">— ステータスから選択 —</option>
-        ${masters.status.map(v => `<option value="${escapeHtml(v)}" ${m.config?.value === v ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('')}
+        ${detailStatuses.map(d => `<option value="${escapeHtml(d.name)}" ${m.config?.value === d.name ? 'selected' : ''}>${escapeHtml(d.name)}</option>`).join('')}
       </select>`;
     }
     return `<input class="te-config-input" placeholder="固定値" value="${escapeHtml(m.config?.value || '')}" oninput="updateMappingConfig(${idx}, 'value', this.value)">`;

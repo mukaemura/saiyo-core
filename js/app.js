@@ -87,15 +87,6 @@ function migrateLegacyStatus(s) {
   return LEGACY_STATUS_MIGRATE[s] || s;
 }
 
-// 新体系の詳細ステータス（グループ表示用）
-const STATUS_GROUPS = [
-  { label: '対応中', items: ['書類依頼中','書類到着','面接調整中','面接確定'] },
-  { label: '面接',   items: ['1次面接','2次面接','選考通過','採用','不採用','不来場'] },
-  { label: '採用',   items: ['内定','内定辞退','内定承諾'] },
-  { label: 'その他', items: ['連絡不通','キャンセル'] },
-  { label: '最終',   items: ['入社','退職'] },
-];
-
 // デフォルト詳細ステータス（新規クライアント用）
 const DEFAULT_DETAIL_STATUS = [
   // 対応中
@@ -159,10 +150,6 @@ async function loadDetailStatuses() {
     detailStatuses = DEFAULT_DETAIL_STATUS.map((d, i) => ({
       ...d, id: 'default_' + i, client_id: currentClientId
     }));
-  }
-  // masters.status を detailStatuses と同期（応募者一覧プルダウン等が常に最新を映す）
-  if (typeof syncMastersStatusFromDetail === 'function') {
-    syncMastersStatusFromDetail();
   }
 }
 
@@ -1229,22 +1216,7 @@ async function loadMasters() {
     rows.forEach(r => { if (!r.client_id) r.client_id = currentClientId; }); // マルチテナント強制付与
     if (rows.length) await sb.from('masters').insert(rows);
   }
-  // ステータスは detail_status_master を真のソースとする（syncMastersStatusFromDetailで同期）
-  // 旧体系がmastersテーブルに残っていても、detail_status_master ロード後に上書きされる
-  // ※ loadDetailStatuses() の後で syncMastersStatusFromDetail() が呼ばれるため、ここでは初期値だけ用意
-  if (!masters.status || !masters.status.length) {
-    masters.status = ['書類依頼中','書類到着','面接調整中','面接確定','1次面接','2次面接','選考通過','採用','不採用','不来場','内定','内定辞退','内定承諾','連絡不通','キャンセル','入社','退職'];
-  }
   popSelects();
-}
-
-// detail_status_master の内容を masters.status に同期する
-// loadDetailStatuses() のあとに呼ぶ。応募者一覧プルダウン等が常に最新を映すようにする
-function syncMastersStatusFromDetail() {
-  if (typeof detailStatuses !== 'undefined' && detailStatuses && detailStatuses.length) {
-    masters.status = detailStatuses.map(d => d.name);
-    popSelects();
-  }
 }
 
 // ========================================
@@ -1336,7 +1308,13 @@ function popSelects() {
     (masters[key]||[]).forEach(v => el.innerHTML += `<option>${v}</option>`);
   };
   // フォーム用（単一選択）
-  set('fMed','media','選択'); set('fAg2','agency','選択'); set('fSt2','status','選択');
+  set('fMed','media','選択'); set('fAg2','agency','選択');
+  // ステータスは detailStatuses を直参照
+  const fSt2El = document.getElementById('fSt2');
+  if (fSt2El) {
+    fSt2El.innerHTML = '<option value="">選択</option>';
+    (detailStatuses || []).forEach(d => fSt2El.innerHTML += `<option>${d.name}</option>`);
+  }
   set('fDept2','dept','選択'); set('fHire2','hire','選択');
 
   // 担当者プルダウン（議事録内タスク・タスク手動追加・タスクフィルター）
@@ -1565,12 +1543,21 @@ function buildMultiFilter(wrapId, key) {
   // パネルのHTML
   let panelHtml = `<div class="mf-actions"><a onclick="multiFilterAll('${key}',true)">全選択</a><a onclick="multiFilterAll('${key}',false)">クリア</a></div>`;
   if (useGroups) {
-    STATUS_GROUPS.forEach(g => {
-      panelHtml += `<div class="mf-group-label">${g.label}</div>`;
-      g.items.forEach(v => {
-        const chk = selected.includes(v) ? 'checked' : '';
-        panelHtml += `<label><input type="checkbox" value="${v}" ${chk} onchange="multiFilterToggle('${key}','${v}',this.checked)">${v}</label>`;
-      });
+    const coreGroups = {};
+    (detailStatuses || []).forEach(d => {
+      const cid = d.core_status_id || 'other';
+      if (!coreGroups[cid]) coreGroups[cid] = [];
+      coreGroups[cid].push(d.name);
+    });
+    CORE_STATUS.forEach(cs => {
+      const gItems = coreGroups[cs.id];
+      if (gItems && gItems.length) {
+        panelHtml += `<div class="mf-group-label">${cs.name}</div>`;
+        gItems.forEach(v => {
+          const chk = selected.includes(v) ? 'checked' : '';
+          panelHtml += `<label><input type="checkbox" value="${v}" ${chk} onchange="multiFilterToggle('${key}','${v}',this.checked)">${v}</label>`;
+        });
+      }
     });
   } else {
     if (!items.length) {
@@ -1611,7 +1598,7 @@ function multiFilterAll(key, selectAll) {
   if (selectAll) {
     let items = [];
     if (key === 'status') {
-      items = STATUS_GROUPS.flatMap(g => g.items);
+      items = (detailStatuses || []).map(d => d.name);
     } else if (key === 'media') items = masters.media || [];
     else if (key === 'dept') items = masters.dept || [];
     else if (key === 'jobType') items = [...new Set(applicants.map(a => a.jobType).filter(Boolean))];
@@ -3169,7 +3156,7 @@ function buildAppRowHTML(a) {
       <td onclick="event.stopPropagation()">
         <select onchange="updateStatus('${a.id}', this.value)" style="padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;background:#fafafa;color:#1a1a1a;cursor:pointer;max-width:130px;" onclick="event.stopPropagation()">
           <option value="">-</option>
-          ${(typeof detailStatuses !== 'undefined' && detailStatuses && detailStatuses.length ? detailStatuses.map(d=>d.name) : (masters.status||[])).map(s=>`<option value="${s}" ${a.status===s?'selected':''}>${s}</option>`).join('')}
+          ${(detailStatuses || []).map(d=>`<option value="${d.name}" ${a.status===d.name?'selected':''}>${d.name}</option>`).join('')}
         </select>
       </td>
       <td>${interviewCell}</td>
@@ -7698,7 +7685,7 @@ function onCheckChange() {
     const bSt = document.getElementById('bulkStatus');
     const bHire = document.getElementById('bulkHire');
     bSt.innerHTML = '<option value="">選択</option>';
-    (masters.status||[]).forEach(v => bSt.innerHTML += `<option>${v}</option>`);
+    (detailStatuses || []).forEach(d => bSt.innerHTML += `<option>${d.name}</option>`);
     bHire.innerHTML = '<option value="">選択</option>';
     (masters.hire||['内定','内定承諾','採用','不採用','保留']).forEach(v => bHire.innerHTML += `<option>${v}</option>`);
   } else {
@@ -11239,11 +11226,7 @@ async function saveDetailStatus() {
   } catch(e) { console.warn(e); }
 
   detailStatuses.push(newDs);
-  // mastersのstatusにも追加
-  if (!masters.status.includes(name)) {
-    masters.status.push(name);
-    popSelects();
-  }
+  popSelects();
 
   document.getElementById('newDetailStatusName').value = '';
   document.getElementById('newDetailStatusCore').value = '';
@@ -11260,10 +11243,7 @@ async function deleteDetailStatus(id) {
     await sb.from('detail_status_master').delete().eq('id', id).eq('client_id', currentClientId);
   } catch(e) {}
   detailStatuses = detailStatuses.filter(d => d.id !== id);
-  // masters.statusからも削除して同期
-  if (typeof syncMastersStatusFromDetail === 'function') {
-    syncMastersStatusFromDetail();
-  }
+  popSelects();
   renderStatusMaster();
   setStatus(ds.name + ' を削除しました', 'ok');
 }
