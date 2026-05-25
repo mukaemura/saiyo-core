@@ -3150,25 +3150,21 @@ function buildAppRowHTML(a) {
 
   // 名前を青リンク化（クリックで詳細展開、Phase C-2で編集画面へ変更予定）
   // 名前の右に「30/男」のような年齢/性別の補足を追加（性別で色分け）
-  let ageGenderText = '';
+  let ageGenderLine = '';
   if (a.age || a.gender) {
-    // 性別による色分け
     let agColor = '#888';
     const g = String(a.gender || '').trim();
-    if (g === '男' || g === '男性' || /^m(ale)?$/i.test(g)) {
-      agColor = '#378ADD'; // 青
-    } else if (g === '女' || g === '女性' || /^f(emale)?$/i.test(g)) {
-      agColor = '#D4537E'; // ピンク
-    }
+    if (g === '男' || g === '男性' || /^m(ale)?$/i.test(g)) agColor = '#378ADD';
+    else if (g === '女' || g === '女性' || /^f(emale)?$/i.test(g)) agColor = '#D4537E';
     const parts = [];
     if (a.age) parts.push(a.age);
     if (a.gender) parts.push(a.gender);
-    ageGenderText = `<span style="color:${agColor};font-size:10.5px;margin-left:6px;font-weight:500;">${esc(parts.join('/'))}</span>`;
+    ageGenderLine = `<div style="color:${agColor};font-size:10px;font-weight:500;margin-top:1px;">${esc(parts.join('/'))}</div>`;
   }
   const dup = isDuplicate(a.id);
   const dupBorder = dup ? 'border-left:3px solid #E74C3C;' : '';
   const dupTip = dup ? ` title="${getDuplicateTooltip(a.id)}"` : '';
-  const nameLink = `<a href="javascript:void(0)" onclick="event.stopPropagation();openApplicantEdit('${a.id}')" style="color:#185FA5;text-decoration:underline;text-underline-offset:2px;font-weight:500;cursor:pointer;">${esc(a.name||'')}</a>${ageGenderText}`;
+  const nameLink = `<div><a href="javascript:void(0)" onclick="event.stopPropagation();openApplicantEdit('${a.id}')" style="color:#185FA5;text-decoration:underline;text-underline-offset:2px;font-weight:500;cursor:pointer;">${esc(a.name||'')}</a></div>${ageGenderLine}`;
 
   return `<tr id="row_${a.id}" style="${rowBg}${dupBorder}"${dupTip}>
       <td style="width:36px;" onclick="event.stopPropagation()">
