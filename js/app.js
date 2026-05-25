@@ -966,7 +966,8 @@ async function startApp() {
     updateHeaderStaffDisplay();
     initFormOptions();
     await loadMasters();
-    await loadDetailStatuses(); // 詳細ステータス読み込み
+    await loadDetailStatuses();
+    loadAnnouncement();
     // Phase C-1：担当者リストを先にロード（応募者一覧の担当列で使用）
     // adminも全クライアントの担当者を読む（RLSで自動的に admin=全件、client=自社のみ）
     try { await loadStaff(); } catch(e) { console.warn('[startApp] loadStaff失敗', e); }
@@ -3070,12 +3071,12 @@ function buildAppRowHTML(a) {
   };
   const esc = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const coreId = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
-  const hireOk = ['hired','joined'].includes(coreId);
-  const hireNg = coreId === 'other';
-  const rowBg = hireOk
-    ? 'background:linear-gradient(90deg,#fff0f5,#fff5f8);'
-    : hireNg
-    ? 'background:linear-gradient(90deg,#eef4ff,#f0f6ff);'
+  const rowBg = ['hired','joined'].includes(coreId)
+    ? 'background:linear-gradient(90deg,#eef6ff,#f2f8ff);'
+    : coreId === 'rejected'
+    ? 'background:linear-gradient(90deg,#fff0f3,#fff5f7);'
+    : ['resigned','other'].includes(coreId)
+    ? 'background:linear-gradient(90deg,#f5f5f5,#f8f8f8);'
     : '';
   const jobNoCell = a.jobNo
     ? `<span class="list-col-job-no">${esc(a.jobNo)}</span>`
@@ -9033,6 +9034,51 @@ async function renderAdmin() {
       </td>
     </tr>`;
   }).join('');
+}
+
+// ========================================
+// お知らせ機能
+// ========================================
+async function loadAnnouncement() {
+  try {
+    const { data } = await sb.from('announcements').select('*').eq('active', true).order('created_at', { ascending: false }).limit(1);
+    const bar = document.getElementById('announcementBar');
+    const txt = document.getElementById('announcementText');
+    if (data && data.length && bar && txt) {
+      txt.textContent = data[0].message;
+      bar.style.display = 'flex';
+    }
+    if (isAdmin) {
+      const all = await sb.from('announcements').select('*').order('created_at', { ascending: false }).limit(1);
+      if (all.data && all.data.length) {
+        const a = all.data[0];
+        const msg = document.getElementById('annMsg'); if (msg) msg.value = a.message || '';
+        const act = document.getElementById('annActive'); if (act) act.checked = !!a.active;
+      }
+    }
+  } catch(e) { console.warn('[announcement]', e); }
+}
+
+async function saveAnnouncement() {
+  if (!isAdmin) return;
+  const message = (document.getElementById('annMsg')?.value || '').trim();
+  const active = document.getElementById('annActive')?.checked || false;
+  if (!message) { alert('メッセージを入力してください'); return; }
+  try {
+    const { data: existing } = await sb.from('announcements').select('id').order('created_at', { ascending: false }).limit(1);
+    if (existing && existing.length) {
+      await sb.from('announcements').update({ message, active }).eq('id', existing[0].id);
+    } else {
+      await sb.from('announcements').insert({ message, active });
+    }
+    setStatus('お知らせを保存しました', 'ok');
+    loadAnnouncement();
+  } catch(e) { alert('保存失敗: ' + e.message); }
+}
+
+function dismissAnnouncement() {
+  const bar = document.getElementById('announcementBar');
+  if (bar) bar.style.display = 'none';
 }
 
 function togglePwVisible(rowId) {

@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
 <!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260525b">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260525b">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260525b">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260525b">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260525b">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260525c">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260525c">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260525c">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260525c">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260525c">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260525b">
+<link rel="stylesheet" href="css/style.css?v=20260525c">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -1560,7 +1560,7 @@
 
     <!-- ロゴ（カードより少し大きめに、幅いっぱい） -->
     <div style="text-align:center;margin-bottom:24px;">
-      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260525b" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
+      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260525c" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
     </div>
 
     <!-- ログインカード本体（少し狭め、中央寄せ） -->
@@ -1823,7 +1823,7 @@
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <!-- ロゴ＋プラットフォームサブテキスト -->
         <a href="#" onclick="goHome();return false;" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;cursor:pointer;" title="ホームに戻る">
-          <img src="assets/saiyo_mark.png?v=20260525b" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
+          <img src="assets/saiyo_mark.png?v=20260525c" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
           <div style="line-height:1;">
             <div style="font-size:14px;font-weight:600;color:#1a1a1a;">採用コア</div>
             <div style="font-size:9px;color:#888;letter-spacing:0.08em;margin-top:3px;">RECRUITING PLATFORM</div>
@@ -1860,6 +1860,13 @@
         </div>
         <button class="nb-logout" onclick="confirmLogout()">ログアウト</button>
       </div>
+    </div>
+
+    <!-- お知らせバー -->
+    <div id="announcementBar" style="display:none;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin:6px 0;padding:8px 14px;font-size:12px;color:#5D4037;display:none;align-items:center;gap:8px;">
+      <span style="font-size:14px;">📢</span>
+      <span id="announcementText"></span>
+      <button onclick="dismissAnnouncement()" style="margin-left:auto;background:none;border:none;color:#999;cursor:pointer;font-size:14px;line-height:1;">×</button>
     </div>
 
     <!-- ============================================ -->
@@ -2206,9 +2213,12 @@
             <option value="">全クライアント</option>
           </select>
           <!-- 簡易フィルタ：全て表示／アクティブのみ -->
-          <div id="quickFilterToggle" style="display:inline-flex;border:1px solid #ddd;border-radius:8px;overflow:hidden;font-size:11px;font-family:inherit;">
-            <button onclick="setQuickFilter('all')" id="qfAll" style="padding:5px 12px;border:none;background:#5aaa8e;color:#fff;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">全て表示</button>
-            <button onclick="setQuickFilter('active')" id="qfActive" style="padding:5px 12px;border:none;border-left:1px solid #ddd;background:#fff;color:#666;cursor:pointer;font-size:11px;font-family:inherit;font-weight:500;">アクティブのみ</button>
+          <div style="display:inline-flex;align-items:center;gap:6px;">
+            <div id="quickFilterToggle" style="display:inline-flex;border:1px solid #ddd;border-radius:8px;overflow:hidden;font-size:11px;font-family:inherit;">
+              <button onclick="setQuickFilter('all')" id="qfAll" style="padding:5px 12px;border:none;background:#5aaa8e;color:#fff;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">全て表示</button>
+              <button onclick="setQuickFilter('active')" id="qfActive" style="padding:5px 12px;border:none;border-left:1px solid #ddd;background:#fff;color:#666;cursor:pointer;font-size:11px;font-family:inherit;font-weight:500;">アクティブのみ</button>
+            </div>
+            <span title="「アクティブのみ」は不採用・その他ステータスを非表示にします" style="cursor:help;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#eee;color:#888;font-size:10px;font-weight:600;">?</span>
           </div>
           <!-- 詳細絞り込みボタン -->
           <button id="filterPanelOpenBtn" onclick="openFilterPanel()" style="padding:6px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;display:inline-flex;align-items:center;gap:5px;">
@@ -4055,6 +4065,23 @@
         <button class="btn btn-p" onclick="addClient()" style="align-self:end;">追加</button>
       </div>
 
+      <!-- お知らせ管理（admin専用） -->
+      <div style="margin-top:1.5rem;border-top:1px solid #f0f0ee;padding-top:1rem;">
+        <h3 style="font-size:13px;font-weight:600;margin-bottom:8px;">お知らせ管理</h3>
+        <p style="font-size:11px;color:#888;margin-bottom:10px;">有効にすると、全クライアントのヘッダー直下にお知らせが表示されます。</p>
+        <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
+          <div class="fg" style="flex:1;min-width:200px;">
+            <label>お知らせメッセージ</label>
+            <input type="text" id="annMsg" placeholder="例：5/30 メンテナンスのためサービスを停止します" style="width:100%;">
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding-bottom:2px;">
+            <input type="checkbox" id="annActive" style="width:14px;height:14px;cursor:pointer;">
+            <span>有効</span>
+          </label>
+          <button class="btn btn-p" onclick="saveAnnouncement()" style="white-space:nowrap;">保存</button>
+        </div>
+      </div>
+
       <!-- 編集ダイアログ -->
       <div id="editClientForm" style="display:none;background:#f0f6ff;border:1px solid #c8ddf5;border-radius:10px;padding:1rem;margin-top:1rem;">
         <div style="font-size:13px;font-weight:600;color:#185FA5;margin-bottom:.75rem;">クライアント情報を編集</div>
@@ -4076,10 +4103,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260525b"></script>
-<script src="js/app.js?v=20260525b"></script>
-<script src="js/paste-feature.js?v=20260525b"></script>
-<script src="js/email-feature.js?v=20260525b"></script>
-<script src="js/chip-feature.js?v=20260525b"></script>
+<script src="js/router.js?v=20260525c"></script>
+<script src="js/app.js?v=20260525c"></script>
+<script src="js/paste-feature.js?v=20260525c"></script>
+<script src="js/email-feature.js?v=20260525c"></script>
+<script src="js/chip-feature.js?v=20260525c"></script>
 </body>
 </html>
