@@ -65,6 +65,7 @@ const STATUS_TO_CORE = {
   // その他グループ
   '連絡不通':    'other',
   'キャンセル':  'other',
+  '重複':        'other',
   // 最終グループ
   '入社':        'joined',
   '退職':        'resigned',
@@ -109,9 +110,10 @@ const DEFAULT_DETAIL_STATUS = [
   // その他
   { name: '連絡不通',    core_status_id: 'other',       ord: 14 },
   { name: 'キャンセル',  core_status_id: 'other',       ord: 15 },
+  { name: '重複',        core_status_id: 'other',       ord: 16 },
   // 最終
-  { name: '入社',        core_status_id: 'joined',      ord: 16 },
-  { name: '退職',        core_status_id: 'resigned',    ord: 17 },
+  { name: '入社',        core_status_id: 'joined',      ord: 17 },
+  { name: '退職',        core_status_id: 'resigned',    ord: 18 },
 ];
 
 let detailStatuses = []; // 現クライアントの詳細ステータス一覧
@@ -2986,7 +2988,9 @@ function renderList() {
   }
 
   const INACTIVE_CORES = ['rejected', 'other'];
+  const hideDups = document.getElementById('hideDuplicatesCheck')?.checked || false;
   let fil = applicants.filter(a => {
+    if (hideDups && isDuplicate(a.id)) return false;
     if (quickFilterMode === 'active' && INACTIVE_CORES.includes(a.coreStatusId || getCoreStatusId(a.status))) return false;
     if (q && !(a.name||'').toLowerCase().includes(q) && !(a.email||'').toLowerCase().includes(q)) return false;
     if (fpCore.length && !fpCore.includes(a.coreStatusId)) return false;
@@ -3161,10 +3165,12 @@ function buildAppRowHTML(a) {
     if (a.gender) parts.push(a.gender);
     ageGenderText = `<span style="color:${agColor};font-size:10.5px;margin-left:6px;font-weight:500;">${esc(parts.join('/'))}</span>`;
   }
-  const dupBadge = getDuplicateBadge(a.id);
-  const nameLink = `<a href="javascript:void(0)" onclick="event.stopPropagation();openApplicantEdit('${a.id}')" style="color:#185FA5;text-decoration:underline;text-underline-offset:2px;font-weight:500;cursor:pointer;">${esc(a.name||'')}</a>${dupBadge}${ageGenderText}`;
+  const dup = isDuplicate(a.id);
+  const dupBorder = dup ? 'border-left:3px solid #E74C3C;' : '';
+  const dupTip = dup ? ` title="${getDuplicateTooltip(a.id)}"` : '';
+  const nameLink = `<a href="javascript:void(0)" onclick="event.stopPropagation();openApplicantEdit('${a.id}')" style="color:#185FA5;text-decoration:underline;text-underline-offset:2px;font-weight:500;cursor:pointer;">${esc(a.name||'')}</a>${ageGenderText}`;
 
-  return `<tr id="row_${a.id}" style="${rowBg}">
+  return `<tr id="row_${a.id}" style="${rowBg}${dupBorder}"${dupTip}>
       <td style="width:36px;" onclick="event.stopPropagation()">
         <input type="checkbox" class="rowCheck" value="${a.id}" onchange="onCheckChange()" style="cursor:pointer;width:14px;height:14px;">
       </td>
@@ -3386,9 +3392,9 @@ function showEditModeHeader(a) {
       else if (g === '女' || g === '女性') agColor = '#D4537E';
       nameHtml += ` <span style="color:${agColor};font-size:12px;font-weight:500;margin-left:6px;">${escapeHtml(ageGenderParts.join('/'))}</span>`;
     }
-    // 重複バッジ
-    const dupBadge = getDuplicateBadge(a.id);
-    if (dupBadge) nameHtml += ' ' + dupBadge;
+    if (isDuplicate(a.id)) {
+      nameHtml += ` <span style="display:inline-block;font-size:9px;background:#FAECE7;color:#993C1D;padding:1px 6px;border-radius:9px;margin-left:6px;font-weight:600;border:1px solid #F0997B;">${getDuplicateTooltip(a.id)}</span>`;
+    }
     nameEl.innerHTML = nameHtml;
   }
   // 求人情報
@@ -3661,53 +3667,50 @@ function findDuplicateApplicant(newEmail, newTel, newName) {
 let _duplicateMap = null;
 function buildDuplicateMap() {
   const map = {};
-  // メールアドレス→応募者ID配列
   const byEmail = {};
   const byTel = {};
   applicants.forEach(a => {
-    // クライアントごとに重複を見るが、admin時は全件を比較対象とせず同じclientId内のみ
     const cid = a.clientId || '';
     const email = (a.email || '').trim().toLowerCase();
     const tel = (a.tel || '').replace(/[\s-]/g, '');
     if (email) {
       const key = `${cid}::${email}`;
       if (!byEmail[key]) byEmail[key] = [];
-      byEmail[key].push(a.id);
+      byEmail[key].push(a);
     }
     if (tel) {
       const key = `${cid}::${tel}`;
       if (!byTel[key]) byTel[key] = [];
-      byTel[key].push(a.id);
+      byTel[key].push(a);
     }
   });
-  // 2件以上ある同一キーの全IDをマップに登録
-  Object.values(byEmail).forEach(ids => {
-    if (ids.length >= 2) {
-      ids.forEach(id => {
-        if (!map[id]) map[id] = { matchType: 'email', count: ids.length };
-        else { map[id].matchType = map[id].matchType === 'tel' ? 'both' : map[id].matchType; }
-      });
-    }
-  });
-  Object.values(byTel).forEach(ids => {
-    if (ids.length >= 2) {
-      ids.forEach(id => {
-        if (!map[id]) map[id] = { matchType: 'tel', count: ids.length };
-        else if (map[id].matchType === 'email') map[id].matchType = 'both';
-      });
-    }
-  });
+  function markDuplicates(groups, matchType) {
+    Object.values(groups).forEach(arr => {
+      if (arr.length < 2) return;
+      arr.sort((x, y) => (x.appDate || '').localeCompare(y.appDate || ''));
+      for (let i = 1; i < arr.length; i++) {
+        const id = arr[i].id;
+        if (!map[id]) map[id] = { matchType, count: arr.length, firstId: arr[0].id };
+        else if (map[id].matchType !== matchType) map[id].matchType = 'both';
+      }
+    });
+  }
+  markDuplicates(byEmail, 'email');
+  markDuplicates(byTel, 'tel');
   _duplicateMap = map;
   return map;
 }
 
-// 名前の右に出す重複バッジHTML
-function getDuplicateBadge(applicantId) {
+function isDuplicate(applicantId) {
+  if (!_duplicateMap) buildDuplicateMap();
+  return !!_duplicateMap[applicantId];
+}
+
+function getDuplicateTooltip(applicantId) {
   if (!_duplicateMap) buildDuplicateMap();
   const info = _duplicateMap[applicantId];
   if (!info) return '';
-  const tip = info.matchType === 'email' ? 'メールアドレスが重複' : info.matchType === 'tel' ? '電話番号が重複' : 'メール・電話どちらも重複';
-  return `<span title="${tip}（${info.count}名で重複）" style="display:inline-block;font-size:9px;background:#FAECE7;color:#993C1D;padding:1px 6px;border-radius:9px;margin-left:6px;font-weight:600;border:1px solid #F0997B;cursor:help;">🔁 重複</span>`;
+  return info.matchType === 'email' ? 'メールアドレスが重複' : info.matchType === 'tel' ? '電話番号が重複' : 'メール・電話どちらも重複';
 }
 
 // 警告ダイアログを表示し、続行するかどうかを返す
@@ -4113,6 +4116,20 @@ async function doImport() {
     };
   });
   rows.forEach(r => { r.client_id = currentClientId; }); // マルチテナント強制付与
+
+  // 重複判定：既存応募者とメール/電話が一致する場合、ステータスを「重複」に設定
+  const existingEmails = new Set(applicants.map(a => (a.email || '').trim().toLowerCase()).filter(Boolean));
+  const existingTels = new Set(applicants.map(a => (a.tel || '').replace(/[\s-]/g, '')).filter(Boolean));
+  let dupCount = 0;
+  rows.forEach(r => {
+    const email = (r.email || '').trim().toLowerCase();
+    const tel = (r.tel || '').replace(/[\s-]/g, '');
+    if ((email && existingEmails.has(email)) || (tel && existingTels.has(tel))) {
+      r.status = '重複';
+      dupCount++;
+    }
+  });
+
   // 1件ずつ登録して成功/失敗を集計（バルクで失敗すると全件失敗するため）
   let okCount = 0;
   const failures = [];
@@ -4137,7 +4154,7 @@ async function doImport() {
   // 結果表示
   const errEl = document.getElementById('importErrors');
   if (failures.length === 0) {
-    setStatus(`${okCount}件を登録しました`, 'ok');
+    setStatus(`${okCount}件を登録しました` + (dupCount ? `（うち${dupCount}件は重複のためステータス「重複」）` : ''), 'ok');
     if (errEl) errEl.style.display = 'none';
     cancelImport();
     await loadApplicants();
