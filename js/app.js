@@ -38,9 +38,10 @@ const CORE_STATUS = [
   { id: 'in_progress', name: '対応中', ord: 2, color: '#EF9F27' },
   { id: 'interview',   name: '面接',   ord: 3, color: '#9B59B6' },
   { id: 'hired',       name: '採用',   ord: 4, color: '#27AE60' },
-  { id: 'joined',      name: '入社',   ord: 5, color: '#1D9E75' },
-  { id: 'resigned',    name: '退職',   ord: 6, color: '#95A5A6' },
-  { id: 'other',       name: 'その他', ord: 7, color: '#BDC3C7' },
+  { id: 'rejected',    name: '不採用', ord: 5, color: '#E74C3C' },
+  { id: 'joined',      name: '入社',   ord: 6, color: '#1D9E75' },
+  { id: 'resigned',    name: '退職',   ord: 7, color: '#95A5A6' },
+  { id: 'other',       name: 'その他', ord: 8, color: '#BDC3C7' },
 ];
 
 // 新体系ステータス→core_status_idのマッピング（hiredの詳細指示は後で受領、当面は内定承諾=hired）
@@ -55,8 +56,8 @@ const STATUS_TO_CORE = {
   '2次面接':     'interview',
   '選考通過':    'interview',
   '採用':        'hired',
-  '不採用':      'interview',
-  '不来場':      'interview',
+  '不採用':      'rejected',
+  '不来場':      'rejected',
   // 採用グループ
   '内定':        'hired',
   '内定辞退':    'other',
@@ -99,8 +100,8 @@ const DEFAULT_DETAIL_STATUS = [
   { name: '2次面接',     core_status_id: 'interview',   ord: 6 },
   { name: '選考通過',    core_status_id: 'interview',   ord: 7 },
   { name: '採用',        core_status_id: 'hired',       ord: 8 },
-  { name: '不採用',      core_status_id: 'interview',   ord: 9 },
-  { name: '不来場',      core_status_id: 'interview',   ord: 10 },
+  { name: '不採用',      core_status_id: 'rejected',    ord: 9 },
+  { name: '不来場',      core_status_id: 'rejected',    ord: 10 },
   // 採用
   { name: '内定',        core_status_id: 'hired',       ord: 11 },
   { name: '内定辞退',    core_status_id: 'other',       ord: 12 },
@@ -162,7 +163,7 @@ function onDetailStatusChange(detailStatusName) {
 // ========================================
 // 累積型ファネル集計
 // ========================================
-const FUNNEL_ORDER = ['applied','in_progress','interview','hired','joined','resigned'];
+const FUNNEL_ORDER = ['applied','in_progress','interview','rejected','hired','joined','resigned'];
 
 // ========================================
 // 担当者バッジ：色分けロジック
@@ -663,6 +664,7 @@ let applicants = [];
 let masters = { media: [], status: [], agency: [], hire: [], dept: [], assignee: [], jobType: [] };
 // マルチセレクトフィルターの選択状態（{status:[], media:[], jobType:[], dept:[]}）
 let multiFilterState = { status: [], media: [], jobType: [], dept: [] };
+let quickFilterMode = 'all'; // 'all' | 'active'
 let clients = []; // 管理者用
 let staffList = []; // 担当者マスタ（Phase B-1で追加）
 // 現在の担当者（Phase B-2で追加）
@@ -2635,39 +2637,30 @@ function refreshBellNotifications() {
 // 一覧
 // ========================================
 function clearDateFilter() {
+  panelFilterState.dateFrom = '';
+  panelFilterState.dateTo = '';
   const a = document.getElementById('fDateFrom'); if (a) a.value = '';
   const b = document.getElementById('fDateTo');   if (b) b.value = '';
-  renderList();
 }
 
 // ========================================
 // Phase E/F：詳細絞り込みパネル
 // ========================================
-// 新方式の絞り込み状態（パネルで決めて適用すると multiFilterState に反映される）
-// 単一値のみ管理する
 let panelFilterState = {
-  coreStatus: '',
-  detailStatus: '',
-  media: '',
-  jobType: '',
-  dept: '',
+  coreStatus: [],
+  detailStatus: [],
+  media: [],
+  jobType: [],
+  dept: [],
   dateFrom: '',
   dateTo: ''
 };
 
 // パネルを開く
 function openFilterPanel() {
-  // パネル内のセレクトを最新の選択肢で埋める
-  populateFilterPanelSelects();
-  // 現在の状態をパネルに反映
-  document.getElementById('fpCoreStatus').value = panelFilterState.coreStatus || '';
-  document.getElementById('fpDetailStatus').value = panelFilterState.detailStatus || '';
-  document.getElementById('fpMedia').value = panelFilterState.media || '';
-  document.getElementById('fpJobType').value = panelFilterState.jobType || '';
-  document.getElementById('fpDept').value = panelFilterState.dept || '';
+  populateFilterPanelChecks();
   const df = document.getElementById('fDateFrom'); if (df) df.value = panelFilterState.dateFrom || '';
   const dt = document.getElementById('fDateTo');   if (dt) dt.value = panelFilterState.dateTo || '';
-  // 表示
   const overlay = document.getElementById('filterPanelOverlay');
   if (overlay) overlay.style.display = 'block';
 }
@@ -2678,54 +2671,85 @@ function closeFilterPanel(e) {
   if (overlay) overlay.style.display = 'none';
 }
 
-// パネル内セレクトに選択肢を流し込む
-function populateFilterPanelSelects() {
-  // 詳細ステータス
+function populateFilterPanelChecks() {
+  const esc = s => escapeHtml(s);
+  function renderChecks(elId, items, selected) {
+    const el = document.getElementById(elId); if (!el) return;
+    el.innerHTML = items.map(v => {
+      const val = typeof v === 'object' ? v.value : v;
+      const label = typeof v === 'object' ? v.label : v;
+      const chk = (selected || []).includes(val) ? 'checked' : '';
+      return `<label><input type="checkbox" value="${esc(val)}" ${chk}>${esc(label)}</label>`;
+    }).join('');
+  }
+  // コアステータス
+  renderChecks('fpCoreStatus', CORE_STATUS.map(c => ({ value: c.id, label: c.name })), panelFilterState.coreStatus);
+  // 詳細ステータス（コアステータスでグループ化）
   const dsEl = document.getElementById('fpDetailStatus');
   if (dsEl) {
-    const cur = dsEl.value;
-    const list = (detailStatuses || []).map(s => s.name);
-    dsEl.innerHTML = `<option value="">全て</option>` + list.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
-    dsEl.value = cur;
+    const coreGroups = {};
+    (detailStatuses || []).forEach(d => {
+      const cid = d.core_status_id || 'other';
+      if (!coreGroups[cid]) coreGroups[cid] = [];
+      coreGroups[cid].push(d.name);
+    });
+    let html = '';
+    CORE_STATUS.forEach(cs => {
+      const gItems = coreGroups[cs.id];
+      if (gItems && gItems.length) {
+        html += `<div class="fp-group-label">${esc(cs.name)}</div>`;
+        gItems.forEach(v => {
+          const chk = (panelFilterState.detailStatus || []).includes(v) ? 'checked' : '';
+          html += `<label><input type="checkbox" value="${esc(v)}" ${chk}>${esc(v)}</label>`;
+        });
+      }
+    });
+    dsEl.innerHTML = html;
   }
-  // 媒体
-  fillSelectFromApplicants('fpMedia', 'media');
-  // 職種
-  fillSelectFromApplicants('fpJobType', 'jobType');
-  // 部署
-  fillSelectFromApplicants('fpDept', 'dept');
-}
-
-function fillSelectFromApplicants(elId, fieldName) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  const cur = el.value;
-  const set = new Set();
-  applicants.forEach(a => { if (a[fieldName]) set.add(a[fieldName]); });
-  const opts = [...set].sort();
-  el.innerHTML = `<option value="">全て</option>` + opts.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-  el.value = cur;
+  // 媒体・職種・部署
+  const fieldItems = (field) => [...new Set(applicants.map(a => a[field]).filter(Boolean))].sort();
+  renderChecks('fpMedia', fieldItems('media'), panelFilterState.media);
+  renderChecks('fpJobType', fieldItems('jobType'), panelFilterState.jobType);
+  renderChecks('fpDept', fieldItems('dept'), panelFilterState.dept);
 }
 
 // パネルの「適用」
 function applyFilterPanel() {
-  panelFilterState.coreStatus = document.getElementById('fpCoreStatus').value || '';
-  panelFilterState.detailStatus = document.getElementById('fpDetailStatus').value || '';
-  panelFilterState.media = document.getElementById('fpMedia').value || '';
-  panelFilterState.jobType = document.getElementById('fpJobType').value || '';
-  panelFilterState.dept = document.getElementById('fpDept').value || '';
+  const getChecked = id => [...(document.getElementById(id)?.querySelectorAll('input:checked') || [])].map(c => c.value);
+  panelFilterState.coreStatus = getChecked('fpCoreStatus');
+  panelFilterState.detailStatus = getChecked('fpDetailStatus');
+  panelFilterState.media = getChecked('fpMedia');
+  panelFilterState.jobType = getChecked('fpJobType');
+  panelFilterState.dept = getChecked('fpDept');
   panelFilterState.dateFrom = document.getElementById('fDateFrom').value || '';
   panelFilterState.dateTo = document.getElementById('fDateTo').value || '';
   closeFilterPanel({ target: { id: 'filterPanelOverlay' } });
   renderList();
 }
 
+// 簡易フィルタ切替
+function setQuickFilter(mode) {
+  quickFilterMode = mode;
+  const btnAll = document.getElementById('qfAll');
+  const btnActive = document.getElementById('qfActive');
+  if (btnAll && btnActive) {
+    if (mode === 'all') {
+      btnAll.style.background = '#5aaa8e'; btnAll.style.color = '#fff'; btnAll.style.fontWeight = '600';
+      btnActive.style.background = '#fff'; btnActive.style.color = '#666'; btnActive.style.fontWeight = '500';
+    } else {
+      btnActive.style.background = '#5aaa8e'; btnActive.style.color = '#fff'; btnActive.style.fontWeight = '600';
+      btnAll.style.background = '#fff'; btnAll.style.color = '#666'; btnAll.style.fontWeight = '500';
+    }
+  }
+  renderList();
+}
+
 // パネルの「クリア」 と 全てクリア
 function clearAllFilters() {
-  panelFilterState = { coreStatus:'', detailStatus:'', media:'', jobType:'', dept:'', dateFrom:'', dateTo:'' };
-  // パネルのUIもリセット
+  panelFilterState = { coreStatus:[], detailStatus:[], media:[], jobType:[], dept:[], dateFrom:'', dateTo:'' };
   ['fpCoreStatus','fpDetailStatus','fpMedia','fpJobType','fpDept'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.value = '';
+    const el = document.getElementById(id);
+    if (el) el.querySelectorAll('input:checked').forEach(c => c.checked = false);
   });
   const df = document.getElementById('fDateFrom'); if (df) df.value = '';
   const dt = document.getElementById('fDateTo');   if (dt) dt.value = '';
@@ -2740,9 +2764,9 @@ function removePanelFilter(key) {
     const df = document.getElementById('fDateFrom'); if (df) df.value = '';
     const dt = document.getElementById('fDateTo');   if (dt) dt.value = '';
   } else {
-    panelFilterState[key] = '';
+    panelFilterState[key] = [];
     const el = document.getElementById('fp' + key.charAt(0).toUpperCase() + key.slice(1));
-    if (el) el.value = '';
+    if (el) el.querySelectorAll('input:checked').forEach(c => c.checked = false);
   }
   renderList();
 }
@@ -2765,13 +2789,11 @@ function renderActiveFilterChips() {
     coreStatus: 'ステータス', detailStatus: '詳細', media: '媒体',
     jobType: '職種', dept: '部署'
   };
-  // コアステータスはIDから日本語名へ
-  const coreLabelMap = { applied:'応募', in_progress:'対応中', interview:'面接', hired:'採用', joined:'入社', resigned:'退職', other:'その他' };
+  const coreLabelMap = { applied:'応募', in_progress:'対応中', interview:'面接', hired:'採用', rejected:'不採用', joined:'入社', resigned:'退職', other:'その他' };
   Object.entries(panelFilterState).forEach(([key, val]) => {
     if (key === 'dateFrom' || key === 'dateTo') return;
-    if (!val) return;
-    let display = val;
-    if (key === 'coreStatus') display = coreLabelMap[val] || val;
+    if (!Array.isArray(val) || !val.length) return;
+    const display = key === 'coreStatus' ? val.map(v => coreLabelMap[v] || v).join(', ') : val.join(', ');
     chips.push(`<span class="fchip">${labels[key]}：${escapeHtml(display)}<span class="fchip-x" onclick="removePanelFilter('${key}')">×</span></span>`);
   });
   if (panelFilterState.dateFrom || panelFilterState.dateTo) {
@@ -2936,14 +2958,13 @@ function renderList() {
   buildDuplicateMap();
 
   const q = (document.getElementById('srch').value || '').toLowerCase();
-  // 新方式：パネル状態から取得
   const fDateFrom = panelFilterState.dateFrom || '';
   const fDateTo = panelFilterState.dateTo || '';
-  const fpCore = panelFilterState.coreStatus || '';
-  const fpDetail = panelFilterState.detailStatus || '';
-  const fpMedia = panelFilterState.media || '';
-  const fpJobType = panelFilterState.jobType || '';
-  const fpDept = panelFilterState.dept || '';
+  const fpCore = panelFilterState.coreStatus || [];
+  const fpDetail = panelFilterState.detailStatus || [];
+  const fpMedia = panelFilterState.media || [];
+  const fpJobType = panelFilterState.jobType || [];
+  const fpDept = panelFilterState.dept || [];
 
   // adminのクライアント絞り込み値
   const appClientFilter = isAdmin ? (document.getElementById('appClientFilter')?.value || '') : '';
@@ -2963,13 +2984,15 @@ function renderList() {
     }
   }
 
+  const INACTIVE_CORES = ['rejected', 'other'];
   let fil = applicants.filter(a => {
+    if (quickFilterMode === 'active' && INACTIVE_CORES.includes(a.coreStatusId || getCoreStatusId(a.status))) return false;
     if (q && !(a.name||'').toLowerCase().includes(q) && !(a.email||'').toLowerCase().includes(q)) return false;
-    if (fpCore && a.coreStatusId !== fpCore) return false;
-    if (fpDetail && a.status !== fpDetail) return false;
-    if (fpMedia && a.media !== fpMedia) return false;
-    if (fpJobType && a.jobType !== fpJobType) return false;
-    if (fpDept && a.dept !== fpDept) return false;
+    if (fpCore.length && !fpCore.includes(a.coreStatusId)) return false;
+    if (fpDetail.length && !fpDetail.includes(a.status)) return false;
+    if (fpMedia.length && !fpMedia.includes(a.media)) return false;
+    if (fpJobType.length && !fpJobType.includes(a.jobType)) return false;
+    if (fpDept.length && !fpDept.includes(a.dept)) return false;
     if (fDateFrom && a.appDate && a.appDate < fDateFrom) return false;
     if (fDateTo && a.appDate && a.appDate > fDateTo) return false;
     if (appClientFilter && a.clientId !== appClientFilter) return false;
@@ -3154,7 +3177,7 @@ function buildAppRowHTML(a) {
       <td>${a.media?`<span class="badge bb">${a.media}</span>`:''}</td>
       <td id="coreBadgeCell_${a.id}">${coreBadge}</td>
       <td onclick="event.stopPropagation()">
-        <select onchange="updateStatus('${a.id}', this.value)" style="padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;background:#fafafa;color:#1a1a1a;cursor:pointer;max-width:130px;" onclick="event.stopPropagation()">
+        <select onchange="updateStatus('${a.id}', this.value)" style="padding:3px 4px;border:1px solid #ddd;border-radius:6px;font-size:10px;font-family:inherit;background:#fafafa;color:#1a1a1a;cursor:pointer;width:100%;max-width:100%;" onclick="event.stopPropagation()">
           <option value="">-</option>
           ${(detailStatuses || []).map(d=>`<option value="${d.name}" ${a.status===d.name?'selected':''}>${d.name}</option>`).join('')}
         </select>
@@ -5893,7 +5916,7 @@ function buildMonthStats(data) {
     if (!a.appDate) return;
     const m = a.appDate.substring(0, 7);
     if (!stats[m]) {
-      stats[m] = { total: 0, applied: 0, in_progress: 0, interview: 0, hired: 0, joined: 0, resigned: 0, other: 0 };
+      stats[m] = { total: 0, applied: 0, in_progress: 0, interview: 0, rejected: 0, hired: 0, joined: 0, resigned: 0, other: 0 };
     }
     stats[m].total++;
     const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';

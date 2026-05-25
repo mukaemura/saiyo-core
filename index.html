@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
 <!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260522b">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260522b">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260522b">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260522b">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260522b">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260525a">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260525a">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260525a">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260525a">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260525a">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260522b">
+<link rel="stylesheet" href="css/style.css?v=20260525a">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -1560,7 +1560,7 @@
 
     <!-- ロゴ（カードより少し大きめに、幅いっぱい） -->
     <div style="text-align:center;margin-bottom:24px;">
-      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260522b" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
+      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260525a" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
     </div>
 
     <!-- ログインカード本体（少し狭め、中央寄せ） -->
@@ -1823,7 +1823,7 @@
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <!-- ロゴ＋プラットフォームサブテキスト -->
         <a href="#" onclick="goHome();return false;" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;cursor:pointer;" title="ホームに戻る">
-          <img src="assets/saiyo_mark.png?v=20260522b" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
+          <img src="assets/saiyo_mark.png?v=20260525a" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
           <div style="line-height:1;">
             <div style="font-size:14px;font-weight:600;color:#1a1a1a;">採用コア</div>
             <div style="font-size:9px;color:#888;letter-spacing:0.08em;margin-top:3px;">RECRUITING PLATFORM</div>
@@ -2205,6 +2205,11 @@
           <select id="appClientFilter" onchange="renderList()" style="display:none;padding:5px 9px;border:1.5px solid #378ADD;border-radius:8px;font-size:11px;font-family:inherit;background:#f0f6ff;color:#185FA5;font-weight:600;">
             <option value="">全クライアント</option>
           </select>
+          <!-- 簡易フィルタ：全て表示／アクティブのみ -->
+          <div id="quickFilterToggle" style="display:inline-flex;border:1px solid #ddd;border-radius:8px;overflow:hidden;font-size:11px;font-family:inherit;">
+            <button onclick="setQuickFilter('all')" id="qfAll" style="padding:5px 12px;border:none;background:#5aaa8e;color:#fff;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">全て表示</button>
+            <button onclick="setQuickFilter('active')" id="qfActive" style="padding:5px 12px;border:none;border-left:1px solid #ddd;background:#fff;color:#666;cursor:pointer;font-size:11px;font-family:inherit;font-weight:500;">アクティブのみ</button>
+          </div>
           <!-- 詳細絞り込みボタン -->
           <button id="filterPanelOpenBtn" onclick="openFilterPanel()" style="padding:6px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;display:inline-flex;align-items:center;gap:5px;">
             <span style="display:inline-block;width:12px;height:12px;">
@@ -2253,40 +2258,23 @@
           <div style="display:flex;flex-direction:column;gap:12px;flex:1;">
             <div>
               <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;">ステータス（コア）</label>
-              <select id="fpCoreStatus" style="width:100%;font-size:12px;padding:6px 10px;border:1px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-family:inherit;">
-                <option value="">全て</option>
-                <option value="applied">応募</option>
-                <option value="in_progress">対応中</option>
-                <option value="interview">面接</option>
-                <option value="hired">採用</option>
-                <option value="joined">入社</option>
-                <option value="resigned">退職</option>
-                <option value="other">その他</option>
-              </select>
+              <div id="fpCoreStatus" class="fp-check-list"></div>
             </div>
             <div>
               <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;">詳細ステータス</label>
-              <select id="fpDetailStatus" style="width:100%;font-size:12px;padding:6px 10px;border:1px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-family:inherit;">
-                <option value="">全て</option>
-              </select>
+              <div id="fpDetailStatus" class="fp-check-list"></div>
             </div>
             <div>
               <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;">媒体</label>
-              <select id="fpMedia" style="width:100%;font-size:12px;padding:6px 10px;border:1px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-family:inherit;">
-                <option value="">全て</option>
-              </select>
+              <div id="fpMedia" class="fp-check-list"></div>
             </div>
             <div>
               <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;">職種</label>
-              <select id="fpJobType" style="width:100%;font-size:12px;padding:6px 10px;border:1px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-family:inherit;">
-                <option value="">全て</option>
-              </select>
+              <div id="fpJobType" class="fp-check-list"></div>
             </div>
             <div>
               <label style="font-size:11px;color:#666;display:block;margin-bottom:4px;">部署</label>
-              <select id="fpDept" style="width:100%;font-size:12px;padding:6px 10px;border:1px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-family:inherit;">
-                <option value="">全て</option>
-              </select>
+              <div id="fpDept" class="fp-check-list"></div>
             </div>
             <div>
               <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
@@ -2309,21 +2297,21 @@
       <div class="tbl-wrap">
         <table>
           <thead><tr>
-  <th style="width:36px;"><input type="checkbox" id="checkAll" onclick="toggleCheckAll(this)" style="cursor:pointer;width:14px;height:14px;"></th>
-  <th onclick="quickSort('appDate')" style="cursor:pointer;">応募日 <span id="sort_appDate">↓</span></th>
-  <th onclick="quickSort('name')" style="cursor:pointer;">名前 <span id="sort_name"></span></th>
-  <th>求人番号</th>
-  <th>求人名称</th>
-  <th onclick="quickSort('jobType')" style="cursor:pointer;">職種 <span id="sort_jobType"></span></th>
-  <th onclick="quickSort('dept')" style="cursor:pointer;">部署 <span id="sort_dept"></span></th>
-  <th>メール</th>
-  <th>媒体</th>
-  <th>ステータス</th>
-  <th>詳細ステータス</th>
-  <th>面接日</th>
-  <th>メモ</th>
-  <th onclick="quickSort('updatedAt')" style="cursor:pointer;">更新 <span id="sort_updatedAt"></span></th>
-  <th></th>
+  <th style="width:2.5%;"><input type="checkbox" id="checkAll" onclick="toggleCheckAll(this)" style="cursor:pointer;width:14px;height:14px;"></th>
+  <th style="width:5.5%;cursor:pointer;" onclick="quickSort('appDate')">応募日 <span id="sort_appDate">↓</span></th>
+  <th style="width:6.5%;cursor:pointer;" onclick="quickSort('name')">名前 <span id="sort_name"></span></th>
+  <th style="width:4.5%;">求人番号</th>
+  <th style="width:10%;">求人名称</th>
+  <th style="width:7%;cursor:pointer;" onclick="quickSort('jobType')">職種 <span id="sort_jobType"></span></th>
+  <th style="width:5.5%;cursor:pointer;" onclick="quickSort('dept')">部署 <span id="sort_dept"></span></th>
+  <th style="width:9%;">メール</th>
+  <th style="width:4.5%;">媒体</th>
+  <th style="width:4.5%;">ステータス</th>
+  <th style="width:8.5%;">詳細ステータス</th>
+  <th style="width:5%;">面接日</th>
+  <th style="width:14%;">メモ</th>
+  <th style="width:5%;cursor:pointer;" onclick="quickSort('updatedAt')">更新 <span id="sort_updatedAt"></span></th>
+  <th style="width:8%;"></th>
 </tr></thead>
           <tbody id="listBody"></tbody>
         </table>
@@ -4088,10 +4076,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260522b"></script>
-<script src="js/app.js?v=20260522b"></script>
-<script src="js/paste-feature.js?v=20260522b"></script>
-<script src="js/email-feature.js?v=20260522b"></script>
-<script src="js/chip-feature.js?v=20260522b"></script>
+<script src="js/router.js?v=20260525a"></script>
+<script src="js/app.js?v=20260525a"></script>
+<script src="js/paste-feature.js?v=20260525a"></script>
+<script src="js/email-feature.js?v=20260525a"></script>
+<script src="js/chip-feature.js?v=20260525a"></script>
 </body>
 </html>

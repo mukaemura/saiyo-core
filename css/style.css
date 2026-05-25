@@ -52,6 +52,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .mf-panel label:hover{background:#f5f5f3;}
 .mf-panel label input{cursor:pointer;}
 
+/* 絞り込みパネル チェックリスト */
+.fp-check-list{border:1px solid #e4e8e7;border-radius:8px;background:#fafcfb;padding:4px;max-height:160px;overflow-y:auto;}
+.fp-check-list label{display:flex;align-items:center;gap:6px;font-size:11px;padding:4px 6px;border-radius:6px;cursor:pointer;color:#1a1a1a;}
+.fp-check-list label:hover{background:#f0f4f2;}
+.fp-check-list label input{cursor:pointer;width:13px;height:13px;flex-shrink:0;}
+.fp-check-list .fp-group-label{font-size:10px;color:#999;font-weight:600;padding:5px 4px 2px;letter-spacing:.04em;}
+
 /* フォーム */
 .fg{display:flex;flex-direction:column;gap:4px;}
 .fg label{font-size:11px;color:#666;font-weight:500;}
@@ -1427,105 +1434,19 @@ input.row-check {
 .te-row-del:hover { opacity: 0.7; }
 
 /* ============================================
- * 応募者一覧テーブル レイアウト修正（2026/05/05追加）
- * 求人名称が長文でも他列が縦書きにならないようにする
+ * 応募者一覧テーブル（table-layout:fixed で横スクロール解消）
+ * th の width% で列幅を制御。合計100%。
  * ============================================ */
-
-/* セクションをスコープにして、応募者一覧のテーブルだけを対象 */
 #sec-list .tbl-wrap table {
-  table-layout: auto;
-}
-
-/* 全セルを基本1行で固定（縦書き化を防ぐ） */
-#sec-list .tbl-wrap th,
-#sec-list .tbl-wrap td {
-  white-space: nowrap;
-  vertical-align: middle;
-}
-
-/* 求人名称セルだけ：省略表示＋ホバー全文 */
-/* 5列目：求人名称（th/td どちらにも適用） */
-#sec-list .tbl-wrap thead tr th:nth-child(5),
-#sec-list .tbl-wrap tbody tr td:nth-child(5) {
-  max-width: 240px;
-  min-width: 140px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 部署セルも長めの社名や部署名で崩れないようにmin-width設定 */
-#sec-list .tbl-wrap thead tr th:nth-child(7),
-#sec-list .tbl-wrap tbody tr td:nth-child(7) {
-  min-width: 90px;
-}
-
-/* 横スクロールが必要になったときに、ヘッダーとボディが揃うように */
-#sec-list .tbl-wrap {
-  overflow-x: auto;
-}
-
-/* 詳細パネル展開行は別構造なので影響を受けないようガード */
-#sec-list .tbl-wrap td.dp-row,
-#sec-list .tbl-wrap tr.dp-row td {
-  white-space: normal;
-}
-
-/* ============================================
- * 応募者一覧 横幅最大化＋列幅最適化（2026/05/06）
- * ============================================ */
-
-/* 応募者一覧の幅は .app の1600px統一に追従（個別指定は不要） */
-
-/* テーブルのフォントを少しコンパクトに */
-#sec-list .tbl-wrap {
-  overflow-x: auto;
-}
-#sec-list .tbl-wrap table {
+  table-layout: fixed;
+  width: 100%;
   font-size: 11px;
-  table-layout: auto;
 }
 #sec-list .tbl-wrap th,
 #sec-list .tbl-wrap td {
-  padding: 6px 8px;
+  padding: 6px 6px;
   white-space: nowrap;
   vertical-align: middle;
-}
-
-/* 求人名称セル（5列目）：省略＋ホバー全文 */
-#sec-list .tbl-wrap thead tr th:nth-child(5),
-#sec-list .tbl-wrap tbody tr td:nth-child(5) {
-  max-width: 220px;
-  min-width: 100px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 職種列（6列目）：省略＋ホバー全文（求人名称と同じ220px） */
-#sec-list .tbl-wrap thead tr th:nth-child(6),
-#sec-list .tbl-wrap tbody tr td:nth-child(6) {
-  max-width: 220px;
-  min-width: 100px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 部署列（7列目）：省略 */
-#sec-list .tbl-wrap thead tr th:nth-child(7),
-#sec-list .tbl-wrap tbody tr td:nth-child(7) {
-  max-width: 130px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* メール列（8列目）：適度な幅で省略＋クリック可能 */
-#sec-list .tbl-wrap thead tr th:nth-child(8),
-#sec-list .tbl-wrap tbody tr td:nth-child(8) {
-  max-width: 180px;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -1536,32 +1457,15 @@ input.row-check {
   text-overflow: ellipsis;
   vertical-align: middle;
 }
-
-/* メモ列（13列目）：省略＋ホバー全文 */
-#sec-list .tbl-wrap thead tr th:nth-child(13),
-#sec-list .tbl-wrap tbody tr td:nth-child(13) {
-  max-width: 240px;
-  min-width: 100px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: #666;
-}
 #sec-list .tbl-wrap td.list-col-memo {
   font-size: 10.5px;
   font-style: italic;
+  color: #666;
 }
-
-/* 名前列（3列目）：適度な幅 */
-#sec-list .tbl-wrap thead tr th:nth-child(3),
-#sec-list .tbl-wrap tbody tr td:nth-child(3) {
-  max-width: 160px;
-}
-
-/* 詳細パネル展開行は別 */
 #sec-list .tbl-wrap td.dp-row,
 #sec-list .tbl-wrap tr.dp-row td {
   white-space: normal;
+  overflow: visible;
 }
 
 /* ============================================
