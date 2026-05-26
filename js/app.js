@@ -971,6 +971,7 @@ async function startApp() {
     await loadDetailStatuses();
     loadAnnouncement();
     loadEmailNotifications();
+    startEmailNotifPolling();
     // Phase C-1：担当者リストを先にロード（応募者一覧の担当列で使用）
     // adminも全クライアントの担当者を読む（RLSで自動的に admin=全件、client=自社のみ）
     try { await loadStaff(); } catch(e) { console.warn('[startApp] loadStaff失敗', e); }
@@ -9263,6 +9264,12 @@ const EMAIL_NOTIF_LINKS = {
 };
 
 const EMAIL_NOTIF_CLIENTS = ['muak047@gmail.com'];
+let _emailNotifTimer = null;
+
+function startEmailNotifPolling() {
+  if (_emailNotifTimer) return;
+  _emailNotifTimer = setInterval(loadEmailNotifications, 5 * 60 * 1000);
+}
 
 async function loadEmailNotifications() {
   const area = document.getElementById('emailNotifArea');
