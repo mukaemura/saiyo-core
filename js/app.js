@@ -8011,7 +8011,8 @@ function getIvCalInterviews() {
   applicants.forEach(a => {
     (a.interviews || []).forEach(iv => {
       if (!iv.scheduled_at) return;
-      list.push({ applicantId: a.id, name: a.name || '', type: iv.interview_type === 'other' ? (iv.type_other || 'その他') : (iv.interview_type || '面接'), result: iv.result || 'pending', date: iv.scheduled_at.slice(0, 10), time: iv.scheduled_at.length > 10 ? iv.scheduled_at.slice(11, 16) : '', clientId: a.clientId });
+      const ivType = iv.interview_type === 'other' ? (iv.type_other || 'その他') : (iv.interview_type || '面接');
+      list.push({ applicantId: a.id, name: a.name || '', type: ivType, result: iv.result || 'pending', date: iv.scheduled_at.slice(0, 10), time: iv.scheduled_at.length > 10 ? iv.scheduled_at.slice(11, 16) : '', clientId: a.clientId, gender: a.gender || '', isCasual: CASUAL_INTERVIEW_TYPES.includes(iv.interview_type) });
     });
   });
   return list;
@@ -8065,9 +8066,14 @@ function renderIvCal() {
         dayItems.forEach(iv => {
           const rs = ivResultStyle(iv.result);
           const timeStr = iv.time ? `<span style="font-size:9px;color:#888;">${iv.time}</span> ` : '';
-          html += `<div onclick="openApplicantEdit('${iv.applicantId}')" style="background:${rs.bg};border-left:3px solid ${rs.color};border-radius:6px;padding:5px 7px;margin-bottom:4px;cursor:pointer;transition:box-shadow .15s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow='none'">`;
+          const gStr = String(iv.gender || '').trim();
+          let gBorder = rs.color;
+          if (gStr === '男' || gStr === '男性' || /^m(ale)?$/i.test(gStr)) gBorder = '#378ADD';
+          else if (gStr === '女' || gStr === '女性' || /^f(emale)?$/i.test(gStr)) gBorder = '#D4537E';
+          const typeColor = iv.isCasual ? '#27AE60' : rs.color;
+          html += `<div onclick="openApplicantEdit('${iv.applicantId}')" style="background:${rs.bg};border-left:3px solid ${gBorder};border-radius:6px;padding:5px 7px;margin-bottom:4px;cursor:pointer;transition:box-shadow .15s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow='none'">`;
           html += `<div>${timeStr}<span style="font-size:11px;font-weight:600;color:#1a1a1a;">${esc(iv.name)}</span></div>`;
-          html += `<div style="font-size:9.5px;color:${rs.color};font-weight:500;margin-top:2px;">${esc(iv.type)} ・ ${rs.label}</div>`;
+          html += `<div style="font-size:9.5px;color:${typeColor};font-weight:500;margin-top:2px;">${esc(iv.type)} ・ ${rs.label}</div>`;
           html += `</div>`;
         });
       }
@@ -8114,7 +8120,12 @@ function renderIvCal() {
         show.forEach(iv => {
           const rs = ivResultStyle(iv.result);
           const shortType = (iv.type || '').replace('面接', '').replace('面談', '') || '面接';
-          html += `<div onclick="openApplicantEdit('${iv.applicantId}')" style="font-size:9.5px;padding:2px 4px;margin-bottom:2px;border-radius:4px;background:${rs.bg};color:${rs.color};cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:2px solid ${rs.color};" title="${esc(iv.name)} ${esc(iv.type)}">${esc(iv.name)} <span style="font-weight:600;">${esc(shortType)}</span></div>`;
+          const gStr = String(iv.gender || '').trim();
+          let gBorder = rs.color;
+          if (gStr === '男' || gStr === '男性' || /^m(ale)?$/i.test(gStr)) gBorder = '#378ADD';
+          else if (gStr === '女' || gStr === '女性' || /^f(emale)?$/i.test(gStr)) gBorder = '#D4537E';
+          const typeColor = iv.isCasual ? '#27AE60' : rs.color;
+          html += `<div onclick="openApplicantEdit('${iv.applicantId}')" style="font-size:9.5px;padding:2px 4px;margin-bottom:2px;border-radius:4px;background:${rs.bg};color:${typeColor};cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:2px solid ${gBorder};" title="${esc(iv.name)} ${esc(iv.type)}">${esc(iv.name)} <span style="font-weight:600;">${esc(shortType)}</span></div>`;
         });
         if (dayItems.length > 3) {
           html += `<div style="font-size:9px;color:#888;padding:1px 4px;">+${dayItems.length - 3}件</div>`;
@@ -10079,7 +10090,8 @@ async function ensureTimelineForExistingApplicants() {
 // ========================================
 
 // 面接種別の選択肢（標準）
-const INTERVIEW_TYPES = ['1次面接', '2次面接', '3次面接', '最終面接', 'カジュアル面談', '役員面接', 'その他'];
+const INTERVIEW_TYPES = ['1次面接', '2次面接', '3次面接', '最終面接', 'カジュアル面談', '役員面接', '紹介先面接', 'その他'];
+const CASUAL_INTERVIEW_TYPES = ['カジュアル面談'];
 
 // 面接結果の選択肢
 const INTERVIEW_RESULTS = [
@@ -10268,16 +10280,26 @@ function renderInterviewsUI() {
       上の「＋ 面接を追加」から登録してください。
     </div>`;
   } else {
-    html += items.map(iv => buildInterviewCardHTML(iv)).join('');
+    const editApp = editId ? applicants.find(x => x.id === editId) : null;
+    const appGender = editApp ? String(editApp.gender || '').trim() : '';
+    html += items.map(iv => buildInterviewCardHTML(iv, appGender)).join('');
   }
 
   container.innerHTML = html;
 }
 
-function buildInterviewCardHTML(iv) {
+function buildInterviewCardHTML(iv, appGender) {
   const esc = escapeHtml;
   const typeLabel = iv.interview_type === 'その他' ? (iv.type_other || 'その他') : (iv.interview_type || '面接');
   const result = getInterviewResultMeta(iv.result || 'pending');
+  const isCasual = CASUAL_INTERVIEW_TYPES.includes(iv.interview_type);
+  const typeBadgeColor = isCasual ? '#27AE60' : '#9B59B6';
+  const typeBadgeBg = isCasual ? '#27AE601f' : '#9B59B61f';
+  const typeBadgeBorder = isCasual ? '#27AE6040' : '#9B59B640';
+  let genderBorderColor = '#e4e8e7';
+  const g = appGender || '';
+  if (g === '男' || g === '男性' || /^m(ale)?$/i.test(g)) genderBorderColor = '#378ADD';
+  else if (g === '女' || g === '女性' || /^f(emale)?$/i.test(g)) genderBorderColor = '#D4537E';
   // 日時
   let scheduledDisp = '日程未定';
   let scheduledStyle = 'color:#aaa;font-style:italic;';
@@ -10321,10 +10343,10 @@ function buildInterviewCardHTML(iv) {
   ` : '';
 
   return `
-    <div style="background:#fff;border:${cardBorder};border-radius:10px;padding:14px;margin-bottom:10px;">
+    <div style="background:#fff;border:${cardBorder};border-left:4px solid ${genderBorderColor};border-radius:10px;padding:14px;margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:10px;flex-wrap:wrap;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <span style="background:#9B59B61f;color:#9B59B6;border:1px solid #9B59B640;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;">${esc(typeLabel)}</span>
+          <span style="background:${typeBadgeBg};color:${typeBadgeColor};border:1px solid ${typeBadgeBorder};padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;">${esc(typeLabel)}</span>
           <span style="font-size:13px;font-weight:600;color:#1a1a1a;${scheduledStyle}">${esc(scheduledDisp)}</span>
         </div>
         <span style="background:${result.bg};color:${result.color};padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;">${esc(result.name)}</span>
