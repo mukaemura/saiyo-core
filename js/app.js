@@ -970,6 +970,7 @@ async function startApp() {
     await loadMasters();
     await loadDetailStatuses();
     loadAnnouncement();
+    loadEmailNotifications();
     // Phase C-1：担当者リストを先にロード（応募者一覧の担当列で使用）
     // adminも全クライアントの担当者を読む（RLSで自動的に admin=全件、client=自社のみ）
     try { await loadStaff(); } catch(e) { console.warn('[startApp] loadStaff失敗', e); }
@@ -9253,6 +9254,68 @@ function dismissAnnouncement() {
   if (bar) bar.style.display = 'none';
 }
 
+// ========================================
+// メール通知機能
+// ========================================
+const EMAIL_NOTIF_LINKS = {
+  jobop: { label: 'ジョブオプで確認する', url: 'https://ats.jobop.jp/ats/login/' },
+  jobcore: { label: 'JOBこあスプシで確認する', url: 'https://docs.google.com/spreadsheets/d/1nL9tTO3RZRt1hfnWvpINkprvh50na4CQ1itYEz5ieXw/edit?gid=145560069#gid=145560069' }
+};
+
+const EMAIL_NOTIF_CLIENTS = ['muak047@gmail.com'];
+
+async function loadEmailNotifications() {
+  const area = document.getElementById('emailNotifArea');
+  if (!area) return;
+  if (!EMAIL_NOTIF_CLIENTS.includes(currentClientId)) { area.style.display = 'none'; return; }
+  try {
+    const { data, error } = await sb
+      .from('email_notifications')
+      .select('*')
+      .eq('client_id', currentClientId)
+      .eq('dismissed', false)
+      .order('received_at', { ascending: false });
+    if (error) { console.warn('[emailNotif]', error); return; }
+    if (!data || data.length === 0) {
+      area.style.display = 'none';
+      area.innerHTML = '';
+      return;
+    }
+    area.style.display = 'block';
+    area.innerHTML = data.map(n => {
+      const link = EMAIL_NOTIF_LINKS[n.source] || EMAIL_NOTIF_LINKS.jobop;
+      const dt = n.received_at ? new Date(n.received_at).toLocaleString('ja-JP', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+      return `<div class="email-notif-card" id="emailNotif_${n.id}">
+        <div class="email-notif-icon">📩</div>
+        <div class="email-notif-body">
+          <div class="email-notif-subject">${escapeHtml(n.subject)}</div>
+          <div class="email-notif-meta">From: ${escapeHtml(n.sender)}　／　受信: ${dt}</div>
+          <div class="email-notif-actions">
+            <a href="${link.url}" target="_blank" rel="noopener" class="email-notif-link">🔗 ${link.label}</a>
+            <button class="email-notif-dismiss" onclick="dismissEmailNotif('${n.id}')">✓ 確認した</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { console.warn('[emailNotif]', e); }
+}
+
+async function dismissEmailNotif(id) {
+  try {
+    await sb.from('email_notifications').update({ dismissed: true, dismissed_at: new Date().toISOString() }).eq('id', id);
+    const card = document.getElementById('emailNotif_' + id);
+    if (card) {
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(-8px)';
+      setTimeout(() => {
+        card.remove();
+        const area = document.getElementById('emailNotifArea');
+        if (area && !area.querySelector('.email-notif-card')) area.style.display = 'none';
+      }, 250);
+    }
+  } catch(e) { alert('通知の更新に失敗しました'); }
+}
+
 function togglePwVisible(rowId) {
   const mask = document.getElementById('pwMask_' + rowId);
   const real = document.getElementById('pwReal_' + rowId);
@@ -11782,6 +11845,8 @@ if (typeof window !== 'undefined') {
   window.contactForUpgrade = contactForUpgrade;
   window.renderModeQuickStats = renderModeQuickStats;
   window.updateStaffAvatar = updateStaffAvatar;
+  window.dismissEmailNotif = dismissEmailNotif;
+  window.loadEmailNotifications = loadEmailNotifications;
   // 上記以外の関数は function宣言により既にグローバルだが、
   // 万一のミニファイ等に備えて主要関数も明示しておく
 }

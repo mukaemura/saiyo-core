@@ -1875,3 +1875,70 @@ input.row-check {
   h2 { font-size: 14px !important; }
   h3 { font-size: 13px !important; }
 }
+
+/* ========================================
+   メール通知カード
+   ======================================== */
+#emailNotifArea {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0;
+}
+.email-notif-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #EDE7F6;
+  border: 1px solid #CE93D8;
+  border-radius: 8px;
+  padding: 10px 14px;
+  transition: opacity 0.25s, transform 0.25s;
+}
+.email-notif-icon {
+  font-size: 18px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+.email-notif-body {
+  flex: 1;
+  min-width: 0;
+}
+.email-notif-subject {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4A148C;
+  margin-bottom: 2px;
+}
+.email-notif-meta {
+  font-size: 11px;
+  color: #7B1FA2;
+  margin-bottom: 6px;
+}
+.email-notif-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.email-notif-link {
+  font-size: 12px;
+  color: #6A1B9A;
+  text-decoration: none;
+  font-weight: 500;
+}
+.email-notif-link:hover {
+  text-decoration: underline;
+}
+.email-notif-dismiss {
+  font-size: 11px;
+  background: #7B1FA2;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-weight: 500;
+}
+.email-notif-dismiss:hover {
+  background: #6A1B9A;
+}
