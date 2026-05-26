@@ -9289,7 +9289,10 @@ async function loadEmailNotifications() {
       return;
     }
     area.style.display = 'block';
-    area.innerHTML = data.map(n => {
+    const MAX_SHOW = 3;
+    const visible = data.slice(0, MAX_SHOW);
+    const remaining = data.length - MAX_SHOW;
+    let html = visible.map(n => {
       const link = EMAIL_NOTIF_LINKS[n.source] || EMAIL_NOTIF_LINKS.jobop;
       const dt = n.received_at ? new Date(n.received_at).toLocaleString('ja-JP', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
       return `<div class="email-notif-card" id="emailNotif_${n.id}">
@@ -9304,6 +9307,13 @@ async function loadEmailNotifications() {
         </div>
       </div>`;
     }).join('');
+    if (remaining > 0) {
+      html += `<div class="email-notif-overflow">
+        <span>他 ${remaining}件 の通知があります</span>
+        <button class="email-notif-dismiss-all" onclick="dismissAllEmailNotif()">一括確認</button>
+      </div>`;
+    }
+    area.innerHTML = html;
   } catch(e) { console.warn('[emailNotif]', e); }
 }
 
@@ -9317,10 +9327,19 @@ async function dismissEmailNotif(id) {
       setTimeout(() => {
         card.remove();
         const area = document.getElementById('emailNotifArea');
-        if (area && !area.querySelector('.email-notif-card')) area.style.display = 'none';
+        if (area && !area.querySelector('.email-notif-card') && !area.querySelector('.email-notif-overflow')) area.style.display = 'none';
       }, 250);
     }
   } catch(e) { alert('通知の更新に失敗しました'); }
+}
+
+async function dismissAllEmailNotif() {
+  if (!confirm('未確認の通知をすべて確認済みにしますか？')) return;
+  try {
+    await sb.from('email_notifications').update({ dismissed: true, dismissed_at: new Date().toISOString() }).eq('client_id', currentClientId).eq('dismissed', false);
+    const area = document.getElementById('emailNotifArea');
+    if (area) { area.style.display = 'none'; area.innerHTML = ''; }
+  } catch(e) { alert('一括確認に失敗しました'); }
 }
 
 function togglePwVisible(rowId) {
@@ -11853,6 +11872,7 @@ if (typeof window !== 'undefined') {
   window.renderModeQuickStats = renderModeQuickStats;
   window.updateStaffAvatar = updateStaffAvatar;
   window.dismissEmailNotif = dismissEmailNotif;
+  window.dismissAllEmailNotif = dismissAllEmailNotif;
   window.loadEmailNotifications = loadEmailNotifications;
   // 上記以外の関数は function宣言により既にグローバルだが、
   // 万一のミニファイ等に備えて主要関数も明示しておく
