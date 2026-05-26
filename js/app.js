@@ -8035,6 +8035,22 @@ function renderIvCal() {
 
   if (ivCalView === 'week') {
     const base = new Date(ivCalBaseDate);
+    const dowTmp = base.getDay();
+    const monTmp = new Date(base); monTmp.setDate(base.getDate() - ((dowTmp + 6) % 7));
+    const weekDays = [];
+    for (let wi = 0; wi < 7; wi++) { const wd = new Date(monTmp); wd.setDate(monTmp.getDate() + wi); weekDays.push(wd.toISOString().slice(0, 10)); }
+    const weekCount = all.filter(iv => weekDays.includes(iv.date)).length;
+    const countEl = document.getElementById('ivCalCount');
+    if (countEl) countEl.textContent = weekCount > 0 ? weekCount + '件' : '';
+  } else {
+    const ym = ivCalBaseDate.getFullYear() + '-' + String(ivCalBaseDate.getMonth() + 1).padStart(2, '0');
+    const monthCount = all.filter(iv => iv.date.slice(0, 7) === ym).length;
+    const countEl = document.getElementById('ivCalCount');
+    if (countEl) countEl.textContent = monthCount > 0 ? monthCount + '件' : '';
+  }
+
+  if (ivCalView === 'week') {
+    const base = new Date(ivCalBaseDate);
     const dow = base.getDay();
     const mon = new Date(base); mon.setDate(base.getDate() - ((dow + 6) % 7));
     const days = [];
@@ -8125,7 +8141,7 @@ function renderIvCal() {
           if (gStr === '男' || gStr === '男性' || /^m(ale)?$/i.test(gStr)) gBorder = '#378ADD';
           else if (gStr === '女' || gStr === '女性' || /^f(emale)?$/i.test(gStr)) gBorder = '#D4537E';
           const typeColor = iv.isCasual ? '#27AE60' : rs.color;
-          html += `<div onclick="openApplicantEdit('${iv.applicantId}')" style="font-size:9.5px;padding:2px 4px;margin-bottom:2px;border-radius:4px;background:${rs.bg};color:${typeColor};cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:2px solid ${gBorder};" title="${esc(iv.name)} ${esc(iv.type)}">${esc(iv.name)} <span style="font-weight:600;">${esc(shortType)}</span></div>`;
+          html += `<div onclick="openApplicantEdit('${iv.applicantId}')" style="font-size:9.5px;padding:2px 4px;margin-bottom:2px;border-radius:4px;background:${rs.bg};color:${typeColor};cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid ${gBorder};" title="${esc(iv.name)} ${esc(iv.type)}">${esc(iv.name)} <span style="font-weight:600;">${esc(shortType)}</span></div>`;
         });
         if (dayItems.length > 3) {
           html += `<div style="font-size:9px;color:#888;padding:1px 4px;">+${dayItems.length - 3}件</div>`;
