@@ -10827,7 +10827,8 @@ function renderCalIvForm() {
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
       <button onclick="closeCalInterviewModal()" style="padding:7px 14px;border:1px solid #ddd;background:#fff;color:#666;border-radius:7px;font-size:12px;font-family:inherit;cursor:pointer;">キャンセル</button>
-      <button onclick="submitCalInterview()" style="padding:7px 16px;background:#5aaa8e;color:#fff;border:none;border-radius:7px;font-size:12px;font-family:inherit;font-weight:600;cursor:pointer;">登録する</button>
+      <button onclick="submitCalInterview(true)" style="padding:7px 16px;background:#fff;color:#5aaa8e;border:1.5px solid #5aaa8e;border-radius:7px;font-size:12px;font-family:inherit;font-weight:600;cursor:pointer;">＋ 続けて登録</button>
+      <button onclick="submitCalInterview(false)" style="padding:7px 16px;background:#5aaa8e;color:#fff;border:none;border-radius:7px;font-size:12px;font-family:inherit;font-weight:600;cursor:pointer;">登録する</button>
     </div>
   `;
   _calIvDate = '';
@@ -10912,7 +10913,7 @@ function renderCalIvMiniCal() {
   el.innerHTML = html;
 }
 
-async function submitCalInterview() {
+async function submitCalInterview(continueMode) {
   if (!_calIvSelectedAppId) { alert('応募者を選択してください'); return; }
   const typeSel = document.getElementById('calIvType').value;
   const typeOther = (document.getElementById('calIvTypeOther').value || '').trim();
@@ -10940,19 +10941,30 @@ async function submitCalInterview() {
   const { data: ins, error } = await sb.from('interviews').insert(row).select().single();
   if (error) { alert('登録に失敗しました: ' + error.message); return; }
 
-  // 応募者のinterviews配列を更新
   if (a) { a.interviews = (a.interviews || []).concat([ins]); }
 
-  // タイムライン記録
   try {
     const typeLabel = typeSel === 'その他' ? (typeOther || 'その他') : typeSel;
     const dateLabel = scheduledAt ? new Date(scheduledAt).toLocaleString('ja-JP', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '日程未定';
     await recordEvent(_calIvSelectedAppId, 'interview_created', '面接登録：' + typeLabel, '日時：' + dateLabel, { interview_id: ins.id });
   } catch(e) { console.warn('[calIv] timeline記録失敗', e); }
 
-  closeCalInterviewModal();
   renderIvCal();
   setStatus('面接を登録しました', 'ok');
+
+  if (continueMode) {
+    _calIvSelectedAppId = null;
+    const search = document.getElementById('calIvSearch');
+    if (search) search.value = '';
+    const sel = document.getElementById('calIvSelectedApp');
+    if (sel) sel.textContent = '';
+    const results = document.getElementById('calIvSearchResults');
+    if (results) { results.style.display = 'none'; results.innerHTML = ''; }
+    renderCalIvForm();
+    setTimeout(() => { if (search) search.focus(); }, 100);
+  } else {
+    closeCalInterviewModal();
+  }
 }
 
 // 旧関数の互換性維持
