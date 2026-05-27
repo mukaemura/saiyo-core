@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
 <!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260527b">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260527b">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260527b">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260527b">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260527b">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260527c">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260527c">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260527c">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260527c">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260527c">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260527b">
+<link rel="stylesheet" href="css/style.css?v=20260527c">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -1560,7 +1560,7 @@
 
     <!-- ロゴ（カードより少し大きめに、幅いっぱい） -->
     <div style="text-align:center;margin-bottom:24px;">
-      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260527b" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
+      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260527c" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
     </div>
 
     <!-- ログインカード本体（少し狭め、中央寄せ） -->
@@ -1823,7 +1823,7 @@
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <!-- ロゴ＋プラットフォームサブテキスト -->
         <a href="#" onclick="goHome();return false;" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;cursor:pointer;" title="ホームに戻る">
-          <img src="assets/saiyo_mark.png?v=20260527b" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
+          <img src="assets/saiyo_mark.png?v=20260527c" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
           <div style="line-height:1;">
             <div style="font-size:14px;font-weight:600;color:#1a1a1a;">採用コア</div>
             <div style="font-size:9px;color:#888;letter-spacing:0.08em;margin-top:3px;">RECRUITING PLATFORM</div>
@@ -2358,6 +2358,7 @@
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:1rem;">
         <h2 style="font-size:14px;font-weight:700;margin:0;">📋 面接管理</h2>
         <span id="ivCalCount" style="font-size:15px;color:#9B59B6;font-weight:700;"></span>
+        <button onclick="openCalInterviewModal()" style="padding:6px 14px;background:#5aaa8e;color:#fff;border:none;border-radius:7px;font-size:12px;font-family:inherit;font-weight:600;cursor:pointer;">＋ 新規面接登録</button>
         <div style="display:flex;border:1px solid #ddd;border-radius:8px;overflow:hidden;font-size:11px;margin-left:auto;">
           <button id="ivCalWeekBtn" onclick="setIvCalView('week')" style="padding:5px 12px;border:none;background:#9B59B6;color:#fff;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">週間</button>
           <button id="ivCalMonthBtn" onclick="setIvCalView('month')" style="padding:5px 12px;border:none;border-left:1px solid #ddd;background:#fff;color:#666;cursor:pointer;font-size:11px;font-family:inherit;font-weight:500;">月間</button>
@@ -2370,6 +2371,21 @@
         </div>
       </div>
       <div id="ivCalBody"></div>
+    </div>
+
+    <!-- 面接管理：新規面接登録モーダル -->
+    <div id="calIvModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;overflow-y:auto;" onclick="if(event.target===this)closeCalInterviewModal()">
+      <div style="background:#fff;max-width:560px;margin:40px auto;border-radius:14px;padding:20px 24px;box-shadow:0 12px 40px rgba(0,0,0,.15);position:relative;">
+        <button onclick="closeCalInterviewModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:18px;color:#999;cursor:pointer;">×</button>
+        <h3 style="font-size:14px;font-weight:700;margin:0 0 14px;">新規面接登録</h3>
+        <div style="margin-bottom:12px;">
+          <div style="font-size:11px;color:#666;margin-bottom:4px;">応募者を選択 <span style="color:#e85a5a;">*</span></div>
+          <input id="calIvSearch" type="text" placeholder="名前で検索..." oninput="onCalIvSearch(this.value)" autocomplete="off" style="width:100%;padding:8px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;">
+          <div id="calIvSearchResults" style="max-height:150px;overflow-y:auto;border:1px solid #e4e8e7;border-top:none;border-radius:0 0 6px 6px;display:none;"></div>
+          <div id="calIvSelectedApp" style="margin-top:6px;font-size:13px;font-weight:600;color:#9B59B6;min-height:20px;"></div>
+        </div>
+        <div id="calIvFormBody"></div>
+      </div>
     </div>
 
     <!-- スケジュール（Phase E） -->
@@ -4131,10 +4147,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260527b"></script>
-<script src="js/app.js?v=20260527b"></script>
-<script src="js/paste-feature.js?v=20260527b"></script>
-<script src="js/email-feature.js?v=20260527b"></script>
-<script src="js/chip-feature.js?v=20260527b"></script>
+<script src="js/router.js?v=20260527c"></script>
+<script src="js/app.js?v=20260527c"></script>
+<script src="js/paste-feature.js?v=20260527c"></script>
+<script src="js/email-feature.js?v=20260527c"></script>
+<script src="js/chip-feature.js?v=20260527c"></script>
 </body>
 </html>

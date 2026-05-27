@@ -10608,6 +10608,261 @@ function ivMiniCalNav(dir) {
   renderIvMiniCal();
 }
 
+// ========================================
+// 面接管理カレンダーからの新規面接登録
+// ========================================
+let _calIvSelectedAppId = null;
+
+function openCalInterviewModal() {
+  _calIvSelectedAppId = null;
+  const modal = document.getElementById('calIvModal');
+  if (!modal) return;
+  modal.style.display = 'block';
+  const search = document.getElementById('calIvSearch');
+  if (search) { search.value = ''; }
+  const results = document.getElementById('calIvSearchResults');
+  if (results) { results.style.display = 'none'; results.innerHTML = ''; }
+  const sel = document.getElementById('calIvSelectedApp');
+  if (sel) sel.textContent = '';
+  renderCalIvForm();
+  setTimeout(() => { if (search) search.focus(); }, 100);
+}
+
+function closeCalInterviewModal() {
+  const modal = document.getElementById('calIvModal');
+  if (modal) modal.style.display = 'none';
+  _calIvSelectedAppId = null;
+}
+
+function onCalIvSearch(query) {
+  const results = document.getElementById('calIvSearchResults');
+  if (!results) return;
+  const q = (query || '').trim().toLowerCase();
+  if (!q) { results.style.display = 'none'; results.innerHTML = ''; return; }
+  const matched = applicants.filter(a => {
+    const name = (a.name || '').toLowerCase();
+    const kana = (a.kana || '').toLowerCase();
+    return name.includes(q) || kana.includes(q);
+  }).slice(0, 10);
+  if (!matched.length) {
+    results.style.display = 'block';
+    results.innerHTML = '<div style="padding:8px 10px;font-size:11px;color:#aaa;">該当なし</div>';
+    return;
+  }
+  results.style.display = 'block';
+  results.innerHTML = matched.map(a => {
+    const g = String(a.gender || '').trim();
+    let gColor = '#888';
+    if (g === '男' || g === '男性') gColor = '#378ADD';
+    else if (g === '女' || g === '女性') gColor = '#D4537E';
+    const statusName = a.status || '';
+    return `<div onclick="selectCalIvApplicant('${a.id}')" style="padding:7px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid #f0f0ee;display:flex;align-items:center;gap:8px;" onmouseover="this.style.background='#f5f5f2'" onmouseout="this.style.background='#fff'">
+      <span style="font-weight:600;">${escapeHtml(a.name || '')}</span>
+      <span style="font-size:10px;color:${gColor};">${escapeHtml(g)}</span>
+      <span style="font-size:10px;color:#aaa;margin-left:auto;">${escapeHtml(statusName)}</span>
+    </div>`;
+  }).join('');
+}
+
+function selectCalIvApplicant(appId) {
+  const a = applicants.find(x => x.id === appId);
+  if (!a) return;
+  _calIvSelectedAppId = appId;
+  const sel = document.getElementById('calIvSelectedApp');
+  if (sel) sel.textContent = '✓ ' + (a.name || '');
+  const results = document.getElementById('calIvSearchResults');
+  if (results) { results.style.display = 'none'; }
+  const search = document.getElementById('calIvSearch');
+  if (search) search.value = a.name || '';
+}
+
+function renderCalIvForm() {
+  const body = document.getElementById('calIvFormBody');
+  if (!body) return;
+  const esc = escapeHtml;
+  body.innerHTML = `
+    <div style="font-size:11px;color:#666;margin-bottom:6px;">面接種別 <span style="color:#e85a5a;">*</span></div>
+    <div id="calIvTypeChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+      ${INTERVIEW_TYPES.filter(t => t !== 'その他').map(t => {
+        const isCas = CASUAL_INTERVIEW_TYPES.includes(t);
+        return `<button type="button" class="cal-iv-chip" data-value="${esc(t)}" onclick="selectCalIvTypeChip(this)" style="padding:6px 14px;border-radius:20px;font-size:12px;font-family:inherit;font-weight:500;cursor:pointer;border:1.5px solid ${isCas ? '#27AE6040' : '#9B59B640'};background:#fff;color:#666;transition:all .15s;">${esc(t)}</button>`;
+      }).join('')}
+      <button type="button" class="cal-iv-chip" data-value="その他" onclick="selectCalIvTypeChip(this)" style="padding:6px 14px;border-radius:20px;font-size:12px;font-family:inherit;font-weight:500;cursor:pointer;border:1.5px solid #ddd;background:#fff;color:#666;transition:all .15s;">その他</button>
+    </div>
+    <input id="calIvTypeOther" type="text" placeholder="種別を入力..." style="display:none;width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;margin-bottom:12px;">
+    <input type="hidden" id="calIvType" value="1次面接">
+
+    <div style="font-size:11px;color:#666;margin-bottom:6px;">形式</div>
+    <div id="calIvFormatChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+      <button type="button" class="cal-iv-fmt" data-value="" onclick="selectCalIvFmtChip(this)" style="padding:6px 14px;border-radius:20px;font-size:12px;font-family:inherit;font-weight:500;cursor:pointer;border:1.5px solid #ddd;background:#fff;color:#666;">未指定</button>
+      ${INTERVIEW_FORMATS.map(f => `<button type="button" class="cal-iv-fmt" data-value="${f.id}" onclick="selectCalIvFmtChip(this)" style="padding:6px 14px;border-radius:20px;font-size:12px;font-family:inherit;font-weight:500;cursor:pointer;border:1.5px solid #ddd;background:#fff;color:#666;">${esc(f.name)}</button>`).join('')}
+    </div>
+    <input type="hidden" id="calIvFormat" value="">
+
+    <div style="font-size:11px;color:#666;margin-bottom:6px;">日時</div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;">
+      <div><div id="calIvMiniCal" style="background:#fff;border:1px solid #e4e8e7;border-radius:8px;padding:8px;width:240px;"></div></div>
+      <div style="flex:1;min-width:140px;">
+        <div style="font-size:10px;color:#888;margin-bottom:6px;">時間を選択</div>
+        <div id="calIvTimeChips" style="display:flex;flex-wrap:wrap;gap:5px;">
+          ${['9:00','9:30','10:00','10:30','11:00','11:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00','17:30','18:00','18:30','19:00'].map(t => `<button type="button" class="cal-iv-time" data-value="${t}" onclick="selectCalIvTime(this)" style="padding:4px 9px;border-radius:6px;font-size:11px;font-family:inherit;cursor:pointer;border:1px solid #e4e8e7;background:#fff;color:#555;">${t}</button>`).join('')}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:8px;">
+          <span style="font-size:10px;color:#888;">その他:</span>
+          <select id="calIvTimeHour" onchange="onCalIvCustomTime()" style="padding:4px 6px;border:1px solid #e4e8e7;border-radius:6px;font-size:12px;font-family:inherit;background:#fff;">
+            <option value="">--</option>
+            ${Array.from({length:24}, (_,i) => `<option value="${i}">${String(i).padStart(2,'0')}</option>`).join('')}
+          </select>
+          <span style="font-size:13px;font-weight:600;color:#666;">:</span>
+          <select id="calIvTimeMin" onchange="onCalIvCustomTime()" style="padding:4px 6px;border:1px solid #e4e8e7;border-radius:6px;font-size:12px;font-family:inherit;background:#fff;">
+            <option value="">--</option>
+            ${['00','15','30','45'].map(m => `<option value="${m}">${m}</option>`).join('')}
+          </select>
+        </div>
+        <div id="calIvDateTime" style="font-size:12px;color:#9B59B6;font-weight:600;margin-top:8px;min-height:18px;"></div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-bottom:10px;">
+      <div>
+        <div style="font-size:11px;color:#666;margin-bottom:4px;">場所 / URL</div>
+        <input id="calIvLocation" type="text" placeholder="本社会議室 or Zoom URL" style="width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;">
+      </div>
+      <div>
+        <div style="font-size:11px;color:#666;margin-bottom:4px;">メモ</div>
+        <input id="calIvMemo" type="text" placeholder="メモ..." style="width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+      <button onclick="closeCalInterviewModal()" style="padding:7px 14px;border:1px solid #ddd;background:#fff;color:#666;border-radius:7px;font-size:12px;font-family:inherit;cursor:pointer;">キャンセル</button>
+      <button onclick="submitCalInterview()" style="padding:7px 16px;background:#5aaa8e;color:#fff;border:none;border-radius:7px;font-size:12px;font-family:inherit;font-weight:600;cursor:pointer;">登録する</button>
+    </div>
+  `;
+  _calIvDate = '';
+  _calIvTime = '';
+  _calIvCalMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  renderCalIvMiniCal();
+  const defaultChip = document.querySelector('#calIvTypeChips .cal-iv-chip[data-value="1次面接"]');
+  if (defaultChip) selectCalIvTypeChip(defaultChip);
+}
+
+// モーダル用チップ選択
+function selectCalIvTypeChip(btn) {
+  const val = btn.dataset.value;
+  document.getElementById('calIvType').value = val;
+  document.querySelectorAll('#calIvTypeChips .cal-iv-chip').forEach(b => { b.style.background = '#fff'; b.style.color = '#666'; b.style.fontWeight = '500'; });
+  const isCas = CASUAL_INTERVIEW_TYPES.includes(val);
+  btn.style.background = val === 'その他' ? '#888' : isCas ? '#27AE60' : '#9B59B6';
+  btn.style.color = '#fff'; btn.style.fontWeight = '600';
+  const other = document.getElementById('calIvTypeOther');
+  if (val === 'その他') { other.style.display = ''; other.focus(); }
+  else { other.style.display = 'none'; other.value = ''; }
+}
+function selectCalIvFmtChip(btn) {
+  document.getElementById('calIvFormat').value = btn.dataset.value;
+  document.querySelectorAll('#calIvFormatChips .cal-iv-fmt').forEach(b => { b.style.background = '#fff'; b.style.color = '#666'; b.style.fontWeight = '500'; });
+  btn.style.background = '#5aaa8e'; btn.style.color = '#fff'; btn.style.fontWeight = '600';
+}
+
+let _calIvDate = '', _calIvTime = '', _calIvCalMonth = null;
+function selectCalIvTime(btn) {
+  _calIvTime = btn.dataset.value;
+  document.querySelectorAll('#calIvTimeChips .cal-iv-time').forEach(b => { b.style.background = '#fff'; b.style.color = '#555'; b.style.borderColor = '#e4e8e7'; b.style.fontWeight = '400'; });
+  btn.style.background = '#9B59B6'; btn.style.color = '#fff'; btn.style.borderColor = '#9B59B6'; btn.style.fontWeight = '600';
+  updateCalIvDateTime();
+}
+function onCalIvCustomTime() {
+  const h = document.getElementById('calIvTimeHour').value;
+  const m = document.getElementById('calIvTimeMin').value;
+  if (h === '' || m === '') return;
+  _calIvTime = String(h).padStart(2,'0') + ':' + m;
+  document.querySelectorAll('#calIvTimeChips .cal-iv-time').forEach(b => { b.style.background = '#fff'; b.style.color = '#555'; b.style.borderColor = '#e4e8e7'; b.style.fontWeight = '400'; });
+  updateCalIvDateTime();
+}
+function updateCalIvDateTime() {
+  const el = document.getElementById('calIvDateTime');
+  if (_calIvDate && _calIvTime) { if (el) el.textContent = _calIvDate.replace(/-/g,'/') + ' ' + _calIvTime; }
+  else if (_calIvDate) { if (el) el.textContent = _calIvDate.replace(/-/g,'/') + ' （時間未選択）'; }
+  else { if (el) el.textContent = ''; }
+}
+function selectCalIvDate(ds) { _calIvDate = ds; renderCalIvMiniCal(); updateCalIvDateTime(); }
+function calIvMiniCalNav(dir) { _calIvCalMonth.setMonth(_calIvCalMonth.getMonth() + dir); renderCalIvMiniCal(); }
+
+function renderCalIvMiniCal() {
+  const el = document.getElementById('calIvMiniCal');
+  if (!el) return;
+  const now = new Date();
+  if (!_calIvCalMonth) _calIvCalMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const y = _calIvCalMonth.getFullYear(), m = _calIvCalMonth.getMonth();
+  const fd = new Date(y, m, 1).getDay();
+  const dim = new Date(y, m+1, 0).getDate();
+  const startOffset = (fd + 6) % 7;
+  const today = now.toISOString().slice(0,10);
+  const dayNames = ['月','火','水','木','金','土','日'];
+  let html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">';
+  html += '<button type="button" onclick="calIvMiniCalNav(-1)" style="border:none;background:none;cursor:pointer;font-size:14px;padding:2px 6px;">◀</button>';
+  html += '<span style="font-size:12px;font-weight:600;">' + y + '年' + (m+1) + '月</span>';
+  html += '<button type="button" onclick="calIvMiniCalNav(1)" style="border:none;background:none;cursor:pointer;font-size:14px;padding:2px 6px;">▶</button></div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;text-align:center;">';
+  dayNames.forEach((dn,i) => { const c = i===5?'#1565C0':i===6?'#C62828':'#555'; html += '<div style="font-size:10px;font-weight:600;color:'+c+';padding:3px 0;">'+dn+'</div>'; });
+  const totalCells = Math.ceil((startOffset+dim)/7)*7;
+  for (let i=0;i<totalCells;i++) {
+    const day = i-startOffset+1;
+    if (day<1||day>dim) { html += '<div></div>'; continue; }
+    const ds = y+'-'+String(m+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+    const isToday = ds===today, isSel = ds===_calIvDate;
+    let bg='transparent',fg='#333',border='transparent';
+    if (isSel) { bg='#9B59B6'; fg='#fff'; border='#9B59B6'; }
+    else if (isToday) { bg='#F3E5F5'; fg='#9B59B6'; border='#9B59B6'; }
+    html += '<div onclick="selectCalIvDate(\''+ds+'\')" style="cursor:pointer;padding:4px 0;border-radius:50%;margin:1px auto;width:28px;height:28px;line-height:28px;font-size:12px;font-weight:'+(isSel||isToday?'700':'400')+';background:'+bg+';color:'+fg+';border:1px solid '+border+';">'+day+'</div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+async function submitCalInterview() {
+  if (!_calIvSelectedAppId) { alert('応募者を選択してください'); return; }
+  const typeSel = document.getElementById('calIvType').value;
+  const typeOther = (document.getElementById('calIvTypeOther').value || '').trim();
+  if (typeSel === 'その他' && !typeOther) { alert('「その他」選択時は種別を入力してください'); return; }
+  const format = document.getElementById('calIvFormat').value;
+  const location = (document.getElementById('calIvLocation').value || '').trim();
+  const memo = (document.getElementById('calIvMemo').value || '').trim();
+  let scheduledAt = null;
+  if (_calIvDate && _calIvTime) scheduledAt = new Date(_calIvDate + 'T' + _calIvTime.padStart(5,'0')).toISOString();
+  else if (_calIvDate) scheduledAt = new Date(_calIvDate + 'T00:00').toISOString();
+
+  const a = applicants.find(x => x.id === _calIvSelectedAppId);
+  const cid = a ? a.clientId : currentClientId;
+  const row = {
+    applicant_id: _calIvSelectedAppId,
+    client_id: cid,
+    interview_type: typeSel,
+    type_other: typeSel === 'その他' ? typeOther : null,
+    scheduled_at: scheduledAt,
+    format: format || null,
+    location: location || null,
+    memo: memo || null,
+    result: 'pending'
+  };
+  const { data: ins, error } = await sb.from('interviews').insert(row).select().single();
+  if (error) { alert('登録に失敗しました: ' + error.message); return; }
+
+  // 応募者のinterviews配列を更新
+  if (a) { a.interviews = (a.interviews || []).concat([ins]); }
+
+  // タイムライン記録
+  try {
+    const typeLabel = typeSel === 'その他' ? (typeOther || 'その他') : typeSel;
+    const dateLabel = scheduledAt ? new Date(scheduledAt).toLocaleString('ja-JP', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '日程未定';
+    await recordEvent(_calIvSelectedAppId, 'interview_created', '面接登録：' + typeLabel, '日時：' + dateLabel, { interview_id: ins.id });
+  } catch(e) { console.warn('[calIv] timeline記録失敗', e); }
+
+  closeCalInterviewModal();
+  renderIvCal();
+  setStatus('面接を登録しました', 'ok');
+}
+
 // 旧関数の互換性維持
 function onIvTypeChange() {}
 
@@ -12074,6 +12329,17 @@ if (typeof window !== 'undefined') {
   window.selectIvDate = selectIvDate;
   window.ivMiniCalNav = ivMiniCalNav;
   window.onIvCustomTimeChange = onIvCustomTimeChange;
+  window.openCalInterviewModal = openCalInterviewModal;
+  window.closeCalInterviewModal = closeCalInterviewModal;
+  window.onCalIvSearch = onCalIvSearch;
+  window.selectCalIvApplicant = selectCalIvApplicant;
+  window.selectCalIvTypeChip = selectCalIvTypeChip;
+  window.selectCalIvFmtChip = selectCalIvFmtChip;
+  window.selectCalIvTime = selectCalIvTime;
+  window.onCalIvCustomTime = onCalIvCustomTime;
+  window.selectCalIvDate = selectCalIvDate;
+  window.calIvMiniCalNav = calIvMiniCalNav;
+  window.submitCalInterview = submitCalInterview;
   // 上記以外の関数は function宣言により既にグローバルだが、
   // 万一のミニファイ等に備えて主要関数も明示しておく
 }
