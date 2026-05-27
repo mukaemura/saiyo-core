@@ -2658,6 +2658,7 @@ let panelFilterState = {
   media: [],
   jobType: [],
   dept: [],
+  staff: [],
   dateFrom: '',
   dateTo: ''
 };
@@ -2717,6 +2718,13 @@ function populateFilterPanelChecks() {
   renderChecks('fpMedia', fieldItems('media'), panelFilterState.media);
   renderChecks('fpJobType', fieldItems('jobType'), panelFilterState.jobType);
   renderChecks('fpDept', fieldItems('dept'), panelFilterState.dept);
+  // 担当者
+  const staffItems = (staffList || [])
+    .filter(s => s.is_active !== false)
+    .map(s => ({ value: String(s.id), label: s.name || '' }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'ja'));
+  const staffWithUnassigned = [{ value: '__none__', label: '担当者なし' }, ...staffItems];
+  renderChecks('fpStaff', staffWithUnassigned, panelFilterState.staff);
 }
 
 // パネルの「適用」
@@ -2727,6 +2735,7 @@ function applyFilterPanel() {
   panelFilterState.media = getChecked('fpMedia');
   panelFilterState.jobType = getChecked('fpJobType');
   panelFilterState.dept = getChecked('fpDept');
+  panelFilterState.staff = getChecked('fpStaff');
   panelFilterState.dateFrom = document.getElementById('fDateFrom').value || '';
   panelFilterState.dateTo = document.getElementById('fDateTo').value || '';
   closeFilterPanel({ target: { id: 'filterPanelOverlay' } });
@@ -2793,13 +2802,19 @@ function renderActiveFilterChips() {
   const chips = [];
   const labels = {
     coreStatus: 'ステータス', detailStatus: '詳細', media: '媒体',
-    jobType: '職種', dept: '部署'
+    jobType: '職種', dept: '部署', staff: '担当者'
   };
   const coreLabelMap = { applied:'応募', in_progress:'対応中', interview:'面接', hired:'採用', rejected:'不採用', joined:'入社', resigned:'退職', other:'その他' };
+  const staffLabelMap = {};
+  (staffList || []).forEach(s => { staffLabelMap[String(s.id)] = s.name || ''; });
+  staffLabelMap['__none__'] = '担当者なし';
   Object.entries(panelFilterState).forEach(([key, val]) => {
     if (key === 'dateFrom' || key === 'dateTo') return;
     if (!Array.isArray(val) || !val.length) return;
-    const display = key === 'coreStatus' ? val.map(v => coreLabelMap[v] || v).join(', ') : val.join(', ');
+    let display;
+    if (key === 'coreStatus') display = val.map(v => coreLabelMap[v] || v).join(', ');
+    else if (key === 'staff') display = val.map(v => staffLabelMap[v] || v).join(', ');
+    else display = val.join(', ');
     chips.push(`<span class="fchip">${labels[key]}：${escapeHtml(display)}<span class="fchip-x" onclick="removePanelFilter('${key}')">×</span></span>`);
   });
   if (panelFilterState.dateFrom || panelFilterState.dateTo) {
@@ -3029,6 +3044,7 @@ function renderList() {
   const fpMedia = panelFilterState.media || [];
   const fpJobType = panelFilterState.jobType || [];
   const fpDept = panelFilterState.dept || [];
+  const fpStaff = panelFilterState.staff || [];
 
   // adminのクライアント絞り込み値
   const appClientFilter = isAdmin ? (document.getElementById('appClientFilter')?.value || '') : '';
@@ -3059,6 +3075,14 @@ function renderList() {
     if (fpMedia.length && !fpMedia.includes(a.media)) return false;
     if (fpJobType.length && !fpJobType.includes(a.jobType)) return false;
     if (fpDept.length && !fpDept.includes(a.dept)) return false;
+    if (fpStaff.length) {
+      const ids = (a.staffIds || []).map(String);
+      const wantNone = fpStaff.includes('__none__');
+      const wantIds = fpStaff.filter(x => x !== '__none__');
+      const matchNone = wantNone && ids.length === 0;
+      const matchId = wantIds.length > 0 && wantIds.some(sid => ids.includes(sid));
+      if (!matchNone && !matchId) return false;
+    }
     if (fDateFrom && a.appDate && a.appDate < fDateFrom) return false;
     if (fDateTo && a.appDate && a.appDate > fDateTo) return false;
     if (appClientFilter && a.clientId !== appClientFilter) return false;
