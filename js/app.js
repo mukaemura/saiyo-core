@@ -10246,26 +10246,53 @@ function renderInterviewsUI() {
       </button>
       <div id="ivForm" style="display:none;background:#fafcfb;border:1.5px solid #cee0d8;border-radius:10px;padding:16px;">
         <div id="ivFormTitle" style="font-size:13px;font-weight:600;color:#1a1a1a;margin-bottom:12px;">面接を追加</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;">
+
+        <div style="font-size:11px;color:#666;margin-bottom:6px;">面接種別 <span style="color:#e85a5a;">*</span></div>
+        <div id="ivTypeChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+          ${INTERVIEW_TYPES.filter(t => t !== 'その他').map(t => {
+            const isCas = CASUAL_INTERVIEW_TYPES.includes(t);
+            return `<button type="button" class="iv-chip" data-value="${escapeHtml(t)}" onclick="selectIvTypeChip(this)" style="padding:6px 14px;border-radius:20px;font-size:12px;font-family:inherit;font-weight:500;cursor:pointer;border:1.5px solid ${isCas ? '#27AE6040' : '#9B59B640'};background:#fff;color:#666;transition:all .15s;">${escapeHtml(t)}</button>`;
+          }).join('')}
+          <button type="button" class="iv-chip" data-value="その他" onclick="selectIvTypeChip(this)" style="padding:6px 14px;border-radius:20px;font-size:12px;font-family:inherit;font-weight:500;cursor:pointer;border:1.5px solid #ddd;background:#fff;color:#666;transition:all .15s;">その他</button>
+        </div>
+        <input id="ivTypeOther" type="text" placeholder="種別を入力..." style="display:none;width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;margin-bottom:12px;">
+        <input type="hidden" id="ivType" value="1次面接">
+
+        <div style="font-size:11px;color:#666;margin-bottom:6px;">形式</div>
+        <div id="ivFormatChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+          <button type="button" class="iv-fmt-chip" data-value="" onclick="selectIvFormatChip(this)" style="padding:6px 14px;border-radius:20px;font-size:12px;font-family:inherit;font-weight:500;cursor:pointer;border:1.5px solid #ddd;background:#fff;color:#666;transition:all .15s;">未指定</button>
+          ${INTERVIEW_FORMATS.map(f => `<button type="button" class="iv-fmt-chip" data-value="${f.id}" onclick="selectIvFormatChip(this)" style="padding:6px 14px;border-radius:20px;font-size:12px;font-family:inherit;font-weight:500;cursor:pointer;border:1.5px solid #ddd;background:#fff;color:#666;transition:all .15s;">${escapeHtml(f.name)}</button>`).join('')}
+        </div>
+        <input type="hidden" id="ivFormat" value="">
+
+        <div style="font-size:11px;color:#666;margin-bottom:6px;">日時</div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;">
           <div>
-            <div style="font-size:11px;color:#666;margin-bottom:4px;">面接種別 <span style="color:#e85a5a;">*</span></div>
-            <select id="ivType" onchange="onIvTypeChange()" style="width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;">
-              ${INTERVIEW_TYPES.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}
-            </select>
-            <input id="ivTypeOther" type="text" placeholder="種別を入力..." style="display:none;width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;margin-top:6px;">
+            <div id="ivMiniCal" style="background:#fff;border:1px solid #e4e8e7;border-radius:8px;padding:8px;width:240px;"></div>
           </div>
-          <div>
-            <div style="font-size:11px;color:#666;margin-bottom:4px;">日時</div>
-            <input id="ivScheduledAt" type="datetime-local" style="width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;">
-            <div style="font-size:10px;color:#aaa;margin-top:3px;">空欄なら「日程未定」</div>
+          <div style="flex:1;min-width:140px;">
+            <div style="font-size:10px;color:#888;margin-bottom:6px;">時間を選択</div>
+            <div id="ivTimeChips" style="display:flex;flex-wrap:wrap;gap:5px;">
+              ${['9:00','9:30','10:00','10:30','11:00','11:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00','17:30','18:00','18:30','19:00'].map(t => `<button type="button" class="iv-time-chip" data-value="${t}" onclick="selectIvTimeChip(this)" style="padding:4px 9px;border-radius:6px;font-size:11px;font-family:inherit;cursor:pointer;border:1px solid #e4e8e7;background:#fff;color:#555;transition:all .15s;">${t}</button>`).join('')}
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:8px;">
+              <span style="font-size:10px;color:#888;">その他:</span>
+              <select id="ivTimeHour" onchange="onIvCustomTimeChange()" style="padding:4px 6px;border:1px solid #e4e8e7;border-radius:6px;font-size:12px;font-family:inherit;background:#fff;">
+                <option value="">--</option>
+                ${Array.from({length:24}, (_,i) => `<option value="${i}">${String(i).padStart(2,'0')}</option>`).join('')}
+              </select>
+              <span style="font-size:13px;font-weight:600;color:#666;">:</span>
+              <select id="ivTimeMin" onchange="onIvCustomTimeChange()" style="padding:4px 6px;border:1px solid #e4e8e7;border-radius:6px;font-size:12px;font-family:inherit;background:#fff;">
+                <option value="">--</option>
+                ${['00','15','30','45'].map(m => `<option value="${m}">${m}</option>`).join('')}
+              </select>
+            </div>
+            <div id="ivSelectedDateTime" style="font-size:12px;color:#9B59B6;font-weight:600;margin-top:8px;min-height:18px;"></div>
           </div>
-          <div>
-            <div style="font-size:11px;color:#666;margin-bottom:4px;">形式</div>
-            <select id="ivFormat" style="width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;">
-              <option value="">未指定</option>
-              ${INTERVIEW_FORMATS.map(f => `<option value="${f.id}">${f.name}</option>`).join('')}
-            </select>
-          </div>
+        </div>
+        <input type="hidden" id="ivScheduledAt" value="">
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-bottom:10px;">
           <div>
             <div style="font-size:11px;color:#666;margin-bottom:4px;">場所 / URL</div>
             <input id="ivLocation" type="text" placeholder="本社会議室 or Zoom URL" style="width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;">
@@ -10276,7 +10303,6 @@ function renderInterviewsUI() {
               ${INTERVIEW_RESULTS.map(r => `<option value="${r.id}">${r.name}</option>`).join('')}
             </select>
           </div>
-          <div></div>
           <div style="grid-column:1/-1;">
             <div style="font-size:11px;color:#666;margin-bottom:4px;">メモ</div>
             <textarea id="ivMemo" placeholder="面接の感想や引き継ぎ事項..." style="width:100%;min-height:60px;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;resize:vertical;"></textarea>
@@ -10388,51 +10414,60 @@ function toggleInterviewForm(show, ivId) {
     form.style.display = 'block';
     if (titleEl) titleEl.textContent = ivId ? '面接を編集' : '面接を追加';
     // フォームのリセット or 既存値ロード
+    _ivSelectedDate = '';
+    _ivSelectedTime = '';
+    _ivCalMonth = null;
+
     if (ivId) {
       const iv = currentInterviews.find(x => String(x.id) === String(ivId));
       if (iv) {
-        document.getElementById('ivType').value = INTERVIEW_TYPES.includes(iv.interview_type) ? iv.interview_type : 'その他';
-        const ivOther = document.getElementById('ivTypeOther');
-        if (iv.interview_type === 'その他' || !INTERVIEW_TYPES.includes(iv.interview_type)) {
-          ivOther.style.display = '';
-          ivOther.value = iv.type_other || iv.interview_type || '';
-        } else {
-          ivOther.style.display = 'none';
-          ivOther.value = '';
+        const typeVal = INTERVIEW_TYPES.includes(iv.interview_type) ? iv.interview_type : 'その他';
+        document.getElementById('ivType').value = typeVal;
+        const typeChip = document.querySelector('#ivTypeChips .iv-chip[data-value="' + typeVal + '"]');
+        if (typeChip) selectIvTypeChip(typeChip);
+        if (typeVal === 'その他' || !INTERVIEW_TYPES.includes(iv.interview_type)) {
+          document.getElementById('ivTypeOther').style.display = '';
+          document.getElementById('ivTypeOther').value = iv.type_other || iv.interview_type || '';
         }
-        // datetime-local 形式（YYYY-MM-DDTHH:mm）に変換
         if (iv.scheduled_at) {
           const d = new Date(iv.scheduled_at);
           if (!isNaN(d.getTime())) {
-            const y = d.getFullYear();
-            const m = String(d.getMonth()+1).padStart(2,'0');
-            const day = String(d.getDate()).padStart(2,'0');
+            _ivSelectedDate = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
             const hh = String(d.getHours()).padStart(2,'0');
             const mm = String(d.getMinutes()).padStart(2,'0');
-            document.getElementById('ivScheduledAt').value = `${y}-${m}-${day}T${hh}:${mm}`;
-          } else {
-            document.getElementById('ivScheduledAt').value = '';
+            _ivSelectedTime = hh + ':' + mm;
+            _ivCalMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+            const timeChip = document.querySelector('#ivTimeChips .iv-time-chip[data-value="' + _ivSelectedTime + '"]');
+            if (timeChip) selectIvTimeChip(timeChip);
           }
-        } else {
-          document.getElementById('ivScheduledAt').value = '';
         }
-        document.getElementById('ivFormat').value = iv.format || '';
+        updateIvDateTime();
+        const fmtVal = iv.format || '';
+        document.getElementById('ivFormat').value = fmtVal;
+        const fmtChip = document.querySelector('#ivFormatChips .iv-fmt-chip[data-value="' + fmtVal + '"]');
+        if (fmtChip) selectIvFormatChip(fmtChip);
         document.getElementById('ivLocation').value = iv.location || '';
         document.getElementById('ivResult').value = iv.result || 'pending';
         document.getElementById('ivMemo').value = iv.memo || '';
       }
     } else {
-      // 新規モード：フォームクリア
       document.getElementById('ivType').value = '1次面接';
-      const ivOther = document.getElementById('ivTypeOther');
-      ivOther.style.display = 'none';
-      ivOther.value = '';
+      document.getElementById('ivTypeOther').style.display = 'none';
+      document.getElementById('ivTypeOther').value = '';
       document.getElementById('ivScheduledAt').value = '';
       document.getElementById('ivFormat').value = '';
       document.getElementById('ivLocation').value = '';
       document.getElementById('ivResult').value = 'pending';
       document.getElementById('ivMemo').value = '';
+      document.querySelectorAll('#ivTypeChips .iv-chip').forEach(b => { b.style.background = '#fff'; b.style.color = '#666'; b.style.fontWeight = '500'; });
+      const defaultChip = document.querySelector('#ivTypeChips .iv-chip[data-value="1次面接"]');
+      if (defaultChip) selectIvTypeChip(defaultChip);
+      document.querySelectorAll('#ivFormatChips .iv-fmt-chip').forEach(b => { b.style.background = '#fff'; b.style.color = '#666'; b.style.fontWeight = '500'; });
+      document.querySelectorAll('#ivTimeChips .iv-time-chip').forEach(b => { b.style.background = '#fff'; b.style.color = '#555'; b.style.borderColor = '#e4e8e7'; b.style.fontWeight = '400'; });
+      const selDt = document.getElementById('ivSelectedDateTime');
+      if (selDt) selDt.textContent = '';
     }
+    renderIvMiniCal();
     form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } else {
     btn.style.display = 'block';
@@ -10441,19 +10476,140 @@ function toggleInterviewForm(show, ivId) {
   }
 }
 
-// 「その他」選択時に自由記述欄を表示
-function onIvTypeChange() {
-  const sel = document.getElementById('ivType');
+// 面接種別チップ選択
+function selectIvTypeChip(btn) {
+  const val = btn.dataset.value;
+  document.getElementById('ivType').value = val;
+  document.querySelectorAll('#ivTypeChips .iv-chip').forEach(b => {
+    b.style.background = '#fff';
+    b.style.color = '#666';
+    b.style.fontWeight = '500';
+  });
+  const isCas = CASUAL_INTERVIEW_TYPES.includes(val);
+  const isOther = val === 'その他';
+  btn.style.background = isOther ? '#888' : isCas ? '#27AE60' : '#9B59B6';
+  btn.style.color = '#fff';
+  btn.style.fontWeight = '600';
   const other = document.getElementById('ivTypeOther');
-  if (!sel || !other) return;
-  if (sel.value === 'その他') {
-    other.style.display = '';
-    other.focus();
+  if (isOther) { other.style.display = ''; other.focus(); }
+  else { other.style.display = 'none'; other.value = ''; }
+}
+
+// 形式チップ選択
+function selectIvFormatChip(btn) {
+  document.getElementById('ivFormat').value = btn.dataset.value;
+  document.querySelectorAll('#ivFormatChips .iv-fmt-chip').forEach(b => {
+    b.style.background = '#fff';
+    b.style.color = '#666';
+    b.style.fontWeight = '500';
+  });
+  btn.style.background = '#5aaa8e';
+  btn.style.color = '#fff';
+  btn.style.fontWeight = '600';
+}
+
+// 時間チップ選択
+let _ivSelectedDate = '';
+let _ivSelectedTime = '';
+
+function selectIvTimeChip(btn) {
+  _ivSelectedTime = btn.dataset.value;
+  document.querySelectorAll('#ivTimeChips .iv-time-chip').forEach(b => {
+    b.style.background = '#fff';
+    b.style.color = '#555';
+    b.style.borderColor = '#e4e8e7';
+    b.style.fontWeight = '400';
+  });
+  btn.style.background = '#9B59B6';
+  btn.style.color = '#fff';
+  btn.style.borderColor = '#9B59B6';
+  btn.style.fontWeight = '600';
+  updateIvDateTime();
+}
+
+function onIvCustomTimeChange() {
+  const h = document.getElementById('ivTimeHour').value;
+  const m = document.getElementById('ivTimeMin').value;
+  if (h === '' || m === '') return;
+  _ivSelectedTime = String(h).padStart(2, '0') + ':' + m;
+  document.querySelectorAll('#ivTimeChips .iv-time-chip').forEach(b => {
+    b.style.background = '#fff'; b.style.color = '#555'; b.style.borderColor = '#e4e8e7'; b.style.fontWeight = '400';
+  });
+  const matchChip = document.querySelector('#ivTimeChips .iv-time-chip[data-value="' + _ivSelectedTime + '"]');
+  if (matchChip) { matchChip.style.background = '#9B59B6'; matchChip.style.color = '#fff'; matchChip.style.borderColor = '#9B59B6'; matchChip.style.fontWeight = '600'; }
+  updateIvDateTime();
+}
+
+function updateIvDateTime() {
+  const display = document.getElementById('ivSelectedDateTime');
+  const hidden = document.getElementById('ivScheduledAt');
+  if (_ivSelectedDate && _ivSelectedTime) {
+    hidden.value = _ivSelectedDate + 'T' + _ivSelectedTime.padStart(5, '0');
+    if (display) display.textContent = _ivSelectedDate.replace(/-/g, '/') + ' ' + _ivSelectedTime;
+  } else if (_ivSelectedDate) {
+    hidden.value = _ivSelectedDate + 'T00:00';
+    if (display) display.textContent = _ivSelectedDate.replace(/-/g, '/') + ' （時間未選択）';
   } else {
-    other.style.display = 'none';
-    other.value = '';
+    hidden.value = '';
+    if (display) display.textContent = '';
   }
 }
+
+// ミニカレンダー
+let _ivCalMonth = null;
+
+function renderIvMiniCal(targetDate) {
+  const el = document.getElementById('ivMiniCal');
+  if (!el) return;
+  const now = new Date();
+  if (!_ivCalMonth) _ivCalMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const y = _ivCalMonth.getFullYear(), m = _ivCalMonth.getMonth();
+  const fd = new Date(y, m, 1).getDay();
+  const dim = new Date(y, m + 1, 0).getDate();
+  const startOffset = (fd + 6) % 7;
+  const today = now.toISOString().slice(0, 10);
+  const dayNames = ['月','火','水','木','金','土','日'];
+
+  let html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">';
+  html += '<button type="button" onclick="ivMiniCalNav(-1)" style="border:none;background:none;cursor:pointer;font-size:14px;padding:2px 6px;">◀</button>';
+  html += '<span style="font-size:12px;font-weight:600;">' + y + '年' + (m+1) + '月</span>';
+  html += '<button type="button" onclick="ivMiniCalNav(1)" style="border:none;background:none;cursor:pointer;font-size:14px;padding:2px 6px;">▶</button>';
+  html += '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;text-align:center;">';
+  dayNames.forEach((dn, i) => {
+    const c = i === 5 ? '#1565C0' : i === 6 ? '#C62828' : '#555';
+    html += '<div style="font-size:10px;font-weight:600;color:' + c + ';padding:3px 0;">' + dn + '</div>';
+  });
+  const totalCells = Math.ceil((startOffset + dim) / 7) * 7;
+  for (let i = 0; i < totalCells; i++) {
+    const day = i - startOffset + 1;
+    const valid = day >= 1 && day <= dim;
+    if (!valid) { html += '<div></div>'; continue; }
+    const ds = y + '-' + String(m+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+    const isToday = ds === today;
+    const isSelected = ds === _ivSelectedDate;
+    let bg = 'transparent', fg = '#333', border = 'transparent';
+    if (isSelected) { bg = '#9B59B6'; fg = '#fff'; border = '#9B59B6'; }
+    else if (isToday) { bg = '#F3E5F5'; fg = '#9B59B6'; border = '#9B59B6'; }
+    html += '<div onclick="selectIvDate(\'' + ds + '\')" style="cursor:pointer;padding:4px 0;border-radius:50%;margin:1px auto;width:28px;height:28px;line-height:28px;font-size:12px;font-weight:' + (isSelected || isToday ? '700' : '400') + ';background:' + bg + ';color:' + fg + ';border:1px solid ' + border + ';">' + day + '</div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function selectIvDate(ds) {
+  _ivSelectedDate = ds;
+  renderIvMiniCal();
+  updateIvDateTime();
+}
+
+function ivMiniCalNav(dir) {
+  _ivCalMonth.setMonth(_ivCalMonth.getMonth() + dir);
+  renderIvMiniCal();
+}
+
+// 旧関数の互換性維持
+function onIvTypeChange() {}
 
 // 面接を保存（新規 or 編集）
 async function submitInterview() {
@@ -11912,6 +12068,12 @@ if (typeof window !== 'undefined') {
   window.dismissEmailNotif = dismissEmailNotif;
   window.dismissAllEmailNotif = dismissAllEmailNotif;
   window.loadEmailNotifications = loadEmailNotifications;
+  window.selectIvTypeChip = selectIvTypeChip;
+  window.selectIvFormatChip = selectIvFormatChip;
+  window.selectIvTimeChip = selectIvTimeChip;
+  window.selectIvDate = selectIvDate;
+  window.ivMiniCalNav = ivMiniCalNav;
+  window.onIvCustomTimeChange = onIvCustomTimeChange;
   // 上記以外の関数は function宣言により既にグローバルだが、
   // 万一のミニファイ等に備えて主要関数も明示しておく
 }
