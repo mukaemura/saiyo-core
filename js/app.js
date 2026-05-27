@@ -1683,7 +1683,7 @@ function showSec(s) {
   if (secEl) secEl.classList.add('active');
   // サブナビのactive表示
   const sectionToSnb = {
-    'dashboard': 0, 'list': 1, 'schedule': 2, 'minutes': 3, 'tasks': 4,  // operation
+    'dashboard': 0, 'list': 1, 'interview-cal': 2, 'schedule': 3, 'minutes': 4, 'tasks': 5,  // operation
     'analytics-dash': 0, 'analytics': 1, 'budget': 2, 'ads': 3,  // analytics
     'master': 0, 'staff': 1, 'admin': 2  // admin_settings
   };
@@ -2955,7 +2955,65 @@ function toggleSort(key) {
   });
   renderList();
 }
+let _listPageSize = parseInt(localStorage.getItem('saiyo_pageSize') || '50', 10) || 50;
+let _listCurrentPage = 1;
+
+function setListPageSize(size) {
+  _listPageSize = size;
+  _listCurrentPage = 1;
+  try { localStorage.setItem('saiyo_pageSize', size); } catch(e) {}
+  renderList();
+}
+
+function goListPage(page) {
+  _listCurrentPage = page;
+  renderList();
+  const listEl = document.getElementById('sec-list');
+  if (listEl) listEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderPagination(totalItems, totalPages) {
+  // 上部：表示件数セレクター
+  const topEl = document.getElementById('listPageSizeTop');
+  if (topEl) {
+    let topHtml = '';
+    [20, 50, 100].forEach(s => {
+      const active = s === _listPageSize;
+      topHtml += `<button onclick="setListPageSize(${s})" style="padding:3px 10px;border:1px solid ${active ? '#9B59B6' : '#ddd'};border-radius:5px;background:${active ? '#9B59B6' : '#fff'};color:${active ? '#fff' : '#666'};font-size:11px;font-family:inherit;cursor:pointer;font-weight:${active ? '600' : '400'};">${s}件</button>`;
+    });
+    topEl.innerHTML = topHtml;
+  }
+
+  // 下部：ページ送り
+  let container = document.getElementById('listPagination');
+  if (!container) {
+    const tb = document.getElementById('listBody');
+    if (!tb || !tb.closest('table')) return;
+    container = document.createElement('div');
+    container.id = 'listPagination';
+    tb.closest('table').insertAdjacentElement('afterend', container);
+  }
+  if (totalPages <= 1) { container.innerHTML = ''; return; }
+
+  let html = '<div style="display:flex;align-items:center;justify-content:flex-end;gap:4px;padding:12px 0;font-size:11px;">';
+  html += `<button onclick="goListPage(1)" ${_listCurrentPage <= 1 ? 'disabled' : ''} style="padding:4px 8px;border:1px solid #ddd;border-radius:5px;background:#fff;cursor:pointer;font-size:11px;${_listCurrentPage <= 1 ? 'opacity:.4;cursor:default;' : ''}">«</button>`;
+  html += `<button onclick="goListPage(${_listCurrentPage - 1})" ${_listCurrentPage <= 1 ? 'disabled' : ''} style="padding:4px 8px;border:1px solid #ddd;border-radius:5px;background:#fff;cursor:pointer;font-size:11px;${_listCurrentPage <= 1 ? 'opacity:.4;cursor:default;' : ''}">‹</button>`;
+  const startP = Math.max(1, _listCurrentPage - 2);
+  const endP = Math.min(totalPages, startP + 4);
+  for (let p = startP; p <= endP; p++) {
+    const active = p === _listCurrentPage;
+    html += `<button onclick="goListPage(${p})" style="padding:4px 10px;border:1px solid ${active ? '#9B59B6' : '#ddd'};border-radius:5px;background:${active ? '#9B59B6' : '#fff'};color:${active ? '#fff' : '#666'};font-size:11px;font-family:inherit;cursor:pointer;font-weight:${active ? '600' : '400'};">${p}</button>`;
+  }
+  html += `<button onclick="goListPage(${_listCurrentPage + 1})" ${_listCurrentPage >= totalPages ? 'disabled' : ''} style="padding:4px 8px;border:1px solid #ddd;border-radius:5px;background:#fff;cursor:pointer;font-size:11px;${_listCurrentPage >= totalPages ? 'opacity:.4;cursor:default;' : ''}">›</button>`;
+  html += `<button onclick="goListPage(${totalPages})" ${_listCurrentPage >= totalPages ? 'disabled' : ''} style="padding:4px 8px;border:1px solid #ddd;border-radius:5px;background:#fff;cursor:pointer;font-size:11px;${_listCurrentPage >= totalPages ? 'opacity:.4;cursor:default;' : ''}">»</button>`;
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+let _lastSearchQuery = '';
 function renderList() {
+  const curSearch = (document.getElementById('srch')?.value || '').toLowerCase();
+  if (curSearch !== _lastSearchQuery) { _listCurrentPage = 1; _lastSearchQuery = curSearch; }
   // adminのクライアント絞り込みプルダウンを毎回更新
   populateAppClientFilter();
   // Phase E/F：担当者フィルタUIを更新
@@ -3022,21 +3080,30 @@ function renderList() {
   });
   // 表示中のリストを保持（CSV出力で参照）
   window._currentListView = fil;
-  document.getElementById('listCnt').textContent = fil.length + '件' + (fil.length !== applicants.length ? ' / 全'+applicants.length+'件' : '');
   // チップ描画
   renderActiveFilterChips();
   const tb = document.getElementById('listBody');
   const em = document.getElementById('emptyList');
-  if (!fil.length) { tb.innerHTML = ''; em.style.display = 'block'; return; }
+  if (!fil.length) { tb.innerHTML = ''; em.style.display = 'block'; renderPagination(0, 0); document.getElementById('listCnt').textContent = '0件'; return; }
   em.style.display = 'none';
+
+  // ページネーション
+  const totalItems = fil.length;
+  const totalPages = Math.ceil(totalItems / _listPageSize);
+  if (_listCurrentPage > totalPages) _listCurrentPage = totalPages;
+  if (_listCurrentPage < 1) _listCurrentPage = 1;
+  const startIdx = (_listCurrentPage - 1) * _listPageSize;
+  const endIdx = Math.min(startIdx + _listPageSize, totalItems);
+  const pageItems = fil.slice(startIdx, endIdx);
+
+  document.getElementById('listCnt').textContent = `${startIdx+1}〜${endIdx}件 / ${totalItems}件` + (totalItems !== applicants.length ? ` (全${applicants.length}件)` : '');
 
   // admin かつ クライアント絞り込みなし時はグルーピング表示
   const useGrouping = isAdmin && !appClientFilter;
 
   if (useGrouping) {
-    // クライアントID別にグループ化
     const groups = {};
-    fil.forEach(a => {
+    pageItems.forEach(a => {
       const cid = a.clientId || '_no_client';
       if (!groups[cid]) groups[cid] = [];
       groups[cid].push(a);
@@ -3062,9 +3129,10 @@ function renderList() {
       return headerRow + rows;
     }).join('');
   } else {
-    // 通常表示（client、またはadminで特定クライアント絞り込み中）
-    tb.innerHTML = fil.map(a => buildAppRowHTML(a)).join('');
+    tb.innerHTML = pageItems.map(a => buildAppRowHTML(a)).join('');
   }
+
+  renderPagination(totalItems, totalPages);
 }
 
 // 応募者1行分のHTMLを生成（共通化）
@@ -12329,6 +12397,8 @@ if (typeof window !== 'undefined') {
   window.selectIvDate = selectIvDate;
   window.ivMiniCalNav = ivMiniCalNav;
   window.onIvCustomTimeChange = onIvCustomTimeChange;
+  window.setListPageSize = setListPageSize;
+  window.goListPage = goListPage;
   window.openCalInterviewModal = openCalInterviewModal;
   window.closeCalInterviewModal = closeCalInterviewModal;
   window.onCalIvSearch = onCalIvSearch;

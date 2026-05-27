@@ -53,6 +53,7 @@
     { path: '/applicants/choice',  section: 'add-choice' },
     { path: '/applicants/paste',   section: 'add-paste' },
     { path: '/applicants/:id',     section: 'add',        action: 'editApplicant' },
+    { path: '/interview-cal',      section: 'interview-cal' },
     { path: '/schedule',           section: 'schedule' },
     { path: '/analytics-dash',     section: 'analytics-dash' },
     { path: '/analytics',          section: 'analytics' },
@@ -69,6 +70,7 @@
   const sectionToPath = {
     'dashboard':  '/dashboard',
     'list':       '/applicants',
+    'interview-cal': '/interview-cal',
     'schedule':   '/schedule',
     'analytics-dash': '/analytics-dash',
     'analytics':  '/analytics',
