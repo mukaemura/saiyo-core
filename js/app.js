@@ -4184,7 +4184,32 @@ function cancelImport() {
   document.getElementById('csvFileInput').value = '';
 }
 
+// 一括取り込みモード: 'insert' = 新規登録, 'update' = 既存更新
+let importMode = 'insert';
+
+function setImportMode(mode) {
+  importMode = mode;
+  const insertEl = document.getElementById('importModeInsert');
+  const updateEl = document.getElementById('importModeUpdate');
+  if (insertEl) {
+    insertEl.style.borderColor = mode === 'insert' ? '#1a1a1a' : '#e8e8e6';
+    insertEl.style.background  = mode === 'insert' ? '#fafaf8' : '#fff';
+  }
+  if (updateEl) {
+    updateEl.style.borderColor = mode === 'update' ? '#1a1a1a' : '#e8e8e6';
+    updateEl.style.background  = mode === 'update' ? '#fafaf8' : '#fff';
+  }
+  const btn = document.getElementById('importBtn');
+  if (btn) btn.textContent = mode === 'update' ? 'この内容で一括更新する' : 'この内容で一括登録する';
+}
+
+// モードによって新規 or 修正を呼び分け
 async function doImport() {
+  if (importMode === 'update') return doImportUpdate();
+  return doImportInsert();
+}
+
+async function doImportInsert() {
   if (!importData.length) { alert('取り込むデータがありません'); return; }
   const btn = document.getElementById('importBtn');
   btn.disabled = true; btn.textContent = '登録中...';
@@ -4304,6 +4329,149 @@ async function doImport() {
       popSelects();
       renderList();
     }
+  }
+}
+
+// CSV1行から、空欄を除いたDB更新オブジェクトを作る（修正用アップロード用）
+function buildUpdateObjFromCsvRow(r) {
+  const obj = {};
+  const setIf = (key, val) => {
+    if (val !== undefined && val !== null && String(val).trim() !== '') obj[key] = val;
+  };
+  setIf('app_date',     r['応募日']);
+  setIf('job_no',       r['求人番号']);
+  setIf('job_name',     r['求人名称']);
+  setIf('job_type',     r['応募職種']);
+  setIf('location',     r['勤務地']);
+  setIf('dept',         r['部署']);
+  setIf('name',         r['名前']);
+  setIf('kana',         r['ふりがな']);
+  setIf('email',        r['メール']);
+  setIf('tel',          r['電話']);
+  setIf('gender',       r['性別']);
+
+  // 生年月日：年/月/日 全てそろってる時のみ更新（部分更新は不整合の元）
+  const byear  = parseInt(r['生年月日_年'] || r['生年']) || null;
+  const bmonth = parseInt(r['生年月日_月'] || r['月'])   || null;
+  const bday   = parseInt(r['生年月日_日'] || r['日'])   || null;
+  if (byear && bmonth && bday) {
+    obj.birth_year  = byear;
+    obj.birth_month = bmonth;
+    obj.birth_day   = bday;
+    obj.birthdate   = `${byear}年${bmonth}月${bday}日`;
+  }
+
+  setIf('media',        r['媒体名']);
+  setIf('agency',       r['人材紹介会社']);
+  setIf('status',       r['ステータス']);
+  setIf('hire_status',  r['採用可否']);
+  setIf('contact_date', r['コンタクト日']);
+  setIf('int1_date',    r['1次面接日時'] || r['面接日時']);
+  setIf('int1_result',  r['1次面接結果']);
+  setIf('int2_date',    r['2次面接日時']);
+  setIf('int2_result',  r['2次面接結果']);
+  setIf('resign_date',  r['退職日']);
+  setIf('memo',         r['メモ']);
+
+  return obj;
+}
+
+// DBスネークケース → ローカルapplicantsのキャメルキー
+function dbKeyToLocalKey(dbKey) {
+  const map = {
+    app_date:'appDate', job_no:'jobNo', job_name:'jobName', job_type:'jobType',
+    hire_status:'hireStatus', birth_year:'birthYear', birth_month:'birthMonth',
+    birth_day:'birthDay', contact_date:'contactDate', int1_date:'int1Date',
+    int1_result:'int1Res', int2_date:'int2Date', int2_result:'int2Res',
+    resign_date:'resignDate'
+  };
+  return map[dbKey] || dbKey;
+}
+
+// 修正用アップロード：メール／電話で既存応募者を照合してUPDATE
+async function doImportUpdate() {
+  if (!importData.length) { alert('取り込むデータがありません'); return; }
+  const btn = document.getElementById('importBtn');
+  btn.disabled = true; btn.textContent = '更新中...';
+
+  // 既存応募者のインデックス（メール／電話で引けるように）
+  const byEmail = new Map();
+  const byTel = new Map();
+  applicants.forEach(a => {
+    const e = (a.email || '').trim().toLowerCase();
+    const t = (a.tel || '').replace(/[\s-]/g, '');
+    if (e) { if (!byEmail.has(e)) byEmail.set(e, []); byEmail.get(e).push(a); }
+    if (t) { if (!byTel.has(t))   byTel.set(t, []);   byTel.get(t).push(a); }
+  });
+
+  let okCount = 0;
+  const skipNoMatch    = [];
+  const skipMultiMatch = [];
+  const skipNoChange   = [];
+  const failures       = [];
+
+  for (let i = 0; i < importData.length; i++) {
+    const r = importData[i];
+    const label = `${i+2}行目 (${r['名前'] || '名前不明'})`;
+    const email = (r['メール'] || '').trim().toLowerCase();
+    const tel   = (r['電話']   || '').replace(/[\s-]/g, '');
+
+    // メール優先、なければ電話でフォールバック
+    let matches = [];
+    if (email && byEmail.has(email))   matches = byEmail.get(email);
+    else if (tel && byTel.has(tel))    matches = byTel.get(tel);
+
+    if (matches.length === 0) { skipNoMatch.push(label + ' [メール／電話 一致なし]'); continue; }
+    if (matches.length > 1)   { skipMultiMatch.push(label + ` [${matches.length}件ヒット]`); continue; }
+
+    const target = matches[0];
+    const updateObj = buildUpdateObjFromCsvRow(r);
+    if (Object.keys(updateObj).length === 0) {
+      skipNoChange.push(label + ' [更新内容なし]');
+      continue;
+    }
+
+    let q = sb.from('applicants').update(updateObj).eq('id', target.id);
+    if (!isAdmin) q = q.eq('client_id', currentClientId);
+    const { error } = await q;
+    if (error) {
+      failures.push(label + ': ' + error.message);
+      continue;
+    }
+    // ローカル applicants も更新
+    Object.entries(updateObj).forEach(([k, v]) => { target[dbKeyToLocalKey(k)] = v; });
+    okCount++;
+  }
+
+  btn.disabled = false; btn.textContent = 'この内容で一括更新する';
+
+  const errEl = document.getElementById('importErrors');
+  const totalSkip = skipNoMatch.length + skipMultiMatch.length + skipNoChange.length;
+  const summary = `✓ 更新: ${okCount}件 / ⏸ スキップ: ${totalSkip}件 / ✗ 失敗: ${failures.length}件`;
+
+  if (totalSkip === 0 && failures.length === 0) {
+    setStatus(summary, 'ok');
+    if (errEl) errEl.style.display = 'none';
+    cancelImport();
+    await loadApplicants();
+    popSelects();
+    renderList();
+    showSec('list');
+  } else {
+    if (errEl) {
+      errEl.style.display = 'block';
+      errEl.style.color = '#1a1a1a';
+      errEl.style.background = '#FFF9EC';
+      let html = `<div style="font-weight:600;margin-bottom:6px;">${summary}</div>`;
+      const blk = (title, arr, color) => arr.length ? `<div style="margin-top:8px;color:${color};"><strong>${title}（${arr.length}件）:</strong><br>${arr.slice(0,10).map(s=>'　・'+s).join('<br>')}${arr.length>10?`<br>　…他 ${arr.length-10} 件`:''}</div>` : '';
+      html += blk('一致しなかった行', skipNoMatch, '#854F0B');
+      html += blk('同一人が複数いてスキップした行', skipMultiMatch, '#854F0B');
+      html += blk('更新内容がなかった行', skipNoChange, '#888');
+      html += blk('失敗', failures, '#D85A30');
+      errEl.innerHTML = html;
+    }
+    setStatus(summary, okCount > 0 ? 'ok' : 'err');
+    if (okCount > 0) renderList();
   }
 }
 
@@ -8017,13 +8185,11 @@ function onCheckChange() {
   if (ids.length > 0) {
     bar.style.display = 'flex';
     count.textContent = ids.length + '件選択中';
-    // プルダウン更新
-    const bSt = document.getElementById('bulkStatus');
-    const bHire = document.getElementById('bulkHire');
-    bSt.innerHTML = '<option value="">選択</option>';
-    (detailStatuses || []).forEach(d => bSt.innerHTML += `<option>${d.name}</option>`);
-    bHire.innerHTML = '<option value="">選択</option>';
-    (masters.hire||['内定','内定承諾','採用','不採用','保留']).forEach(v => bHire.innerHTML += `<option>${v}</option>`);
+    // 一括変更セレクタをリセット
+    const bF = document.getElementById('bulkField');
+    const bV = document.getElementById('bulkValue');
+    if (bF) bF.value = '';
+    if (bV) bV.innerHTML = '<option value="">値を選択</option>';
   } else {
     bar.style.display = 'none';
   }
@@ -8045,36 +8211,86 @@ function clearChecks() {
   document.getElementById('bulkBar').style.display = 'none';
 }
 
-async function bulkUpdateStatus() {
-  const val = document.getElementById('bulkStatus').value;
-  if (!val) { alert('ステータスを選択してください'); return; }
-  const ids = getCheckedIds();
-  if (!ids.length) return;
-  if (!confirm(`${ids.length}件のステータスを「${val}」に変更しますか？`)) return;
-  let query = sb.from('applicants').update({ status: val }).in('id', ids);
-  if (!isAdmin) query = query.eq('client_id', currentClientId);
-  const { error } = await query;
-  if (error) { alert('更新に失敗しました: ' + error.message); return; }
-  ids.forEach(id => { const a = applicants.find(x => x.id === id); if (a) a.status = val; });
-  clearChecks();
-  renderList();
-  setStatus(`${ids.length}件のステータスを更新しました`, 'ok');
+// 一括変更の「項目」セレクタが変わったとき、「値」セレクタの選択肢を切り替える
+function onBulkFieldChange() {
+  const field = document.getElementById('bulkField').value;
+  const bV = document.getElementById('bulkValue');
+  if (!bV) return;
+  if (!field) { bV.innerHTML = '<option value="">値を選択</option>'; return; }
+
+  // 担当者はID付きで populate
+  if (field === 'staff') {
+    const opts = (activeStaffList || []).map(s =>
+      `<option value="${escapeHtml(String(s.id))}">${escapeHtml(s.name)}</option>`
+    ).join('');
+    bV.innerHTML = '<option value="">担当者を選択</option>' + opts;
+    return;
+  }
+
+  let values = [];
+  switch (field) {
+    case 'status':     values = (detailStatuses || []).map(d => d.name); break;
+    case 'hireStatus': values = masters.hire || ['内定','内定承諾','採用','不採用','保留']; break;
+    case 'gender':     values = ['男性','女性','その他','未回答']; break;
+    case 'media':      values = masters.media || []; break;
+    case 'dept':       values = masters.dept || []; break;
+    case 'jobType':    values = masters.jobType || []; break;
+  }
+  const opts = values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  bV.innerHTML = '<option value="">値を選択</option>' + opts;
 }
 
-async function bulkUpdateHire() {
-  const val = document.getElementById('bulkHire').value;
-  if (!val) { alert('採用可否を選択してください'); return; }
+// 一括変更を実行
+async function bulkApply() {
+  const field = document.getElementById('bulkField').value;
+  const val = document.getElementById('bulkValue').value;
+  if (!field) { alert('項目を選択してください'); return; }
+  if (!val)   { alert('値を選択してください');   return; }
   const ids = getCheckedIds();
   if (!ids.length) return;
-  if (!confirm(`${ids.length}件の採用可否を「${val}」に変更しますか？`)) return;
-  let query = sb.from('applicants').update({ hire_status: val }).in('id', ids);
-  if (!isAdmin) query = query.eq('client_id', currentClientId);
-  const { error } = await query;
-  if (error) { alert('更新に失敗しました: ' + error.message); return; }
-  ids.forEach(id => { const a = applicants.find(x => x.id === id); if (a) a.hireStatus = val; });
+
+  const fieldLabels = {
+    status:'詳細ステータス', hireStatus:'採用可否', gender:'性別',
+    media:'媒体', dept:'部署', jobType:'職種', staff:'担当者'
+  };
+  const fieldLabel = fieldLabels[field] || field;
+
+  // 表示用の値
+  let valDisplay = val;
+  if (field === 'staff') {
+    const s = (activeStaffList || []).find(x => String(x.id) === String(val));
+    if (s) valDisplay = s.name;
+  }
+
+  const confirmMsg = `${ids.length}件の${fieldLabel}を「${valDisplay}」に変更しますか？` +
+    (field === 'staff' ? '\n\n※ 既存の担当者は全て置き換えられます' : '');
+  if (!confirm(confirmMsg)) return;
+
+  // 担当者は applicant_staff（多対多）経由で置換
+  if (field === 'staff') {
+    let delQ = sb.from('applicant_staff').delete().in('applicant_id', ids);
+    const { error: delErr } = await delQ;
+    if (delErr) { alert('担当者の更新に失敗しました（既存削除段階）: ' + delErr.message); return; }
+    const insertRows = ids.map(aid => ({ applicant_id: aid, staff_id: String(val), client_id: currentClientId }));
+    const { error: insErr } = await sb.from('applicant_staff').insert(insertRows);
+    if (insErr) { alert('担当者の更新に失敗しました（挿入段階）: ' + insErr.message); return; }
+    ids.forEach(id => { const a = applicants.find(x => x.id === id); if (a) a.staffIds = [String(val)]; });
+  } else {
+    // それ以外は applicants テーブルを直接更新
+    const dbFieldMap = { hireStatus:'hire_status', jobType:'job_type' };
+    const dbField = dbFieldMap[field] || field;
+    const updateObj = {}; updateObj[dbField] = val;
+    let query = sb.from('applicants').update(updateObj).in('id', ids);
+    if (!isAdmin) query = query.eq('client_id', currentClientId);
+    const { error } = await query;
+    if (error) { alert('更新に失敗しました: ' + error.message); return; }
+    ids.forEach(id => { const a = applicants.find(x => x.id === id); if (a) a[field] = val; });
+  }
+
   clearChecks();
+  popSelects();
   renderList();
-  setStatus(`${ids.length}件の採用可否を更新しました`, 'ok');
+  setStatus(`${ids.length}件の${fieldLabel}を更新しました`, 'ok');
 }
 
 async function bulkDelete() {
