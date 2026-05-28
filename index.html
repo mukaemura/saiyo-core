@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
 <!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260528d">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260528d">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260528d">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260528d">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260528d">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260528e">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260528e">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260528e">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260528e">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260528e">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260528d">
+<link rel="stylesheet" href="css/style.css?v=20260528e">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -1560,7 +1560,7 @@
 
     <!-- ロゴ（カードより少し大きめに、幅いっぱい） -->
     <div style="text-align:center;margin-bottom:24px;">
-      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260528d" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
+      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260528e" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
     </div>
 
     <!-- ログインカード本体（少し狭め、中央寄せ） -->
@@ -1823,7 +1823,7 @@
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <!-- ロゴ＋プラットフォームサブテキスト -->
         <a href="#" onclick="goHome();return false;" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;cursor:pointer;" title="ホームに戻る">
-          <img src="assets/saiyo_mark.png?v=20260528d" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
+          <img src="assets/saiyo_mark.png?v=20260528e" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
           <div style="line-height:1;">
             <div style="font-size:14px;font-weight:600;color:#1a1a1a;">採用コア</div>
             <div style="font-size:9px;color:#888;letter-spacing:0.08em;margin-top:3px;">RECRUITING PLATFORM</div>
@@ -3046,14 +3046,19 @@
         <p style="font-size:11px;color:#888;">CSVテンプレートをダウンロード → 情報を入力 → アップロードで一括登録または更新できます。</p>
       </div>
       <!-- モード選択 -->
+      <div style="font-size:11px;color:#666;font-weight:600;margin-bottom:8px;">どちらのモードでアップロードしますか？</div>
       <div style="display:flex;gap:12px;margin-bottom:1.25rem;flex-wrap:wrap;">
-        <div id="importModeInsert" onclick="setImportMode('insert')" style="flex:1;min-width:240px;border:2px solid #1a1a1a;background:#fafaf8;border-radius:10px;padding:1rem 1.125rem;cursor:pointer;transition:all .15s;">
-          <div style="font-size:13px;font-weight:700;color:#1a1a1a;margin-bottom:6px;">📥 新規用アップロード</div>
-          <div style="font-size:11px;color:#666;line-height:1.7;">新しい応募者を追加します。<br>メール／電話が一致する応募者がいる場合はステータスが「重複」になります。</div>
+        <!-- 新規用：初期はアクティブ -->
+        <div id="importModeInsert" class="import-mode-card" onclick="setImportMode('insert')" style="position:relative;flex:1;min-width:240px;border:2px solid #1a1a1a;background:#1a1a1a;border-radius:10px;padding:1.125rem 1.25rem;cursor:pointer;transition:all .18s ease;box-shadow:0 8px 24px rgba(0,0,0,.18),0 0 0 4px rgba(90,170,142,.18);transform:translateY(-2px);opacity:1;">
+          <div class="import-mode-badge" style="display:inline-block;position:absolute;top:-10px;left:14px;padding:3px 10px;background:#5aaa8e;color:#fff;font-size:10px;font-weight:700;border-radius:10px;letter-spacing:.05em;box-shadow:0 2px 6px rgba(90,170,142,.4);">✓ モード選択中</div>
+          <div class="import-mode-title" style="font-size:14px;font-weight:700;margin-bottom:6px;color:#fff;">📥 新規用アップロード</div>
+          <div class="import-mode-desc" style="font-size:11px;line-height:1.7;color:#d8d8d6;">新しい応募者を追加します。<br>メール／電話が一致する応募者がいる場合はステータスが「重複」になります。</div>
         </div>
-        <div id="importModeUpdate" onclick="setImportMode('update')" style="flex:1;min-width:240px;border:2px solid #e8e8e6;background:#fff;border-radius:10px;padding:1rem 1.125rem;cursor:pointer;transition:all .15s;">
-          <div style="font-size:13px;font-weight:700;color:#1a1a1a;margin-bottom:6px;">✏️ 修正用アップロード</div>
-          <div style="font-size:11px;color:#666;line-height:1.7;">既存応募者の情報を更新します。<br>メール または 電話で同一人を判定し、CSVに値があるカラムだけ上書きします（空欄は元の値を保持）。</div>
+        <!-- 修正用：初期は非アクティブ -->
+        <div id="importModeUpdate" class="import-mode-card" onclick="setImportMode('update')" style="position:relative;flex:1;min-width:240px;border:2px solid #e8e8e6;background:#fff;border-radius:10px;padding:1.125rem 1.25rem;cursor:pointer;transition:all .18s ease;opacity:0.65;">
+          <div class="import-mode-badge" style="display:none;position:absolute;top:-10px;left:14px;padding:3px 10px;background:#5aaa8e;color:#fff;font-size:10px;font-weight:700;border-radius:10px;letter-spacing:.05em;box-shadow:0 2px 6px rgba(90,170,142,.4);">✓ モード選択中</div>
+          <div class="import-mode-title" style="font-size:14px;font-weight:700;margin-bottom:6px;color:#1a1a1a;">✏️ 修正用アップロード</div>
+          <div class="import-mode-desc" style="font-size:11px;line-height:1.7;color:#888;">既存応募者の情報を更新します。<br>メール または 電話で同一人を判定し、CSVに値があるカラムだけ上書きします（空欄は元の値を保持）。</div>
         </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:1.25rem;">
@@ -4170,10 +4175,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260528d"></script>
-<script src="js/app.js?v=20260528d"></script>
-<script src="js/paste-feature.js?v=20260528d"></script>
-<script src="js/email-feature.js?v=20260528d"></script>
-<script src="js/chip-feature.js?v=20260528d"></script>
+<script src="js/router.js?v=20260528e"></script>
+<script src="js/app.js?v=20260528e"></script>
+<script src="js/paste-feature.js?v=20260528e"></script>
+<script src="js/email-feature.js?v=20260528e"></script>
+<script src="js/chip-feature.js?v=20260528e"></script>
 </body>
 </html>

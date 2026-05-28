@@ -4191,14 +4191,38 @@ function setImportMode(mode) {
   importMode = mode;
   const insertEl = document.getElementById('importModeInsert');
   const updateEl = document.getElementById('importModeUpdate');
-  if (insertEl) {
-    insertEl.style.borderColor = mode === 'insert' ? '#1a1a1a' : '#e8e8e6';
-    insertEl.style.background  = mode === 'insert' ? '#fafaf8' : '#fff';
-  }
-  if (updateEl) {
-    updateEl.style.borderColor = mode === 'update' ? '#1a1a1a' : '#e8e8e6';
-    updateEl.style.background  = mode === 'update' ? '#fafaf8' : '#fff';
-  }
+  const applyStyle = (el, active) => {
+    if (!el) return;
+    if (active) {
+      // 選択中：黒背景・白文字・大きめ影・バッジ表示・微妙にスケールアップ
+      el.style.background  = '#1a1a1a';
+      el.style.border      = '2px solid #1a1a1a';
+      el.style.boxShadow   = '0 8px 24px rgba(0,0,0,.18), 0 0 0 4px rgba(90,170,142,.18)';
+      el.style.transform   = 'translateY(-2px)';
+      const title = el.querySelector('.import-mode-title');
+      const desc  = el.querySelector('.import-mode-desc');
+      const badge = el.querySelector('.import-mode-badge');
+      if (title) title.style.color = '#fff';
+      if (desc)  desc.style.color  = '#d8d8d6';
+      if (badge) badge.style.display = 'inline-block';
+    } else {
+      // 非選択：白背景・薄いグレー・控えめ・バッジ非表示
+      el.style.background  = '#fff';
+      el.style.border      = '2px solid #e8e8e6';
+      el.style.boxShadow   = 'none';
+      el.style.transform   = 'translateY(0)';
+      el.style.opacity     = '0.65';
+      const title = el.querySelector('.import-mode-title');
+      const desc  = el.querySelector('.import-mode-desc');
+      const badge = el.querySelector('.import-mode-badge');
+      if (title) title.style.color = '#1a1a1a';
+      if (desc)  desc.style.color  = '#888';
+      if (badge) badge.style.display = 'none';
+    }
+    if (active) el.style.opacity = '1';
+  };
+  applyStyle(insertEl, mode === 'insert');
+  applyStyle(updateEl, mode === 'update');
   const btn = document.getElementById('importBtn');
   if (btn) btn.textContent = mode === 'update' ? 'この内容で一括更新する' : 'この内容で一括登録する';
 }
