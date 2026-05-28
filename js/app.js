@@ -329,14 +329,40 @@ function getAxisValue(a, axisKey) {
     if (age < 70) return '60代';
     return '70代以上';
   }
+  // 担当者軸は explodeForStaffAxis() で付与された _staffName を参照
+  if (axisKey === 'staff') return a._staffName || '（未割当）';
   return a[axisKey] || '（未設定）';
 }
 
 // 軸キーの日本語ラベル
 function getAxisLabel(axisKey) {
   const m = { media:'媒体', jobType:'職種', dept:'部署', ageGroup:'年代',
-              agency:'紹介会社', gender:'性別', status:'ステータス' };
+              agency:'紹介会社', gender:'性別', status:'ステータス', staff:'担当者' };
   return m[axisKey] || axisKey;
+}
+
+// 担当者軸が含まれる場合、応募者を担当者数だけ展開（explode方式）
+// 1応募者が田中・佐藤の共同担当なら、田中行と佐藤行の両方にカウントされる
+// 未割当の応募者は1行として残る
+function explodeForStaffAxis(data, axesOrKey) {
+  const axes = Array.isArray(axesOrKey) ? axesOrKey : [axesOrKey];
+  if (!axes.includes('staff')) return data;
+  const out = [];
+  data.forEach(a => {
+    const sids = Array.isArray(a.staffIds) ? a.staffIds : [];
+    if (sids.length === 0) {
+      out.push(Object.assign({}, a, { _staffName: '（未割当）' }));
+      return;
+    }
+    sids.forEach(sid => {
+      const s = staffList.find(x => String(x.id) === String(sid));
+      let name;
+      if (!s) name = '（不明）';
+      else name = s.is_active === false ? (s.name + '（退職）') : s.name;
+      out.push(Object.assign({}, a, { _staffName: name }));
+    });
+  });
+  return out;
 }
 
 // ========================================
@@ -611,13 +637,15 @@ function showPickupDetails(secId) {
   if (!set || set.size === 0) return;
   const sec = activeSections.find(s => s.id === secId);
   if (!sec) return;
-  const data = getAnData();
+  let data = getAnData();
   const axisKeyMap = {
     media: 'media', job: 'jobType', dept: 'dept', age: 'ageGroup',
-    gender: 'gender', agency: 'agency', status: 'status', hire: 'hireStatus'
+    gender: 'gender', agency: 'agency', status: 'status', hire: 'hireStatus',
+    staff: 'staff'
   };
   const axisKey = axisKeyMap[sec.type];
   if (!axisKey) return;
+  data = explodeForStaffAxis(data, axisKey);
 
   const cards = [...set].map(name => {
     const filtered = data.filter(a => getAxisValue(a, axisKey) === name);
@@ -639,8 +667,9 @@ function showPickupDetailsMulti(secId) {
   if (!set || set.size === 0) return;
   const sec = activeSections.find(s => s.id === secId);
   if (!sec || !sec.opts || !sec.opts.axes) return;
-  const data = getAnData();
+  let data = getAnData();
   const axes = sec.opts.axes;
+  data = explodeForStaffAxis(data, axes);
 
   const cards = [...set].map(rowKey => {
     const vals = rowKey.split(' / ');
@@ -6643,8 +6672,8 @@ function toggleMultiAxis(key) {
 }
 
 function updateMultiAxisUI() {
-  const keys = ['media','jobType','dept','ageGroup','agency','gender','status'];
-  const labels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス'};
+  const keys = ['media','jobType','dept','ageGroup','agency','gender','status','staff'];
+  const labels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',staff:'担当者'};
   keys.forEach(k => {
     const btn = document.getElementById('maxis_'+k);
     if (!btn) return;
@@ -6682,7 +6711,7 @@ function buildMultiAxisHTML(data, axes, secId) {
   if (!data.length) return '<div class="empty">データがありません</div>';
   if (!axes || axes.length < 2) return '<div class="empty">2軸以上を選択してください</div>';
 
-  const labels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否'};
+  const labels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否',staff:'担当者'};
   const ax1 = axes[0], ax2 = axes[1], ax3 = axes[2];
 
   // 親軸（ax1）でグループ化
@@ -6826,7 +6855,7 @@ function renderCustomSections() {
   container.innerHTML = activeSections.map(s => {
     let title;
     if (s.type === 'multi_axis' && s.opts && s.opts.axes) {
-      const axisLabels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否'};
+      const axisLabels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否',staff:'担当者'};
       title = '🔀 ' + s.opts.axes.map(k => axisLabels[k] || k).join(' × ');
     } else {
       title = getSectionTitle(s.type);
@@ -6883,24 +6912,30 @@ function buildSectionInline(data, s) {
   // 単一軸ファネル分析
   const axisKeyMap = {
     media: 'media', job: 'jobType', dept: 'dept', age: 'ageGroup',
-    gender: 'gender', agency: 'agency', status: 'status', hire: 'hireStatus'
+    gender: 'gender', agency: 'agency', status: 'status', hire: 'hireStatus',
+    staff: 'staff'
   };
   if (axisKeyMap[type]) {
     const axisKey = axisKeyMap[type];
+    const sectionData = explodeForStaffAxis(data, axisKey);
     const view = sectionViewMode[secId] || 'table'; // デフォルトはテーブル比較
     const toggle = renderToggle(view, [
       {value:'table', label:'📊 比較表示'},
       {value:'card',  label:'🎴 カード表示'}
     ]);
     const body = view === 'card'
-      ? renderSingleAxisFunnel(data, a => getAxisValue(a, axisKey))
-      : renderCompareTable(data, axisKey, secId);
-    return toggle + body;
+      ? renderSingleAxisFunnel(sectionData, a => getAxisValue(a, axisKey))
+      : renderCompareTable(sectionData, axisKey, secId);
+    const note = axisKey === 'staff'
+      ? '<div style="font-size:11px;color:#999;margin-top:8px;line-height:1.6;">※ 担当者軸では1応募者を担当者ごとに重複カウントしています（共同担当の応募者は両方に計上）。合計が応募者総数を上回ることがあります。</div>'
+      : '';
+    return toggle + body + note;
   }
 
   // 複数軸クロス集計
   if (type === 'multi_axis') {
     const axes = s.opts ? s.opts.axes : [];
+    const sectionData = explodeForStaffAxis(data, axes);
     const view = sectionViewMode[secId] || 'table'; // デフォルトはテーブル比較
     const toggle = renderToggle(view, [
       {value:'table',  label:'📊 比較表示'},
@@ -6908,10 +6943,13 @@ function buildSectionInline(data, s) {
       {value:'matrix', label:'🔲 マトリクス'}
     ]);
     let body;
-    if (view === 'matrix') body = renderMatrixTable(data, axes, secId);
-    else if (view === 'nest') body = buildMultiAxisHTML(data, axes, secId);
-    else body = renderCompareTableMulti(data, axes, secId);
-    return toggle + body;
+    if (view === 'matrix') body = renderMatrixTable(sectionData, axes, secId);
+    else if (view === 'nest') body = buildMultiAxisHTML(sectionData, axes, secId);
+    else body = renderCompareTableMulti(sectionData, axes, secId);
+    const note = axes.includes('staff')
+      ? '<div style="font-size:11px;color:#999;margin-top:8px;line-height:1.6;">※ 担当者軸では1応募者を担当者ごとに重複カウントしています（共同担当の応募者は両方に計上）。合計が応募者総数を上回ることがあります。</div>'
+      : '';
+    return toggle + body + note;
   }
 
   return '<div class="empty">不明なセクションタイプです</div>';
@@ -6928,7 +6966,7 @@ function toggleAccordion(id) {
 }
 
 function getKeyLabel(key) {
-  const m = { jobType:'職種', dept:'部署', media:'媒体', agency:'紹介会社', ageGroup:'年代', gender:'性別', status:'ステータス', hireStatus:'採用可否' };
+  const m = { jobType:'職種', dept:'部署', media:'媒体', agency:'紹介会社', ageGroup:'年代', gender:'性別', status:'ステータス', hireStatus:'採用可否', staff:'担当者' };
   return m[key] || key;
 }
 
@@ -6936,7 +6974,7 @@ function getSectionTitle(type) {
   const map = {
     media: '📡 媒体別', job: '💼 職種別', dept: '🏢 部署別',
     age: '👥 年代別', gender: '⚧ 性別', agency: '🏛️ 紹介会社別',
-    status: '📋 ステータス別', hire: '✅ 採用可否別',
+    status: '📋 ステータス別', hire: '✅ 採用可否別', staff: '👤 担当者別',
     ai: '🤖 AI分析', multi_axis: '🔀 複数軸クロス集計'
   };
   return map[type] || type;
