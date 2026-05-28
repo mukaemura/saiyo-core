@@ -8185,11 +8185,8 @@ function onCheckChange() {
   if (ids.length > 0) {
     bar.style.display = 'flex';
     count.textContent = ids.length + '件選択中';
-    // 一括変更セレクタをリセット
-    const bF = document.getElementById('bulkField');
-    const bV = document.getElementById('bulkValue');
-    if (bF) bF.value = '';
-    if (bV) bV.innerHTML = '<option value="">値を選択</option>';
+    // 一括変更リストを初期化（1行入った状態から開始）
+    resetBulkChangeList();
   } else {
     bar.style.display = 'none';
   }
@@ -8211,22 +8208,25 @@ function clearChecks() {
   document.getElementById('bulkBar').style.display = 'none';
 }
 
-// 一括変更の「項目」セレクタが変わったとき、「値」セレクタの選択肢を切り替える
-function onBulkFieldChange() {
-  const field = document.getElementById('bulkField').value;
-  const bV = document.getElementById('bulkValue');
-  if (!bV) return;
-  if (!field) { bV.innerHTML = '<option value="">値を選択</option>'; return; }
+// ========================================
+// 一括変更：複数行（項目 → 値）対応
+// ========================================
+const BULK_FIELD_LABELS = {
+  status:'詳細ステータス', hireStatus:'採用可否', gender:'性別',
+  media:'媒体', dept:'部署', jobType:'職種', staff:'担当者'
+};
 
-  // 担当者はID付きで populate
+// 値プルダウンの選択肢を field に応じて populate
+function populateBulkValueSelect(selectEl, field) {
+  if (!selectEl) return;
+  if (!field) { selectEl.innerHTML = '<option value="">値を選択</option>'; return; }
   if (field === 'staff') {
     const opts = (activeStaffList || []).map(s =>
       `<option value="${escapeHtml(String(s.id))}">${escapeHtml(s.name)}</option>`
     ).join('');
-    bV.innerHTML = '<option value="">担当者を選択</option>' + opts;
+    selectEl.innerHTML = '<option value="">担当者を選択</option>' + opts;
     return;
   }
-
   let values = [];
   switch (field) {
     case 'status':     values = (detailStatuses || []).map(d => d.name); break;
@@ -8237,60 +8237,182 @@ function onBulkFieldChange() {
     case 'jobType':    values = masters.jobType || []; break;
   }
   const opts = values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-  bV.innerHTML = '<option value="">値を選択</option>' + opts;
+  selectEl.innerHTML = '<option value="">値を選択</option>' + opts;
+}
+
+// 行内の field セレクタが変わった時の値セレクタ更新
+function onBulkRowFieldChange(fieldSelectEl) {
+  const row = fieldSelectEl.closest('.bulk-row');
+  if (!row) return;
+  const bV = row.querySelector('.bulkValue');
+  populateBulkValueSelect(bV, fieldSelectEl.value);
+}
+
+// 一括変更行を追加
+function addBulkChangeRow() {
+  const list = document.getElementById('bulkChangeList');
+  if (!list) return;
+  const fieldOpts = `<option value="">項目を選択</option>
+    <option value="status">詳細ステータス</option>
+    <option value="hireStatus">採用可否</option>
+    <option value="gender">性別</option>
+    <option value="media">媒体</option>
+    <option value="dept">部署</option>
+    <option value="jobType">職種</option>
+    <option value="staff">担当者</option>`;
+  const inputStyle = 'padding:5px 9px;border:1px solid #555;border-radius:6px;background:#2a2a2a;color:#fff;font-size:11px;font-family:inherit;';
+  const row = document.createElement('div');
+  row.className = 'bulk-row';
+  row.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;';
+  row.innerHTML = `
+    <select class="bulkField" onchange="onBulkRowFieldChange(this)" style="${inputStyle}">${fieldOpts}</select>
+    <select class="bulkValue" style="${inputStyle}min-width:140px;"><option value="">値を選択</option></select>
+    <button onclick="removeBulkChangeRow(this)" title="この項目を削除" style="padding:4px 9px;background:transparent;color:#aaa;border:1px solid #555;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;">✕</button>
+  `;
+  list.appendChild(row);
+}
+
+// 一括変更行を削除（最低1行は残す）
+function removeBulkChangeRow(btn) {
+  const row = btn.closest('.bulk-row');
+  if (!row) return;
+  row.remove();
+  const list = document.getElementById('bulkChangeList');
+  if (list && list.children.length === 0) addBulkChangeRow();
+}
+
+// 一括変更リストを初期状態（1行のみ）にリセット
+function resetBulkChangeList() {
+  const list = document.getElementById('bulkChangeList');
+  if (!list) return;
+  list.innerHTML = '';
+  addBulkChangeRow();
 }
 
 // 一括変更を実行
 async function bulkApply() {
-  const field = document.getElementById('bulkField').value;
-  const val = document.getElementById('bulkValue').value;
-  if (!field) { alert('項目を選択してください'); return; }
-  if (!val)   { alert('値を選択してください');   return; }
+  const list = document.getElementById('bulkChangeList');
+  if (!list) return;
+  const rowEls = list.querySelectorAll('.bulk-row');
+  const changes = [];
+  rowEls.forEach(r => {
+    const f = r.querySelector('.bulkField');
+    const v = r.querySelector('.bulkValue');
+    if (f && v && f.value && v.value) changes.push({ field: f.value, value: v.value });
+  });
+  if (changes.length === 0) { alert('1つ以上の項目と値を選択してください'); return; }
+
+  // 同じ項目を複数指定はエラー
+  const fieldsSet = new Set();
+  for (const c of changes) {
+    if (fieldsSet.has(c.field)) {
+      alert(`「${BULK_FIELD_LABELS[c.field] || c.field}」が複数回指定されています。\n項目はそれぞれ1回だけ指定できます。`);
+      return;
+    }
+    fieldsSet.add(c.field);
+  }
+
   const ids = getCheckedIds();
   if (!ids.length) return;
 
-  const fieldLabels = {
-    status:'詳細ステータス', hireStatus:'採用可否', gender:'性別',
-    media:'媒体', dept:'部署', jobType:'職種', staff:'担当者'
-  };
-  const fieldLabel = fieldLabels[field] || field;
+  // 表示用：変更内容のラベル＆値（担当者はIDを名前に変換）
+  const displayChanges = changes.map(c => {
+    let v = c.value;
+    if (c.field === 'staff') {
+      const s = (activeStaffList || []).find(x => String(x.id) === String(c.value));
+      if (s) v = s.name;
+    }
+    return { field: c.field, label: BULK_FIELD_LABELS[c.field] || c.field, value: v };
+  });
 
-  // 表示用の値
-  let valDisplay = val;
-  if (field === 'staff') {
-    const s = (activeStaffList || []).find(x => String(x.id) === String(val));
-    if (s) valDisplay = s.name;
-  }
+  const confirmLines = displayChanges.map(d => `  ・${d.label}: ${d.value}`).join('\n');
+  const staffWarning = changes.some(c => c.field === 'staff') ? '\n\n※ 既存の担当者は全て置き換えられます' : '';
+  if (!confirm(`${ids.length}件の応募者に以下の変更を適用しますか？\n\n${confirmLines}${staffWarning}`)) return;
 
-  const confirmMsg = `${ids.length}件の${fieldLabel}を「${valDisplay}」に変更しますか？` +
-    (field === 'staff' ? '\n\n※ 既存の担当者は全て置き換えられます' : '');
-  if (!confirm(confirmMsg)) return;
+  // 担当者以外の更新オブジェクトを構築
+  const dbFieldMap = { hireStatus:'hire_status', jobType:'job_type' };
+  const updateObj = {};
+  const staffChange = changes.find(c => c.field === 'staff');
+  changes.forEach(c => {
+    if (c.field === 'staff') return;
+    updateObj[dbFieldMap[c.field] || c.field] = c.value;
+  });
 
-  // 担当者は applicant_staff（多対多）経由で置換
-  if (field === 'staff') {
-    let delQ = sb.from('applicant_staff').delete().in('applicant_id', ids);
-    const { error: delErr } = await delQ;
-    if (delErr) { alert('担当者の更新に失敗しました（既存削除段階）: ' + delErr.message); return; }
-    const insertRows = ids.map(aid => ({ applicant_id: aid, staff_id: String(val), client_id: currentClientId }));
-    const { error: insErr } = await sb.from('applicant_staff').insert(insertRows);
-    if (insErr) { alert('担当者の更新に失敗しました（挿入段階）: ' + insErr.message); return; }
-    ids.forEach(id => { const a = applicants.find(x => x.id === id); if (a) a.staffIds = [String(val)]; });
-  } else {
-    // それ以外は applicants テーブルを直接更新
-    const dbFieldMap = { hireStatus:'hire_status', jobType:'job_type' };
-    const dbField = dbFieldMap[field] || field;
-    const updateObj = {}; updateObj[dbField] = val;
+  // 1) applicants テーブルを一括更新（担当者以外）
+  if (Object.keys(updateObj).length > 0) {
     let query = sb.from('applicants').update(updateObj).in('id', ids);
     if (!isAdmin) query = query.eq('client_id', currentClientId);
     const { error } = await query;
     if (error) { alert('更新に失敗しました: ' + error.message); return; }
-    ids.forEach(id => { const a = applicants.find(x => x.id === id); if (a) a[field] = val; });
   }
+
+  // 2) 担当者は applicant_staff（多対多）で置換
+  if (staffChange) {
+    const { error: delErr } = await sb.from('applicant_staff').delete().in('applicant_id', ids);
+    if (delErr) { alert('担当者の更新に失敗しました（既存削除段階）: ' + delErr.message); return; }
+    const insertRows = ids.map(aid => ({ applicant_id: aid, staff_id: String(staffChange.value), client_id: currentClientId }));
+    const { error: insErr } = await sb.from('applicant_staff').insert(insertRows);
+    if (insErr) { alert('担当者の更新に失敗しました（挿入段階）: ' + insErr.message); return; }
+  }
+
+  // 3) ローカル applicants も更新
+  ids.forEach(id => {
+    const a = applicants.find(x => x.id === id);
+    if (!a) return;
+    changes.forEach(c => {
+      if (c.field === 'staff') a.staffIds = [String(c.value)];
+      else a[c.field] = c.value;
+    });
+  });
 
   clearChecks();
   popSelects();
   renderList();
-  setStatus(`${ids.length}件の${fieldLabel}を更新しました`, 'ok');
+  showBulkSuccessToast(ids.length, displayChanges);
+}
+
+// 一括変更成功時の中央ポップアップ（約2.5秒で自動消滅）
+function showBulkSuccessToast(count, changes) {
+  // 既存のトーストがあれば即削除
+  const existing = document.getElementById('bulkSuccessToast');
+  if (existing) existing.remove();
+
+  // 一回だけ keyframes を注入
+  if (!document.getElementById('bulkToastStyle')) {
+    const style = document.createElement('style');
+    style.id = 'bulkToastStyle';
+    style.textContent = `
+      @keyframes bulkToastIn { from{opacity:0;transform:translate(-50%,-50%) scale(.92);} to{opacity:1;transform:translate(-50%,-50%) scale(1);} }
+      @keyframes bulkToastOut { from{opacity:1;transform:translate(-50%,-50%) scale(1);} to{opacity:0;transform:translate(-50%,-50%) scale(.96);} }
+    `;
+    document.head.appendChild(style);
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'bulkSuccessToast';
+  overlay.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.22),0 0 0 1px rgba(0,0,0,.04);padding:1.5rem 1.875rem;z-index:10000;min-width:280px;max-width:420px;text-align:center;animation:bulkToastIn .25s ease-out;';
+
+  const changeRows = changes.map(c =>
+    `<div style="display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid #f0f0ee;font-size:12px;">
+      <span style="color:#888;">${escapeHtml(c.label)}</span>
+      <strong style="color:#1a1a1a;text-align:right;">${escapeHtml(c.value)}</strong>
+    </div>`
+  ).join('');
+
+  overlay.innerHTML = `
+    <div style="width:56px;height:56px;background:#5aaa8e;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;margin:0 auto 12px;line-height:1;">✓</div>
+    <div style="font-size:16px;font-weight:700;color:#1a1a1a;margin-bottom:14px;">${count}件を更新しました</div>
+    <div style="text-align:left;">${changeRows}</div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  // 2.5秒後にフェードアウト
+  setTimeout(() => {
+    if (!document.body.contains(overlay)) return;
+    overlay.style.animation = 'bulkToastOut .3s ease-in forwards';
+    setTimeout(() => { if (document.body.contains(overlay)) overlay.remove(); }, 300);
+  }, 2500);
 }
 
 async function bulkDelete() {

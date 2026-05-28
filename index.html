@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
 <!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260528c">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260528c">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260528c">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260528c">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260528c">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260528d">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260528d">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260528d">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260528d">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260528d">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260528c">
+<link rel="stylesheet" href="css/style.css?v=20260528d">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -1560,7 +1560,7 @@
 
     <!-- ロゴ（カードより少し大きめに、幅いっぱい） -->
     <div style="text-align:center;margin-bottom:24px;">
-      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260528c" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
+      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260528d" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
     </div>
 
     <!-- ログインカード本体（少し狭め、中央寄せ） -->
@@ -1823,7 +1823,7 @@
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <!-- ロゴ＋プラットフォームサブテキスト -->
         <a href="#" onclick="goHome();return false;" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;cursor:pointer;" title="ホームに戻る">
-          <img src="assets/saiyo_mark.png?v=20260528c" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
+          <img src="assets/saiyo_mark.png?v=20260528d" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
           <div style="line-height:1;">
             <div style="font-size:14px;font-weight:600;color:#1a1a1a;">採用コア</div>
             <div style="font-size:9px;color:#888;letter-spacing:0.08em;margin-top:3px;">RECRUITING PLATFORM</div>
@@ -2197,26 +2197,19 @@
         <img src="assets/koala-pc-small.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
       </div>
       <!-- 一括操作バー -->
-    <div id="bulkBar" style="display:none;background:linear-gradient(135deg,#1a1a1a,#333);color:#fff;border-radius:10px;padding:.875rem 1rem;margin-bottom:.875rem;display:none;align-items:center;gap:12px;flex-wrap:wrap;">
-      <span id="bulkCount" style="font-size:12px;font-weight:600;">0件選択中</span>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto;">
-        <span style="font-size:11px;color:#aaa;">一括変更：</span>
-        <select id="bulkField" onchange="onBulkFieldChange()" style="padding:5px 9px;border:1px solid #555;border-radius:6px;background:#2a2a2a;color:#fff;font-size:11px;font-family:inherit;">
-          <option value="">項目を選択</option>
-          <option value="status">詳細ステータス</option>
-          <option value="hireStatus">採用可否</option>
-          <option value="gender">性別</option>
-          <option value="media">媒体</option>
-          <option value="dept">部署</option>
-          <option value="jobType">職種</option>
-          <option value="staff">担当者</option>
-        </select>
-        <select id="bulkValue" style="padding:5px 9px;border:1px solid #555;border-radius:6px;background:#2a2a2a;color:#fff;font-size:11px;font-family:inherit;min-width:120px;">
-          <option value="">値を選択</option>
-        </select>
-        <button onclick="bulkApply()" style="padding:6px 12px;background:#378ADD;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">適用</button>
-        <button onclick="bulkDelete()" style="padding:6px 12px;background:#D85A30;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">一括削除</button>
-        <button onclick="clearChecks()" style="padding:6px 12px;background:transparent;color:#aaa;border:1px solid #555;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;">選択解除</button>
+    <div id="bulkBar" style="display:none;background:linear-gradient(135deg,#1a1a1a,#333);color:#fff;border-radius:10px;padding:.875rem 1rem;margin-bottom:.875rem;flex-direction:column;gap:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <span id="bulkCount" style="font-size:12px;font-weight:600;">0件選択中</span>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button onclick="bulkApply()" style="padding:6px 14px;background:#378ADD;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">適用</button>
+          <button onclick="bulkDelete()" style="padding:6px 12px;background:#D85A30;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">一括削除</button>
+          <button onclick="clearChecks()" style="padding:6px 12px;background:transparent;color:#aaa;border:1px solid #555;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;">選択解除</button>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;padding:8px 10px;background:rgba(255,255,255,.04);border-radius:8px;">
+        <div style="font-size:11px;color:#aaa;font-weight:600;">一括変更：</div>
+        <div id="bulkChangeList" style="display:flex;flex-direction:column;gap:6px;"></div>
+        <button onclick="addBulkChangeRow()" style="align-self:flex-start;padding:5px 10px;background:transparent;color:#5aaa8e;border:1px dashed #5aaa8e;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">+ 項目を追加</button>
       </div>
     </div>
     <div class="list-top">
@@ -4177,10 +4170,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260528c"></script>
-<script src="js/app.js?v=20260528c"></script>
-<script src="js/paste-feature.js?v=20260528c"></script>
-<script src="js/email-feature.js?v=20260528c"></script>
-<script src="js/chip-feature.js?v=20260528c"></script>
+<script src="js/router.js?v=20260528d"></script>
+<script src="js/app.js?v=20260528d"></script>
+<script src="js/paste-feature.js?v=20260528d"></script>
+<script src="js/email-feature.js?v=20260528d"></script>
+<script src="js/chip-feature.js?v=20260528d"></script>
 </body>
 </html>
