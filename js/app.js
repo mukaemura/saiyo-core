@@ -342,10 +342,20 @@ function getAxisLabel(axisKey) {
 // ========================================
 // 比較ビュー（テーブル + ピックアップ詳細）
 // ========================================
-// セクションごとのビュー状態（'table'=テーブル比較、'card'=カード、'nest'=ネスト）
+// セクションごとのビュー状態（'table'=テーブル比較、'card'=カード、'nest'=ネスト、'matrix'=マトリクス）
 const sectionViewMode = {};
 // セクションごとの選択行
 const sectionSelectedRows = {};
+// マトリクスモード専用オプション（{secId: {coreAggregate, valueMode}}）
+const sectionMatrixOpts = {};
+function getMatrixOpt(secId) {
+  return sectionMatrixOpts[secId] || { coreAggregate: false, valueMode: 'both' };
+}
+function setMatrixOpt(secId, key, value) {
+  if (!sectionMatrixOpts[secId]) sectionMatrixOpts[secId] = { coreAggregate: false, valueMode: 'both' };
+  sectionMatrixOpts[secId][key] = value;
+  renderCustomSections();
+}
 
 // テーブル比較ビュー（単一軸）
 function renderCompareTable(data, axisKey, secId) {
@@ -6893,12 +6903,14 @@ function buildSectionInline(data, s) {
     const axes = s.opts ? s.opts.axes : [];
     const view = sectionViewMode[secId] || 'table'; // デフォルトはテーブル比較
     const toggle = renderToggle(view, [
-      {value:'table', label:'📊 比較表示'},
-      {value:'nest',  label:'🌳 ネスト表示'}
+      {value:'table',  label:'📊 比較表示'},
+      {value:'nest',   label:'🌳 ネスト表示'},
+      {value:'matrix', label:'🔲 マトリクス'}
     ]);
-    const body = view === 'nest'
-      ? buildMultiAxisHTML(data, axes, secId)
-      : renderCompareTableMulti(data, axes, secId);
+    let body;
+    if (view === 'matrix') body = renderMatrixTable(data, axes, secId);
+    else if (view === 'nest') body = buildMultiAxisHTML(data, axes, secId);
+    else body = renderCompareTableMulti(data, axes, secId);
     return toggle + body;
   }
 
@@ -7107,6 +7119,160 @@ function renderCrossTable(data, rowKey, colKey, rowLabel, colLabel) {
     <tbody>${rows}</tbody>
     <tfoot><tr><td style="${tfStyleL}">合計</td>${fc}<td style="${tfStyle}">${grand}人</td></tr></tfoot>
   </table></div>`;
+}
+
+// ========================================
+// マトリクス（ピボット）表示：行=軸1、列=軸2 のクロス表
+// ========================================
+function renderMatrixTable(data, axes, secId) {
+  if (!data.length) return '<div class="empty" style="padding:1rem;text-align:center;color:#aaa;font-size:12px;">データがありません</div>';
+  if (!axes || axes.length < 2) {
+    return '<div class="empty" style="padding:1rem;text-align:center;color:#aaa;font-size:12px;">2軸を選択してください</div>';
+  }
+  if (axes.length > 2) {
+    return `<div class="empty" style="padding:1.25rem 1rem;text-align:center;color:#888;font-size:12px;line-height:1.8;background:#fafafa;border-radius:6px;">
+      🔲 マトリクスは <strong>2軸限定</strong> です。<br>
+      3軸以上は「📊 比較表示」または「🌳 ネスト表示」をお使いください。
+    </div>`;
+  }
+
+  const opt = getMatrixOpt(secId);
+  const rowKey = axes[0];
+  const colKey = axes[1];
+  const hasStatus = axes.includes('status');
+
+  // 値取得：status & coreAggregate=ON のときは detail → core に集約
+  const getVal = (a, axisKey) => {
+    const v = getAxisValue(a, axisKey);
+    if (opt.coreAggregate && axisKey === 'status' && v && v !== '（未設定）') {
+      const cid = getCoreStatusId(v);
+      return getCoreStatusName(cid);
+    }
+    return v;
+  };
+
+  // マトリクス構築
+  const matrix = {};
+  const rowTotals = {};
+  const colTotals = {};
+  let grand = 0;
+  data.forEach(a => {
+    const r = getVal(a, rowKey);
+    const c = getVal(a, colKey);
+    if (!matrix[r]) matrix[r] = {};
+    matrix[r][c] = (matrix[r][c] || 0) + 1;
+    rowTotals[r] = (rowTotals[r] || 0) + 1;
+    colTotals[c] = (colTotals[c] || 0) + 1;
+    grand++;
+  });
+
+  // 並び順：年代は年齢順、コア集約ステータスはコア順、それ以外は件数降順
+  const ageOrder = ['10代','20代','30代','40代','50代','60代','70代以上','（未設定）'];
+  const coreOrder = CORE_STATUS.map(c => c.name).concat(['（未設定）']);
+  const sortVals = (vals, key, totals) => {
+    if (key === 'ageGroup') {
+      const inOrder = ageOrder.filter(v => totals[v] != null);
+      const extras = vals.filter(v => !ageOrder.includes(v)).sort((a,b)=>totals[b]-totals[a]);
+      return inOrder.concat(extras);
+    }
+    if (opt.coreAggregate && key === 'status') {
+      const inOrder = coreOrder.filter(v => totals[v] != null);
+      const extras = vals.filter(v => !coreOrder.includes(v)).sort((a,b)=>totals[b]-totals[a]);
+      return inOrder.concat(extras);
+    }
+    return vals.slice().sort((a,b) => totals[b] - totals[a]);
+  };
+  let rowVals = sortVals(Object.keys(rowTotals), rowKey, rowTotals);
+  let colVals = sortVals(Object.keys(colTotals), colKey, colTotals);
+
+  // 列が多すぎる場合は上位制限（年代・コア集約ステータスはそのまま）
+  const MAX_COLS = 12;
+  let colTruncated = 0;
+  const isColLimited = !(colKey === 'ageGroup' || (opt.coreAggregate && colKey === 'status'));
+  if (isColLimited && colVals.length > MAX_COLS) {
+    colTruncated = colVals.length - MAX_COLS;
+    colVals = colVals.slice(0, MAX_COLS);
+  }
+
+  // ヒートマップ最大値（表全体）
+  let maxCell = 0;
+  rowVals.forEach(r => colVals.forEach(c => {
+    const v = (matrix[r] && matrix[r][c]) || 0;
+    if (v > maxCell) maxCell = v;
+  }));
+
+  // セルレンダ
+  const renderCell = (count, rowTotal) => {
+    if (!count) return `<td style="${tdStyle};color:#ddd;">-</td>`;
+    const ratio = maxCell ? count / maxCell : 0;
+    const alpha = Math.min(0.55, ratio * 0.55);
+    const bgStyle = `background:rgba(90,138,72,${alpha.toFixed(2)});`;
+    const pct = rowTotal ? Math.round(count / rowTotal * 100) : 0;
+    let inner;
+    if (opt.valueMode === 'count') inner = `<span style="font-weight:600;">${count}</span>`;
+    else if (opt.valueMode === 'pct') inner = `<span style="font-weight:600;">${pct}%</span>`;
+    else inner = `<span style="font-weight:600;">${count}</span><span style="font-size:9px;color:#666;margin-left:3px;">(${pct}%)</span>`;
+    return `<td style="${tdStyle};${bgStyle}">${inner}</td>`;
+  };
+
+  const headerCells = colVals.map(c => {
+    const lbl = escFunnel(c.length > 10 ? c.slice(0,10) + '…' : c);
+    return `<th style="${thStyle};max-width:110px;" title="${escFunnel(c)}">${lbl}</th>`;
+  }).join('');
+
+  const rows = rowVals.map(r => `<tr>
+    <td style="${tdStyleL}">${escFunnel(r)}</td>
+    ${colVals.map(c => renderCell((matrix[r] && matrix[r][c]) || 0, rowTotals[r])).join('')}
+    <td style="${tdStyle};font-weight:700;background:#fafafa;">${rowTotals[r]}</td>
+  </tr>`).join('');
+
+  const footCells = colVals.map(c => `<td style="${tfStyle}">${colTotals[c] || 0}</td>`).join('');
+
+  // 数値モード切替
+  const valueModeOptions = [
+    {value:'both',  label:'人数(%)'},
+    {value:'count', label:'人数のみ'},
+    {value:'pct',   label:'行内%のみ'}
+  ];
+  const valueModeBtns = valueModeOptions.map(o =>
+    `<button class="${opt.valueMode === o.value ? 'active' : ''}" onclick="setMatrixOpt('${secId}','valueMode','${o.value}')">${o.label}</button>`
+  ).join('');
+
+  const coreToggle = hasStatus ? `
+    <label style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#666;cursor:pointer;white-space:nowrap;">
+      <input type="checkbox" ${opt.coreAggregate ? 'checked' : ''} onchange="setMatrixOpt('${secId}','coreAggregate',this.checked)" style="margin:0;">
+      コアステータス7種に集約
+    </label>` : '';
+
+  const truncNote = colTruncated > 0
+    ? `<div style="text-align:center;padding:6px;font-size:11px;color:#aaa;">列は応募数上位${MAX_COLS}件のみ表示（他 ${colTruncated} 列を省略）</div>`
+    : '';
+
+  return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+    <div style="font-size:11px;color:#666;line-height:1.6;">
+      行: <strong style="color:#1a1a1a;">${getAxisLabel(rowKey)}</strong>　列: <strong style="color:#1a1a1a;">${getAxisLabel(colKey)}</strong>
+      <span style="color:#999;">セル色が濃いほど人数多（表全体の最大値基準）</span>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      ${coreToggle}
+      <div class="view-toggle" style="margin:0;">${valueModeBtns}</div>
+    </div>
+  </div>
+  <div style="overflow-x:auto;">
+  <table style="width:100%;border-collapse:collapse;min-width:400px;">
+    <thead><tr>
+      <th style="${thStyleL}">${getAxisLabel(rowKey)} \\ ${getAxisLabel(colKey)}</th>
+      ${headerCells}
+      <th style="${thStyle};background:#eee;">合計</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr>
+      <td style="${tfStyleL}">合計</td>
+      ${footCells}
+      <td style="${tfStyle};background:#eee;font-weight:700;">${grand}</td>
+    </tr></tfoot>
+  </table>
+  </div>${truncNote}`;
 }
 
 function renderAiAnalysis(data, targetId) {
@@ -12357,6 +12523,7 @@ if (typeof window !== 'undefined') {
   window.clickTaskCalDay = clickTaskCalDay;
   window.afJump = afJump;
   window.setSectionView = setSectionView;
+  window.setMatrixOpt = setMatrixOpt;
   window.onCompareRowCheck = onCompareRowCheck;
   window.showPickupDetails = showPickupDetails;
   window.showPickupDetailsMulti = showPickupDetailsMulti;
