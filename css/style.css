@@ -1967,3 +1967,19 @@ input.row-check {
 .email-notif-dismiss-all:hover {
   background: #6A1B9A;
 }
+
+/* ===== 予算：入力済みデータ一覧（上質テーブル） ===== */
+.bdl-table tbody tr { transition: background .12s; }
+.bdl-table tbody tr:nth-child(even) { background: #fbfbfa; }
+.bdl-table tbody tr:hover { background: #f1f8f4; }
+.bdl-actions { display: inline-flex; gap: 6px; justify-content: flex-end; opacity: .45; transition: opacity .12s; }
+.bdl-table tbody tr:hover .bdl-actions { opacity: 1; }
+.bdl-actions button { cursor: pointer; font-family: inherit; transition: filter .12s; }
+.bdl-actions button:hover { filter: brightness(.95); }
+
+/* ===== 予算：入力フォーム（上質化） ===== */
+#budgetForm thead th { background: transparent; color: #9a9a96; font-size: 10.5px; border-bottom: 1.5px solid #ececea; }
+#budgetForm input, #budgetForm select { transition: border-color .12s, box-shadow .12s; }
+#budgetForm input:focus, #budgetForm select:focus { outline: none; border-color: #5aaa8e; box-shadow: 0 0 0 3px rgba(90,170,142,.15); }
+#budgetInputRows tr { transition: background .12s; }
+#budgetInputRows tr:hover { background: #fafafa; }

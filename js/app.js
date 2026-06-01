@@ -9293,24 +9293,34 @@ function renderBudget() {
   if(dlEl) {
     const sd=[...budgetData].filter(d=>{if(selFrom&&d.month<selFrom)return false;if(selTo&&d.month>selTo)return false;if(selClient&&d.clientId!==selClient)return false;return true;}).sort((a,b)=>b.month>a.month?1:-1);
     if (sd.length) {
+      const bdlTh='padding:9px 10px;text-align:left;font-size:10.5px;font-weight:600;color:#9a9a96;border-bottom:1.5px solid #ececea;white-space:nowrap;letter-spacing:.02em;';
+      const bdlThR=bdlTh+'text-align:right;';
+      const bdlTd='padding:10px;font-size:12px;border-bottom:1px solid #f4f4f2;vertical-align:middle;';
       let dlRows = '';
       sd.forEach(function(d) {
         const idEsc = escapeOwnerHtml(String(d.id));
+        const typeBadge = (d.type==='agency')
+          ? '<span style="display:inline-block;border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:600;background:#f1ecfb;color:#5b4bb3;">人材紹介</span>'
+          : '<span style="display:inline-block;border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:600;background:#e6f1fb;color:#185FA5;">求人媒体</span>';
+        const mediaChip = '<span style="display:inline-block;background:#f4f4f2;border-radius:6px;padding:2px 9px;font-size:11.5px;color:#333;font-weight:500;">'+escapeOwnerHtml(d.media||'-')+'</span>';
+        const dash = '<span style="color:#c4c4c0;">—</span>';
         dlRows += '<tr>';
-        if (isAdmin) dlRows += '<td style="'+tdL+'"><span style="font-size:10px;color:#185FA5;background:#f0f6ff;border:1px solid #c8ddf5;border-radius:6px;padding:1px 6px;">'+escapeOwnerHtml(getClientDisplayName(d.clientId||'')||'(未割当)')+'</span></td>';
-        dlRows += '<td style="'+tdL+'">'+d.month+'</td><td style="'+tdL+'">'+d.media+'</td>';
-        dlRows += '<td style="'+tdL+'">'+(d.dept||'-')+'</td><td style="'+tdL+'">'+(d.job||'-')+'</td>';
-        dlRows += '<td style="'+tdR+'">'+d.amount.toLocaleString()+'円</td>';
-        dlRows += '<td style="'+tdL+'">'+(d.type==='agency'?'人材紹介':'求人媒体')+'</td>';
-        dlRows += '<td style="'+tdR+'white-space:nowrap;">';
-        dlRows += '<button type="button" class="btn-budget-edit" data-bid="'+idEsc+'" style="padding:3px 8px;font-size:10.5px;border:0.5px solid #5aaa8e;background:#fff;color:#5aaa8e;border-radius:6px;font-family:inherit;cursor:pointer;margin-right:4px;font-weight:500;">✏ 編集</button>';
-        dlRows += '<button type="button" class="btn-budget-del" data-bid="'+idEsc+'" style="padding:3px 8px;font-size:10.5px;border:0.5px solid #e57373;background:#fff;color:#e57373;border-radius:6px;font-family:inherit;cursor:pointer;font-weight:500;">削除</button>';
-        dlRows += '</td></tr>';
+        if (isAdmin) dlRows += '<td style="'+bdlTd+'"><span style="font-size:10px;color:#185FA5;background:#f0f6ff;border:1px solid #c8ddf5;border-radius:6px;padding:1px 6px;">'+escapeOwnerHtml(getClientDisplayName(d.clientId||'')||'(未割当)')+'</span></td>';
+        dlRows += '<td style="'+bdlTd+'font-weight:600;color:#333;white-space:nowrap;">'+d.month+'</td>';
+        dlRows += '<td style="'+bdlTd+'">'+mediaChip+'</td>';
+        dlRows += '<td style="'+bdlTd+'">'+typeBadge+'</td>';
+        dlRows += '<td style="'+bdlTd+'color:#555;">'+(d.dept||dash)+'</td>';
+        dlRows += '<td style="'+bdlTd+'color:#888;">'+(d.job||dash)+'</td>';
+        dlRows += '<td style="'+bdlTd+'text-align:right;font-weight:700;font-size:13.5px;color:#1a1a1a;white-space:nowrap;">¥'+d.amount.toLocaleString()+'</td>';
+        dlRows += '<td style="'+bdlTd+'text-align:right;white-space:nowrap;"><span class="bdl-actions">';
+        dlRows += '<button type="button" class="btn-budget-edit" data-bid="'+idEsc+'" style="border:none;background:#f0f7f4;color:#3d8d6f;border-radius:7px;padding:5px 11px;font-size:11px;font-weight:600;">✏ 編集</button>';
+        dlRows += '<button type="button" class="btn-budget-del" data-bid="'+idEsc+'" style="border:none;background:#fdf0ee;color:#d9603a;border-radius:7px;padding:5px 11px;font-size:11px;font-weight:600;">🗑 削除</button>';
+        dlRows += '</span></td></tr>';
       });
-      dlEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>' +
-        (isAdmin ? '<th style="'+thL+'">クライアント</th>' : '') +
-        '<th style="'+thL+'">月</th><th style="'+thL+'">媒体</th><th style="'+thL+'">部署</th>' +
-        '<th style="'+thL+'">職種</th><th style="'+thR+'">金額</th><th style="'+thL+'">種別</th><th></th>' +
+      dlEl.innerHTML = '<table class="bdl-table" style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>' +
+        (isAdmin ? '<th style="'+bdlTh+'">クライアント</th>' : '') +
+        '<th style="'+bdlTh+'">月</th><th style="'+bdlTh+'">媒体</th><th style="'+bdlTh+'">種別</th><th style="'+bdlTh+'">部署</th>' +
+        '<th style="'+bdlTh+'">職種</th><th style="'+bdlThR+'">金額</th><th style="'+bdlTh+'"></th>' +
         '</tr></thead><tbody>' + dlRows + '</tbody></table>';
       // 編集・削除ボタンにイベントリスナーをバインド（onclick属性ではエスケープ問題が発生するため）
       dlEl.querySelectorAll('.btn-budget-edit').forEach(btn => {
