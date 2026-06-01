@@ -9255,11 +9255,15 @@ function renderBudget() {
     cumSm.forEach(m=>{
       const d=cumMonths[m];
       cBudget+=d.budget; cApps+=d.apps; cHires+=d.hires;
-      const cpa=cBudget&&cApps?Math.round(cBudget/cApps):0, cpo=cBudget&&cHires?Math.round(cBudget/cHires):0, r2=cApps?Math.round(cHires/cApps*100):0;
-      rows+='<tr><td style="'+tdL+'">'+m+'</td><td style="'+tdR+'">'+(cBudget?cBudget.toLocaleString()+'円':'未入力')+'</td><td style="'+tdR+'">'+cApps+'</td><td style="'+tdR+'">'+cHires+'</td><td style="'+tdR+';color:'+(r2>10?'#3B6D11':'#aaa')+';">'+r2+'%</td><td style="'+tdR+';color:'+(cpa?'#EF9F27':'#aaa')+';font-weight:600;">'+(cpa?cpa.toLocaleString()+'円':'-')+'</td><td style="'+tdR+';color:'+(cpo?'#D85A30':'#aaa')+';font-weight:600;">'+(cpo?cpo.toLocaleString()+'円':'-')+'</td></tr>';
+      // 各行はその月単月の集計値
+      const cpa=d.budget&&d.apps?Math.round(d.budget/d.apps):0, cpo=d.budget&&d.hires?Math.round(d.budget/d.hires):0, r2=d.apps?Math.round(d.hires/d.apps*100):0;
+      rows+='<tr><td style="'+tdL+'">'+m+'</td><td style="'+tdR+'">'+(d.budget?d.budget.toLocaleString()+'円':'未入力')+'</td><td style="'+tdR+'">'+d.apps+'</td><td style="'+tdR+'">'+d.hires+'</td><td style="'+tdR+';color:'+(r2>10?'#3B6D11':'#aaa')+';">'+r2+'%</td><td style="'+tdR+';color:'+(cpa?'#EF9F27':'#aaa')+';font-weight:600;">'+(cpa?cpa.toLocaleString()+'円':'-')+'</td><td style="'+tdR+';color:'+(cpo?'#D85A30':'#aaa')+';font-weight:600;">'+(cpo?cpo.toLocaleString()+'円':'-')+'</td></tr>';
     });
     if(!rows) rows='<tr><td colspan="7" style="'+tdL+';color:#aaa;text-align:center;">データがありません</td></tr>';
-    mTbl.innerHTML='<thead><tr><th style="'+thL+'">月</th><th style="'+thR+'">広告費（累計）</th><th style="'+thR+'">応募（累計）</th><th style="'+thR+'">採用（累計）</th><th style="'+thR+'">採用率</th><th style="'+thR+'">CPA</th><th style="'+thR+'">CPO</th></tr></thead><tbody>'+rows+'</tbody>';
+    // 一番下：全表示月の累計（合計）
+    const cCpa=cBudget&&cApps?Math.round(cBudget/cApps):0, cCpo=cBudget&&cHires?Math.round(cBudget/cHires):0, cR2=cApps?Math.round(cHires/cApps*100):0;
+    const foot='<tr><td style="'+tfL+'">累計</td><td style="'+tfR+'">'+(cBudget?cBudget.toLocaleString()+'円':'未入力')+'</td><td style="'+tfR+'">'+cApps+'</td><td style="'+tfR+'">'+cHires+'</td><td style="'+tfR+';color:'+(cR2>10?'#3B6D11':'#aaa')+';">'+cR2+'%</td><td style="'+tfR+';color:'+(cCpa?'#EF9F27':'#aaa')+'">'+(cCpa?cCpa.toLocaleString()+'円':'-')+'</td><td style="'+tfR+';color:'+(cCpo?'#D85A30':'#aaa')+'">'+(cCpo?cCpo.toLocaleString()+'円':'-')+'</td></tr>';
+    mTbl.innerHTML='<thead><tr><th style="'+thL+'">月</th><th style="'+thR+'">広告費</th><th style="'+thR+'">応募</th><th style="'+thR+'">採用</th><th style="'+thR+'">採用率</th><th style="'+thR+'">CPA</th><th style="'+thR+'">CPO</th></tr></thead><tbody>'+rows+'</tbody><tfoot>'+foot+'</tfoot>';
   }
 
   // 媒体別テーブル
