@@ -8991,10 +8991,10 @@ function addBudgetRow() {
     '<tr id="'+rid+'" style="border-bottom:1px solid #f0f0ee;">' +
     clientCell +
     '<td style="padding:5px;"><input type="month" class="bMonth" value="'+dm+'" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:inherit;"></td>' +
-    '<td style="padding:5px;"><select class="bMedia" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;min-width:110px;"><option value="">選択</option>'+mOpts+'</select></td>' +
-    '<td style="padding:5px;"><select class="bType" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;"><option value="media">求人媒体</option><option value="agency">人材紹介</option></select></td>' +
-    '<td style="padding:5px;"><select class="bDept" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;min-width:70px;"><option value="">全て</option>'+dOpts+'</select></td>' +
-    '<td style="padding:5px;"><select class="bJob" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;min-width:70px;"><option value="">全て</option>'+jOpts+'</select></td>' +
+    '<td style="padding:5px;"><select class="bMedia" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;width:120px;max-width:120px;"><option value="">選択</option>'+mOpts+'</select></td>' +
+    '<td style="padding:5px;"><select class="bType" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;width:88px;"><option value="media">求人媒体</option><option value="agency">人材紹介</option></select></td>' +
+    '<td style="padding:5px;"><select class="bDept" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;width:90px;max-width:90px;"><option value="">全て</option>'+dOpts+'</select></td>' +
+    '<td style="padding:5px;"><select class="bJob" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;width:90px;max-width:90px;"><option value="">全て</option>'+jOpts+'</select></td>' +
     '<td style="padding:5px;"><input type="number" class="bAmount" placeholder="0" min="0" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:11px;text-align:right;width:100px;"></td>' +
     '<td style="padding:5px;"><button class="btn-del" onclick="this.closest(\'tr\').remove()">✕</button></td></tr>');
 }
@@ -9231,13 +9231,35 @@ function renderBudget() {
 
   const mTbl=document.getElementById('budgetMonthTable');
   if(mTbl) {
-    let rows='';
-    sm.forEach(m=>{
-      const d=months[m],cpa=d.budget&&d.apps?Math.round(d.budget/d.apps):0,cpo=d.budget&&d.hires?Math.round(d.budget/d.hires):0,r2=d.apps?Math.round(d.hires/d.apps*100):0;
-      rows+='<tr><td style="'+tdL+'">'+m+'</td><td style="'+tdR+'">'+(d.budget?d.budget.toLocaleString()+'円':'未入力')+'</td><td style="'+tdR+'">'+d.apps+'</td><td style="'+tdR+'">'+d.hires+'</td><td style="'+tdR+';color:'+(r2>10?'#3B6D11':'#aaa')+';">'+r2+'%</td><td style="'+tdR+';color:'+(cpa?'#EF9F27':'#aaa')+';font-weight:600;">'+(cpa?cpa.toLocaleString()+'円':'-')+'</td><td style="'+tdR+';color:'+(cpo?'#D85A30':'#aaa')+';font-weight:600;">'+(cpo?cpo.toLocaleString()+'円':'-')+'</td></tr>';
+    // 月別サマリーは「累計」表示：開始月フィルター(selFrom)は無視し、
+    // 選択中の終端月(selTo)以前の全月を含めて月ごとに積み上げる。
+    // 部署・職種・クライアントの絞り込みは引き続き適用する。
+    const cumMonths={};
+    applicants.forEach(a=>{
+      const m=a.appDate?a.appDate.substring(0,7):''; if(!m) return;
+      if(selTo&&m>selTo) return;
+      if(selDept&&a.dept!==selDept) return; if(selJob&&a.jobType!==selJob) return;
+      if(selClient&&a.clientId!==selClient) return;
+      if(!cumMonths[m]) cumMonths[m]={apps:0,hires:0,budget:0};
+      cumMonths[m].apps++; if(isHired(a)) cumMonths[m].hires++;
     });
-    mTbl.innerHTML='<thead><tr><th style="'+thL+'">月</th><th style="'+thR+'">広告費</th><th style="'+thR+'">応募</th><th style="'+thR+'">採用</th><th style="'+thR+'">採用率</th><th style="'+thR+'">CPA</th><th style="'+thR+'">CPO</th></tr></thead><tbody>'+rows+'</tbody>'+
-      '<tfoot><tr><td style="'+tfL+'">合計</td><td style="'+tfR+'">'+(tB?tB.toLocaleString()+'円':'未入力')+'</td><td style="'+tfR+'">'+tA+'</td><td style="'+tfR+'">'+tH+'</td><td style="'+tfR+';color:'+(hr>10?'#3B6D11':'#aaa')+';">'+hr+'%</td><td style="'+tfR+';color:'+(tCPA?'#EF9F27':'#aaa')+'">'+(tCPA?tCPA.toLocaleString()+'円':'-')+'</td><td style="'+tfR+';color:'+(tCPO?'#D85A30':'#aaa')+'">'+(tCPO?tCPO.toLocaleString()+'円':'-')+'</td></tr></tfoot>';
+    budgetData.forEach(d=>{
+      if(selTo&&d.month>selTo) return;
+      if(selDept&&d.dept&&d.dept!==selDept) return; if(selJob&&d.job&&d.job!==selJob) return;
+      if(selClient&&d.clientId!==selClient) return;
+      if(!cumMonths[d.month]) cumMonths[d.month]={apps:0,hires:0,budget:0};
+      cumMonths[d.month].budget+=d.amount;
+    });
+    const cumSm=Object.keys(cumMonths).sort();
+    let rows='', cBudget=0, cApps=0, cHires=0;
+    cumSm.forEach(m=>{
+      const d=cumMonths[m];
+      cBudget+=d.budget; cApps+=d.apps; cHires+=d.hires;
+      const cpa=cBudget&&cApps?Math.round(cBudget/cApps):0, cpo=cBudget&&cHires?Math.round(cBudget/cHires):0, r2=cApps?Math.round(cHires/cApps*100):0;
+      rows+='<tr><td style="'+tdL+'">'+m+'</td><td style="'+tdR+'">'+(cBudget?cBudget.toLocaleString()+'円':'未入力')+'</td><td style="'+tdR+'">'+cApps+'</td><td style="'+tdR+'">'+cHires+'</td><td style="'+tdR+';color:'+(r2>10?'#3B6D11':'#aaa')+';">'+r2+'%</td><td style="'+tdR+';color:'+(cpa?'#EF9F27':'#aaa')+';font-weight:600;">'+(cpa?cpa.toLocaleString()+'円':'-')+'</td><td style="'+tdR+';color:'+(cpo?'#D85A30':'#aaa')+';font-weight:600;">'+(cpo?cpo.toLocaleString()+'円':'-')+'</td></tr>';
+    });
+    if(!rows) rows='<tr><td colspan="7" style="'+tdL+';color:#aaa;text-align:center;">データがありません</td></tr>';
+    mTbl.innerHTML='<thead><tr><th style="'+thL+'">月</th><th style="'+thR+'">広告費（累計）</th><th style="'+thR+'">応募（累計）</th><th style="'+thR+'">採用（累計）</th><th style="'+thR+'">採用率</th><th style="'+thR+'">CPA</th><th style="'+thR+'">CPO</th></tr></thead><tbody>'+rows+'</tbody>';
   }
 
   // 媒体別テーブル
