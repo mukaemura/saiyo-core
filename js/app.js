@@ -3902,6 +3902,42 @@ function getDuplicateTooltip(applicantId) {
   return info.matchType === 'email' ? 'メールアドレスが重複' : info.matchType === 'tel' ? '電話番号が重複' : 'メール・電話どちらも重複';
 }
 
+// 要注意フラグ付きの過去応募者と、メール/電話が一致する応募者を探す
+// 返り値：一致した応募者オブジェクト（caution=true のもの）／なければ null
+function findCautionApplicant(newEmail, newTel) {
+  for (const a of applicants) {
+    if (!a.caution) continue;
+    // クライアントが違う場合は対象外（findDuplicateApplicant と同じスコープ）
+    if (!isAdmin && a.clientId !== currentClientId) continue;
+    const aEmail = (a.email || '').trim().toLowerCase();
+    const aTel = (a.tel || '').replace(/[\s-]/g, '');
+    if (newEmail && aEmail && newEmail === aEmail) return a;
+    if (newTel && aTel && newTel === aTel) return a;
+  }
+  return null;
+}
+
+// 再応募で引き継ぐ理由メモの文言を作る
+function buildReapplyCautionNote(srcApplicant) {
+  const note = (srcApplicant && srcApplicant.cautionNote) ? String(srcApplicant.cautionNote).trim() : '';
+  return note ? `過去応募で要注意：${note}` : '過去応募で要注意';
+}
+
+// 要注意の人物が再応募した際の警告ダイアログ（続行するか返す）
+function showCautionReapplyWarning(match, newName) {
+  return new Promise(resolve => {
+    const reason = (match.cautionNote || '').trim() || '（理由未記入）';
+    const existingDate = match.appDate || '不明';
+    const msg = `🚨 要注意フラグ付きの応募者です\n\n` +
+      `過去に「⚠要注意」として登録された応募者と、メールまたは電話が一致します。\n\n` +
+      `【既存（要注意）】\n  名前：${match.name || '-'}\n  理由：${reason}\n  応募日：${existingDate}\n\n` +
+      `【新規入力】\n  名前：${newName || '-'}\n\n` +
+      `⚠ このまま登録すると、新しいレコードにも自動で要注意フラグが付きます。\n` +
+      `続けますか？\n（OK = 登録 / キャンセル = 中止して確認）`;
+    resolve(confirm(msg));
+  });
+}
+
 // 警告ダイアログを表示し、続行するかどうかを返す
 function showDuplicateWarning(dup, newName) {
   return new Promise(resolve => {
@@ -3925,14 +3961,22 @@ async function saveApp() {
     if (!document.getElementById(id).value) { alert(`「${lbl}」は必須項目です`); document.getElementById(id).focus(); return; }
   }
   // 重複応募者チェック（新規登録時のみ）
+  let cautionReapply = null;  // 要注意フラグ付きの再応募の場合、引き継ぎ用に保持
   if (!editId) {
     const newEmail = (document.getElementById('fEm').value || '').trim().toLowerCase();
     const newTel = (document.getElementById('fTel').value || '').replace(/[\s-]/g, '');
     const newName = (document.getElementById('fNm').value || '').trim();
-    const dup = findDuplicateApplicant(newEmail, newTel, newName);
-    if (dup) {
-      const proceed = await showDuplicateWarning(dup, newName);
+    // 要注意フラグ付きの再応募を最優先で警告
+    cautionReapply = findCautionApplicant(newEmail, newTel);
+    if (cautionReapply) {
+      const proceed = await showCautionReapplyWarning(cautionReapply, newName);
       if (!proceed) return;
+    } else {
+      const dup = findDuplicateApplicant(newEmail, newTel, newName);
+      if (dup) {
+        const proceed = await showDuplicateWarning(dup, newName);
+        if (!proceed) return;
+      }
     }
   }
   const by=document.getElementById('fBY').value, bm=document.getElementById('fBM').value, bd=document.getElementById('fBD').value;
@@ -3986,6 +4030,11 @@ async function saveApp() {
       ? (document.getElementById('fCautionNote') ? document.getElementById('fCautionNote').value : '')
       : null
   };
+  // 要注意の人物が再応募してきた場合：新レコードにも自動で要注意フラグを引き継ぐ
+  if (cautionReapply) {
+    row.caution = true;
+    if (!row.caution_note) row.caution_note = buildReapplyCautionNote(cautionReapply);
+  }
   let error;
   let savedId = editId;
   // Phase D-1：旧データを保持（差分検知用）
@@ -4355,7 +4404,9 @@ async function doImportInsert() {
       int2_date: r['2次面接日時'] || null, int2_result: r['2次面接結果'] || null,
       resign_date: r['退職日'] || null,
       memo: r['メモ'] || null,
-      docs
+      docs,
+      caution: false,
+      caution_note: null
     };
   });
   rows.forEach(r => { r.client_id = currentClientId; }); // マルチテナント強制付与
@@ -4372,6 +4423,41 @@ async function doImportInsert() {
       dupCount++;
     }
   });
+
+  // 要注意判定：既存の「要注意」応募者とメール/電話が一致する取り込み行を検知
+  const cautionByEmail = {};
+  const cautionByTel = {};
+  applicants.forEach(a => {
+    if (!a.caution) return;
+    const e = (a.email || '').trim().toLowerCase();
+    const t = (a.tel || '').replace(/[\s-]/g, '');
+    if (e) cautionByEmail[e] = a;
+    if (t) cautionByTel[t] = a;
+  });
+  const cautionMatches = [];
+  rows.forEach(r => {
+    const email = (r.email || '').trim().toLowerCase();
+    const tel = (r.tel || '').replace(/[\s-]/g, '');
+    const m = (email && cautionByEmail[email]) || (tel && cautionByTel[tel]) || null;
+    if (m) {
+      // 新レコードにも自動で要注意フラグを引き継ぐ
+      r.caution = true;
+      if (!r.caution_note) r.caution_note = buildReapplyCautionNote(m);
+      cautionMatches.push({ name: r.name || '(名前不明)', reason: (m.cautionNote || '').trim() });
+    }
+  });
+  if (cautionMatches.length) {
+    const list = cautionMatches
+      .slice(0, 15)
+      .map(c => `・${c.name}${c.reason ? `（${c.reason}）` : ''}`)
+      .join('\n');
+    const more = cautionMatches.length > 15 ? `\n…他 ${cautionMatches.length - 15} 件` : '';
+    const proceed = confirm(
+      `🚨 要注意フラグ付きの再応募が ${cautionMatches.length} 件あります\n\n${list}${more}\n\n` +
+      `取り込むと、これらのレコードにも自動で要注意フラグが付きます。\n続行しますか？`
+    );
+    if (!proceed) { btn.disabled = false; btn.textContent = 'この内容で一括登録する'; return; }
+  }
 
   // 1件ずつ登録して成功/失敗を集計（バルクで失敗すると全件失敗するため）
   let okCount = 0;
@@ -4397,7 +4483,7 @@ async function doImportInsert() {
   // 結果表示
   const errEl = document.getElementById('importErrors');
   if (failures.length === 0) {
-    setStatus(`${okCount}件を登録しました` + (dupCount ? `（うち${dupCount}件は重複のためステータス「重複」）` : ''), 'ok');
+    setStatus(`${okCount}件を登録しました` + (dupCount ? `（うち${dupCount}件は重複のためステータス「重複」）` : '') + (cautionMatches.length ? `（うち${cautionMatches.length}件は⚠要注意フラグを付与）` : ''), 'ok');
     if (errEl) errEl.style.display = 'none';
     cancelImport();
     await loadApplicants();
