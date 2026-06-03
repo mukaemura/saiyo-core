@@ -1169,6 +1169,8 @@ async function loadApplicants() {
       dept: r.dept || '',
       hireStatus: r.hire_status || '',
       address: r.address || '',
+      caution: r.caution || false,
+      cautionNote: r.caution_note || '',
       clientId: r.client_id,
       updatedAt: r.updated_at || r.created_at || null,
       // 新ステータスからcoreStatusIdを再計算（旧データもこれで正しくマッピングされる）
@@ -3123,8 +3125,10 @@ function renderList() {
 
   const INACTIVE_CORES = ['rejected', 'other'];
   const hideDups = document.getElementById('hideDuplicatesCheck')?.checked || false;
+  const cautionOnly = document.getElementById('cautionOnlyCheck')?.checked || false;
   let fil = applicants.filter(a => {
     if (hideDups && isDuplicate(a.id)) return false;
+    if (cautionOnly && !a.caution) return false;
     if (quickFilterMode === 'active' && INACTIVE_CORES.includes(a.coreStatusId || getCoreStatusId(a.status))) return false;
     if (q) {
       let hay;
@@ -3236,7 +3240,10 @@ function buildAppRowHTML(a) {
   };
   const esc = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const coreId = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
-  const rowBg = ['hired','joined'].includes(coreId)
+  // 要注意フラグは最優先で薄い赤背景にする
+  const rowBg = a.caution
+    ? 'background:linear-gradient(90deg,#fdeced,#fef5f5);'
+    : ['hired','joined'].includes(coreId)
     ? 'background:linear-gradient(90deg,#eef6ff,#f2f8ff);'
     : coreId === 'rejected'
     ? 'background:linear-gradient(90deg,#fff0f3,#fff5f7);'
@@ -3325,7 +3332,11 @@ function buildAppRowHTML(a) {
   const dup = isDuplicate(a.id);
   const dupBorder = dup ? 'border-left:3px solid #E74C3C;' : '';
   const dupTip = dup ? ` title="${getDuplicateTooltip(a.id)}"` : '';
-  const nameLink = `<div><a href="javascript:void(0)" onclick="event.stopPropagation();openApplicantEdit('${a.id}')" style="color:#185FA5;text-decoration:underline;text-underline-offset:2px;font-weight:500;cursor:pointer;">${esc(a.name||'')}</a></div>${ageGenderLine}`;
+  // 要注意バッジ（ホバーで理由表示）
+  const cautionBadge = a.caution
+    ? ` <span class="caution-badge" title="${a.cautionNote ? esc(a.cautionNote) : '要注意'}" style="display:inline-block;background:#E74C3C;color:#fff;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:9px;white-space:nowrap;vertical-align:middle;cursor:help;">⚠要注意</span>`
+    : '';
+  const nameLink = `<div><a href="javascript:void(0)" onclick="event.stopPropagation();openApplicantEdit('${a.id}')" style="color:#185FA5;text-decoration:underline;text-underline-offset:2px;font-weight:500;cursor:pointer;">${esc(a.name||'')}</a>${cautionBadge}</div>${ageGenderLine}`;
 
   return `<tr id="row_${a.id}" style="${rowBg}${dupBorder}"${dupTip}>
       <td style="width:36px;" onclick="event.stopPropagation()">
@@ -3451,6 +3462,13 @@ let editCurrentTab = 'basic';
 let editSelectedStaffIds = [];
 
 // 一覧から名前リンクをクリックしたときに呼ばれる：編集画面を開く
+// 要注意トグルに連動して理由メモ欄を出し入れ
+function onCautionToggle() {
+  const fCaution = document.getElementById('fCaution');
+  const wrap = document.getElementById('fCautionNoteWrap');
+  if (wrap) wrap.style.display = (fCaution && fCaution.checked) ? 'block' : 'none';
+}
+
 async function openApplicantEdit(id) {
   const a = applicants.find(x => x.id === id);
   if (!a) return;
@@ -3466,6 +3484,12 @@ async function openApplicantEdit(id) {
   if(a.birthYear) document.getElementById('fBY').value=a.birthYear;
   if(a.birthMonth) document.getElementById('fBM').value=a.birthMonth;
   if(a.birthDay) document.getElementById('fBD').value=a.birthDay;
+  // 要注意フラグ
+  const fCaution = document.getElementById('fCaution');
+  const fCautionNote = document.getElementById('fCautionNote');
+  if (fCaution) fCaution.checked = !!a.caution;
+  if (fCautionNote) fCautionNote.value = a.cautionNote || '';
+  onCautionToggle();
   tempDocs = [...(a.docs||[])];
   renderDocList();
   // 編集モードヘッダー表示・タブ初期化
@@ -3551,6 +3575,10 @@ function showEditModeHeader(a) {
     }
     if (isDuplicate(a.id)) {
       nameHtml += ` <span style="display:inline-block;font-size:9px;background:#FAECE7;color:#993C1D;padding:1px 6px;border-radius:9px;margin-left:6px;font-weight:600;border:1px solid #F0997B;">${getDuplicateTooltip(a.id)}</span>`;
+    }
+    if (a.caution) {
+      const tip = a.cautionNote ? escapeHtml(a.cautionNote) : '要注意';
+      nameHtml += ` <span title="${tip}" style="display:inline-block;font-size:10px;background:#E74C3C;color:#fff;padding:2px 8px;border-radius:10px;margin-left:6px;font-weight:700;cursor:help;">⚠要注意</span>`;
     }
     nameEl.innerHTML = nameHtml;
   }
@@ -3783,6 +3811,10 @@ function resetForm() {
   ['fAD','fJT','fJobNo','fJobName','fLoc','fNm','fKn','fEm','fTel','fAg','fCD','fRD','fMemo','fBY'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   ['fGe','fMed','fAg2','fSt2','fBM','fBD','fDept2','fHire2'].forEach(id=>{const e=document.getElementById(id);if(e)e.selectedIndex=0;});
   document.getElementById('fAD').value = new Date().toISOString().split('T')[0];
+  // 要注意フラグもリセット
+  const _fc = document.getElementById('fCaution'); if (_fc) _fc.checked = false;
+  const _fcn = document.getElementById('fCautionNote'); if (_fcn) _fcn.value = '';
+  onCautionToggle();
   // Phase D-3：書類管理セクションは削除済み。docList/docName/docUrlも削除済みなので
   //   要素が存在する場合のみ操作する（後方互換）
   const _dl = document.getElementById('docList'); if (_dl) _dl.innerHTML = '';
@@ -3948,7 +3980,11 @@ async function saveApp() {
     docs: tempDocs,
     dept: document.getElementById('fDept2') ? document.getElementById('fDept2').value : '',
     hire_status: document.getElementById('fHire2') ? document.getElementById('fHire2').value : '',
-    address: document.getElementById('fAddr') ? document.getElementById('fAddr').value : ''
+    address: document.getElementById('fAddr') ? document.getElementById('fAddr').value : '',
+    caution: document.getElementById('fCaution') ? document.getElementById('fCaution').checked : false,
+    caution_note: (document.getElementById('fCaution') && document.getElementById('fCaution').checked)
+      ? (document.getElementById('fCautionNote') ? document.getElementById('fCautionNote').value : '')
+      : null
   };
   let error;
   let savedId = editId;
@@ -4007,6 +4043,7 @@ async function saveApp() {
         { key: 'job_type', oldVal: oldData.jobType, newVal: row.job_type, label: '応募職種' },
         { key: 'dept', oldVal: oldData.dept, newVal: row.dept, label: '部署' },
         { key: 'media', oldVal: oldData.media, newVal: row.media, label: '媒体' },
+        { key: 'caution', oldVal: oldData.caution ? '要注意' : '', newVal: row.caution ? '要注意' : '', label: '要注意フラグ' },
       ];
       trackFields.forEach(f => {
         const o = (f.oldVal == null ? '' : String(f.oldVal));

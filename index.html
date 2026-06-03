@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
 <!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260603a">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260603a">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260603a">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260603a">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260603a">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260603b">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260603b">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260603b">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260603b">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260603b">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260603a">
+<link rel="stylesheet" href="css/style.css?v=20260603b">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -1560,7 +1560,7 @@
 
     <!-- ロゴ（カードより少し大きめに、幅いっぱい） -->
     <div style="text-align:center;margin-bottom:24px;">
-      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260603a" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
+      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260603b" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
     </div>
 
     <!-- ログインカード本体（少し狭め、中央寄せ） -->
@@ -1823,7 +1823,7 @@
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <!-- ロゴ＋プラットフォームサブテキスト -->
         <a href="#" onclick="goHome();return false;" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;cursor:pointer;" title="ホームに戻る">
-          <img src="assets/saiyo_mark.png?v=20260603a" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
+          <img src="assets/saiyo_mark.png?v=20260603b" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
           <div style="line-height:1;">
             <div style="font-size:14px;font-weight:600;color:#1a1a1a;">採用コア</div>
             <div style="font-size:9px;color:#888;letter-spacing:0.08em;margin-top:3px;">RECRUITING PLATFORM</div>
@@ -2267,6 +2267,11 @@
           <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:#993C1D;font-weight:500;padding:5px 10px;background:#FEF0ED;border:1px solid #F0997B;border-radius:8px;cursor:pointer;">
             <input type="checkbox" id="hideDuplicatesCheck" onchange="renderList()" style="margin:0;width:13px;height:13px;cursor:pointer;">
             重複を非表示
+          </label>
+          <!-- 要注意のみ表示 -->
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:#C0392B;font-weight:600;padding:5px 10px;background:#FDECED;border:1px solid #E74C3C;border-radius:8px;cursor:pointer;">
+            <input type="checkbox" id="cautionOnlyCheck" onchange="renderList()" style="margin:0;width:13px;height:13px;cursor:pointer;">
+            ⚠要注意のみ
           </label>
         </div>
         <!-- 2段目：アクティブな絞り込み条件をチップで表示 -->
@@ -3006,6 +3011,19 @@
           <div class="afsec" id="af-memo">
             <div class="afsec-head"><span class="afsec-marker"></span><h2>メモ</h2></div>
             <div class="afsec-body">
+              <!-- 要注意フラグ -->
+              <div class="afrow">
+                <div class="afrow-label"><span class="afreq-spacer"></span>要注意フラグ</div>
+                <div class="afrow-input">
+                  <label style="display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#C0392B;padding:8px 14px;background:#FDECED;border:1.5px solid #E74C3C;border-radius:8px;cursor:pointer;">
+                    <input type="checkbox" id="fCaution" onchange="onCautionToggle()" style="margin:0;width:15px;height:15px;cursor:pointer;">
+                    ⚠ この応募者を要注意にする
+                  </label>
+                  <div id="fCautionNoteWrap" style="display:none;margin-top:8px;">
+                    <textarea id="fCautionNote" placeholder="要注意にした理由（例：面接で暴言があった／音信不通を繰り返す 等）" style="resize:vertical;min-height:56px;width:100%;font-family:inherit;line-height:1.6;padding:10px 12px;border:1.5px solid #F0997B;border-radius:8px;background:#FEF7F6;font-size:13px;"></textarea>
+                  </div>
+                </div>
+              </div>
               <div class="afrow">
                 <div class="afrow-label"><span class="afreq-spacer"></span>自由記述</div>
                 <div class="afrow-input"><textarea id="fMemo" placeholder="気になった点、引き継ぎ事項などを記入..." style="resize:vertical;min-height:80px;width:100%;font-family:inherit;line-height:1.6;padding:10px 12px;border:1.5px solid #e4e8e7;border-radius:8px;background:#fafcfb;font-size:13px;"></textarea></div>
@@ -4185,10 +4203,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260603a"></script>
-<script src="js/app.js?v=20260603a"></script>
-<script src="js/paste-feature.js?v=20260603a"></script>
-<script src="js/email-feature.js?v=20260603a"></script>
-<script src="js/chip-feature.js?v=20260603a"></script>
+<script src="js/router.js?v=20260603b"></script>
+<script src="js/app.js?v=20260603b"></script>
+<script src="js/paste-feature.js?v=20260603b"></script>
+<script src="js/email-feature.js?v=20260603b"></script>
+<script src="js/chip-feature.js?v=20260603b"></script>
 </body>
 </html>
