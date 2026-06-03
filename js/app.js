@@ -3065,6 +3065,23 @@ function renderPagination(totalItems, totalPages) {
 }
 
 let _lastSearchQuery = '';
+function onSearchFieldChange() {
+  const sel = document.getElementById('srchField');
+  const inp = document.getElementById('srch');
+  if (sel && inp) {
+    const ph = {
+      all: '名前・メール・電話・職種・求人番号',
+      name: '名前で検索',
+      email: 'メールで検索',
+      tel: '電話番号で検索',
+      jobType: '職種で検索',
+      jobNo: '求人番号で検索',
+    };
+    inp.placeholder = ph[sel.value] || '検索...';
+  }
+  renderList();
+}
+
 function renderList() {
   const curSearch = (document.getElementById('srch')?.value || '').toLowerCase();
   if (curSearch !== _lastSearchQuery) { _listCurrentPage = 1; _lastSearchQuery = curSearch; }
@@ -3076,6 +3093,7 @@ function renderList() {
   buildDuplicateMap();
 
   const q = (document.getElementById('srch').value || '').toLowerCase();
+  const qField = document.getElementById('srchField')?.value || 'all';
   const fDateFrom = panelFilterState.dateFrom || '';
   const fDateTo = panelFilterState.dateTo || '';
   const fpCore = panelFilterState.coreStatus || [];
@@ -3108,7 +3126,16 @@ function renderList() {
   let fil = applicants.filter(a => {
     if (hideDups && isDuplicate(a.id)) return false;
     if (quickFilterMode === 'active' && INACTIVE_CORES.includes(a.coreStatusId || getCoreStatusId(a.status))) return false;
-    if (q && !(a.name||'').toLowerCase().includes(q) && !(a.email||'').toLowerCase().includes(q)) return false;
+    if (q) {
+      let hay;
+      if (qField === 'all') {
+        hay = [a.name, a.email, a.tel, a.jobType, a.jobNo, a.jobName, a.dept]
+          .map(v => (v == null ? '' : String(v))).join(' ').toLowerCase();
+      } else {
+        hay = (a[qField] == null ? '' : String(a[qField])).toLowerCase();
+      }
+      if (!hay.includes(q)) return false;
+    }
     if (fpCore.length && !fpCore.includes(a.coreStatusId)) return false;
     if (fpDetail.length && !fpDetail.includes(a.status)) return false;
     if (fpMedia.length && !fpMedia.includes(a.media)) return false;
