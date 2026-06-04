@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
 <!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260604m">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260604m">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260604m">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260604m">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260604m">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260604n">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260604n">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260604n">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260604n">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260604n">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260604m">
+<link rel="stylesheet" href="css/style.css?v=20260604n">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -1560,7 +1560,7 @@
 
     <!-- ロゴ（カードより少し大きめに、幅いっぱい） -->
     <div style="text-align:center;margin-bottom:24px;">
-      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260604m" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
+      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260604n" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
     </div>
 
     <!-- ログインカード本体（少し狭め、中央寄せ） -->
@@ -1823,7 +1823,7 @@
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <!-- ロゴ＋プラットフォームサブテキスト -->
         <a href="#" onclick="goHome();return false;" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;cursor:pointer;" title="ホームに戻る">
-          <img src="assets/saiyo_mark.png?v=20260604m" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
+          <img src="assets/saiyo_mark.png?v=20260604n" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
           <div style="line-height:1;">
             <div style="font-size:14px;font-weight:600;color:#1a1a1a;">採用コア</div>
             <div style="font-size:9px;color:#888;letter-spacing:0.08em;margin-top:3px;">RECRUITING PLATFORM</div>
@@ -1919,6 +1919,7 @@
         <button class="snb" onclick="showSec('analytics')">📈 応募者分析</button>
         <button class="snb" onclick="showSec('budget')">💰 採用予算管理</button>
         <button class="snb" onclick="showSec('ads')">📣 有料広告実績</button>
+        <button id="salesTabBtn" class="snb" style="display:none;" onclick="showSec('sales')">💴 売上管理</button>
       </nav>
       <!-- 管理設定モードのサブナビ -->
       <nav class="sub-nav" id="subNavAdminSettings" data-mode="admin_settings" style="display:none;">
@@ -3902,6 +3903,38 @@
       </div>
     </div>
 
+    <!-- ===== 💴 売上管理 ===== -->
+    <div id="sec-sales" class="sec" style="padding:0;background:transparent;box-shadow:none;">
+      <div style="background:#fff;border-radius:10px;padding:1.125rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <h2 style="font-size:14px;font-weight:700;margin:0;">💴 売上管理</h2>
+          <span style="font-size:11px;color:#888;">人材紹介の売上を応募者ごとに記録（入社月ベースで集計）</span>
+          <span id="salesTotalBadge" style="margin-left:auto;font-size:12px;font-weight:700;color:#1D9E75;"></span>
+        </div>
+      </div>
+
+      <!-- グラフ（Step2で描画） -->
+      <div id="salesCharts"></div>
+
+      <!-- 応募者を検索して売上を登録 -->
+      <div style="background:#fff;border-radius:10px;padding:1.125rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:8px;">① 応募者を検索して売上を登録</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <input id="salesSearch" oninput="renderSalesSearch()" placeholder="名前・メール・職種・求人番号で検索…" style="flex:1;min-width:220px;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;">
+          <label style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#666;cursor:pointer;">
+            <input type="checkbox" id="salesHiredOnly" onchange="renderSalesSearch()" checked style="width:13px;height:13px;cursor:pointer;">採用/入社の応募者のみ
+          </label>
+        </div>
+        <div id="salesSearchResults" style="margin-top:10px;"></div>
+      </div>
+
+      <!-- 登録済みの売上 -->
+      <div style="background:#fff;border-radius:10px;padding:1.125rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+        <div style="font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:8px;">② 登録済みの売上</div>
+        <div id="salesList"></div>
+      </div>
+    </div>
+
     <!-- マスター管理 -->
     <div id="sec-master" class="sec">
       <!-- sec-masterキャラ -->
@@ -3911,6 +3944,18 @@
         </div>
         <img src="assets/koala-good-small.png" style="width:60px;height:60px;object-fit:contain;display:block;margin-left:auto;">
       </div>
+      <!-- 機能設定 -->
+      <div style="background:#fff;border-radius:8px;padding:.875rem 1rem;margin-bottom:.75rem;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+        <div style="font-size:12px;font-weight:700;color:#1a1a1a;margin-bottom:8px;">⚙️ 機能設定</div>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <input type="checkbox" id="salesFeatureToggle" onchange="toggleSalesFeature(this.checked)" style="width:16px;height:16px;cursor:pointer;">
+          <span>
+            <span style="font-size:13px;font-weight:600;color:#1a1a1a;">💴 売上管理</span>
+            <span style="display:block;font-size:11px;color:#888;margin-top:1px;">人材紹介の売上を応募者ごとに記録。オンにすると採用分析に「売上管理」タブが表示されます。</span>
+          </span>
+        </label>
+      </div>
+
       <!-- マスター管理（媒体・部署・人材紹介会社のみ編集可能） -->
       <div style="background:#fff8f0;border-radius:8px;padding:.75rem 1rem;margin-bottom:.75rem;font-size:11px;color:#854F0B;border-left:3px solid #EF9F27;">
         📌 各マスターは左メニューで切り替え。項目は名前をクリックでリネーム、⋮⋮でドラッグ並べ替え、削除後5秒間「元に戻す」可。
@@ -4226,10 +4271,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260604m"></script>
-<script src="js/app.js?v=20260604m"></script>
-<script src="js/paste-feature.js?v=20260604m"></script>
-<script src="js/email-feature.js?v=20260604m"></script>
-<script src="js/chip-feature.js?v=20260604m"></script>
+<script src="js/router.js?v=20260604n"></script>
+<script src="js/app.js?v=20260604n"></script>
+<script src="js/paste-feature.js?v=20260604n"></script>
+<script src="js/email-feature.js?v=20260604n"></script>
+<script src="js/chip-feature.js?v=20260604n"></script>
 </body>
 </html>

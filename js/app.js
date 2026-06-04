@@ -770,6 +770,8 @@ let masters = { media: [], status: [], agency: [], hire: [], dept: [], assignee:
 let multiFilterState = { status: [], media: [], jobType: [], dept: [] };
 let quickFilterMode = 'all'; // 'all' | 'active'
 let clients = []; // 管理者用
+let salesEnabled = false; // 売上管理機能のオン/オフ（masters の feature_sales 行で管理）
+let salesRecords = []; // 現クライアントの売上レコード
 let staffList = []; // 担当者マスタ（Phase B-1で追加）
 // 現在の担当者（Phase B-2で追加）
 let currentStaffId = null;
@@ -1295,6 +1297,9 @@ async function loadApplicantStaff() {
 async function loadMasters() {
   const cid = isAdmin ? 'admin' : currentClientId;
   const { data } = await sb.from('masters').select('*').eq('client_id', cid);
+  // 売上管理機能のオン/オフ（adminは常に利用可、クライアントは feature_sales 行の有無で判定）
+  salesEnabled = isAdmin ? true : !!(data && data.some(r => r.type === 'feature_sales' && r.value === 'on'));
+  if (typeof updateSalesTabVisibility === 'function') updateSalesTabVisibility();
   if (data && data.length) {
     masters = { media: [], status: [], agency: [], hire: [], dept: [], assignee: [], jobType: [] };
     data.forEach(r => { if (masters[r.type] !== undefined) masters[r.type].push(r.value); });
@@ -1764,7 +1769,7 @@ function showSec(s) {
     'add-paste': 'operation', 'import': 'operation',
     'schedule': 'operation', 'interview-cal': 'operation', 'minutes': 'operation', 'tasks': 'operation',
     'analytics-dash': 'analytics',  // Step 4: 分析ダッシュは採用分析モードのデフォルト
-    'analytics': 'analytics', 'budget': 'analytics', 'ads': 'analytics',
+    'analytics': 'analytics', 'budget': 'analytics', 'ads': 'analytics', 'sales': 'analytics',
     'master': 'admin_settings', 'staff': 'admin_settings', 'admin': 'admin_settings'
   };
   const targetMode = sectionToMode[s];
@@ -1788,7 +1793,7 @@ function showSec(s) {
   // サブナビのactive表示
   const sectionToSnb = {
     'dashboard': 0, 'list': 1, 'interview-cal': 2, 'schedule': 3, 'minutes': 4, 'tasks': 5,  // operation
-    'analytics-dash': 0, 'analytics': 1, 'budget': 2, 'ads': 3,  // analytics
+    'analytics-dash': 0, 'analytics': 1, 'budget': 2, 'ads': 3, 'sales': 4,  // analytics
     'master': 0, 'staff': 1, 'admin': 2  // admin_settings
   };
   if (targetMode && sectionToSnb[s] !== undefined) {
@@ -1810,6 +1815,7 @@ function showSec(s) {
   if (s === 'schedule') renderSchedule();
   if (s === 'interview-cal') renderIvCal();
   if (s === 'analytics') { setPeriod('month'); }  // デフォルトは「当月」
+  if (s === 'sales') renderSales();
   if (s === 'master') renderManage();
   if (s === 'admin') renderAdmin();
   if (s === 'staff') renderStaff();
@@ -13100,7 +13106,205 @@ function getMmUsageCount(type, value) {
   return 0;
 }
 
+// ========================================
+// 💴 売上管理（人材紹介の売上を応募者ごとに記録）
+// ========================================
+// 機能フラグのオン/オフに応じてタブと設定チェックを同期
+function updateSalesTabVisibility() {
+  const btn = document.getElementById('salesTabBtn');
+  if (btn) btn.style.display = salesEnabled ? '' : 'none';
+  const tg = document.getElementById('salesFeatureToggle');
+  if (tg) tg.checked = !!salesEnabled;
+}
+
+// 管理設定：売上管理機能のオン/オフ（masters の feature_sales 行で管理）
+async function toggleSalesFeature(on) {
+  if (isAdmin) {
+    alert('管理者アカウントでは機能設定の切替はできません（クライアントアカウントで操作してください）。');
+    updateSalesTabVisibility();
+    return;
+  }
+  const cid = currentClientId;
+  if (on) {
+    // 既存行がなければ挿入
+    const { error } = await sb.from('masters').insert({ client_id: cid, type: 'feature_sales', value: 'on' });
+    if (error && !String(error.message||'').includes('duplicate')) { alert('設定の保存に失敗しました: ' + error.message); updateSalesTabVisibility(); return; }
+  } else {
+    const { error } = await sb.from('masters').delete().eq('client_id', cid).eq('type', 'feature_sales');
+    if (error) { alert('設定の保存に失敗しました: ' + error.message); updateSalesTabVisibility(); return; }
+  }
+  salesEnabled = on;
+  updateSalesTabVisibility();
+  setStatus(on ? '売上管理をオンにしました' : '売上管理をオフにしました', 'ok');
+}
+
+// 売上レコードを読み込み（RLSで自テナントのみ）
+async function loadSales() {
+  const { data, error } = await sb.from('sales').select('*').order('join_month', { ascending: false, nullsFirst: false });
+  if (error) { console.warn('[loadSales] エラー', error); salesRecords = []; return; }
+  salesRecords = data || [];
+}
+
+function fmtYen(n) { return '¥' + Number(n || 0).toLocaleString('ja-JP'); }
+
+async function renderSales() {
+  if (!salesEnabled) { return; }
+  await loadSales();
+  // 合計バッジ
+  const total = salesRecords.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const badge = document.getElementById('salesTotalBadge');
+  if (badge) badge.textContent = `登録 ${salesRecords.length}件・合計 ${fmtYen(total)}`;
+  // Step2：グラフ
+  if (typeof renderSalesCharts === 'function') renderSalesCharts();
+  renderSalesSearch();
+  renderSalesList();
+}
+
+// 応募者検索結果（クリックで売上入力）
+function renderSalesSearch() {
+  const el = document.getElementById('salesSearchResults');
+  if (!el) return;
+  const q = (document.getElementById('salesSearch')?.value || '').trim().toLowerCase();
+  const hiredOnly = document.getElementById('salesHiredOnly')?.checked;
+  const recByApp = {};
+  salesRecords.forEach(r => { recByApp[String(r.applicant_id)] = r; });
+  let list = applicants.filter(a => {
+    if (!isAdmin && a.clientId !== currentClientId) return false;
+    if (hiredOnly) {
+      const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || '';
+      if (cid !== 'hired' && cid !== 'joined') return false;
+    }
+    if (q) {
+      const hay = [a.name, a.email, a.jobType, a.jobNo, a.jobName].map(v => (v==null?'':String(v))).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  if (!q && !hiredOnly) list = list.slice(0, 0); // 条件なしは出しすぎないよう非表示
+  list = list.slice(0, 30);
+  if (!list.length) {
+    el.innerHTML = `<div style="font-size:11px;color:#aaa;padding:8px 2px;">${q ? '該当する応募者がいません' : '検索条件を入力すると候補が表示されます'}</div>`;
+    return;
+  }
+  el.innerHTML = list.map(a => {
+    const has = recByApp[String(a.id)];
+    const coreId = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
+    const coreName = getCoreStatusName(coreId);
+    const coreColor = getCoreStatusColor(coreId);
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border:1px solid #eee;border-radius:8px;margin-bottom:5px;">
+      <div style="font-size:12px;">
+        <span style="font-weight:600;">${escapeHtml(a.name||'(名前なし)')}</span>
+        <span style="font-size:10px;background:${coreColor}1f;color:${coreColor};border:1px solid ${coreColor}40;padding:1px 6px;border-radius:9px;margin-left:6px;">${escapeHtml(coreName)}</span>
+        <span style="color:#aaa;font-size:10px;margin-left:6px;">${escapeHtml(a.jobType||'')}</span>
+        ${has ? `<span style="color:#1D9E75;font-size:10px;margin-left:6px;font-weight:600;">売上 ${fmtYen(has.amount)} 登録済</span>` : ''}
+      </div>
+      <button onclick="openSalesEntry('${escapeHtml(String(a.id))}')" style="flex-shrink:0;background:${has?'#fff':'#5aaa8e'};color:${has?'#5aaa8e':'#fff'};border:1px solid #5aaa8e;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">${has ? '編集' : '＋ 売上を入力'}</button>
+    </div>`;
+  }).join('');
+}
+
+// 登録済み売上の一覧
+function renderSalesList() {
+  const el = document.getElementById('salesList');
+  if (!el) return;
+  if (!salesRecords.length) {
+    el.innerHTML = `<div style="font-size:11px;color:#aaa;padding:8px 2px;">まだ売上が登録されていません。上の検索から応募者を選んで登録してください。</div>`;
+    return;
+  }
+  const rows = salesRecords.map(r => {
+    const a = applicants.find(x => String(x.id) === String(r.applicant_id));
+    const name = a ? (a.name || '(名前なし)') : '(削除済み応募者)';
+    const staffName = r.staff_id ? getStaffNameById(r.staff_id) : '-';
+    return `<tr>
+      <td style="${tdStyleL}">${escapeHtml(name)}</td>
+      <td style="${tdStyle}">${escapeHtml(staffName||'-')}</td>
+      <td style="${tdStyle};font-weight:700;color:#1D9E75;">${fmtYen(r.amount)}</td>
+      <td style="${tdStyle}">${escapeHtml(r.deal_month||'-')}</td>
+      <td style="${tdStyle}">${escapeHtml(r.join_month||'-')}</td>
+      <td style="${tdStyle};white-space:nowrap;">
+        <button onclick="openSalesEntry('${escapeHtml(String(r.applicant_id))}')" style="background:#fff;border:1px solid #5aaa8e;color:#5aaa8e;padding:3px 9px;border-radius:6px;font-size:10.5px;cursor:pointer;font-family:inherit;">編集</button>
+        <button onclick="deleteSales('${escapeHtml(String(r.id))}')" style="background:#fff;border:1px solid #D85A30;color:#D85A30;padding:3px 9px;border-radius:6px;font-size:10.5px;cursor:pointer;font-family:inherit;margin-left:4px;">削除</button>
+      </td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:520px;">
+    <thead><tr><th style="${thStyleL}">応募者</th><th style="${thStyle}">担当者</th><th style="${thStyle}">売上</th><th style="${thStyle}">成約決定月</th><th style="${thStyle}">入社月</th><th style="${thStyle}"></th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+// 売上入力モーダル（応募者ごと・1件＝上書き）
+function openSalesEntry(applicantId) {
+  const a = applicants.find(x => String(x.id) === String(applicantId));
+  if (!a) return;
+  closeSalesEntry();
+  const rec = salesRecords.find(r => String(r.applicant_id) === String(applicantId)) || null;
+  const cid = a.clientId || currentClientId;
+  const cands = staffList.filter(s => s.is_active !== false && s.client_id === cid);
+  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const staffOpts = `<option value="">（未選択）</option>` + cands.map(s => `<option value="${esc(String(s.id))}" ${rec && String(rec.staff_id)===String(s.id)?'selected':''}>${esc(s.name||'')}</option>`).join('');
+  const overlay = document.createElement('div');
+  overlay.id = 'salesEntryPopup';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:99999;display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = (e) => { if (e.target === overlay) closeSalesEntry(); };
+  const fld = 'width:100%;padding:8px 10px;border:1px solid #cdd8d4;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;';
+  overlay.innerHTML = `<div style="background:#fff;border-radius:14px;padding:20px;width:380px;max-width:92vw;box-shadow:0 12px 44px rgba(0,0,0,.22);">
+      <div style="font-size:15px;font-weight:700;color:#1a1a1a;">${esc(a.name||'(名前なし)')} の売上</div>
+      <div style="font-size:11px;color:#888;margin:3px 0 14px;">${esc(a.jobType||'')} ${a.jobNo?('／'+esc(a.jobNo)):''}</div>
+      <label style="display:block;font-size:11px;font-weight:600;color:#666;margin-bottom:4px;">担当者</label>
+      <select id="salesStaff" style="${fld};margin-bottom:12px;cursor:pointer;">${staffOpts}</select>
+      <label style="display:block;font-size:11px;font-weight:600;color:#666;margin-bottom:4px;">売上金額（円）</label>
+      <input id="salesAmount" type="number" min="0" step="1000" value="${rec?Number(rec.amount||0):''}" placeholder="例：800000" style="${fld};margin-bottom:12px;">
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;"><label style="display:block;font-size:11px;font-weight:600;color:#666;margin-bottom:4px;">成約決定月</label>
+          <input id="salesDealMonth" type="month" value="${esc(rec?.deal_month||'')}" style="${fld}"></div>
+        <div style="flex:1;"><label style="display:block;font-size:11px;font-weight:600;color:#666;margin-bottom:4px;">入社月 <span style="color:#1D9E75;">※計上基準</span></label>
+          <input id="salesJoinMonth" type="month" value="${esc(rec?.join_month||'')}" style="${fld}"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button onclick="saveSalesEntry('${esc(String(applicantId))}')" style="flex:1;background:#5aaa8e;color:#fff;border:none;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">保存</button>
+        <button onclick="closeSalesEntry()" style="background:#fff;color:#888;border:1px solid #ddd;padding:10px 16px;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;">閉じる</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const amt = document.getElementById('salesAmount'); if (amt) amt.focus();
+}
+function closeSalesEntry() { const el = document.getElementById('salesEntryPopup'); if (el) el.remove(); }
+
+async function saveSalesEntry(applicantId) {
+  const a = applicants.find(x => String(x.id) === String(applicantId));
+  if (!a) return;
+  const amount = Number(document.getElementById('salesAmount')?.value || 0);
+  const staff_id = document.getElementById('salesStaff')?.value || null;
+  const deal_month = document.getElementById('salesDealMonth')?.value || null;
+  const join_month = document.getElementById('salesJoinMonth')?.value || null;
+  if (!amount || amount <= 0) { alert('売上金額を入力してください'); return; }
+  if (!join_month) { alert('入社月を入力してください（売上はこの月で計上されます）'); return; }
+  const cid = a.clientId || currentClientId;
+  const row = { client_id: cid, applicant_id: applicantId, staff_id: staff_id || null, amount, deal_month, join_month };
+  const existing = salesRecords.find(r => String(r.applicant_id) === String(applicantId));
+  let error;
+  if (existing) {
+    ({ error } = await sb.from('sales').update({ ...row, updated_at: new Date().toISOString() }).eq('id', existing.id));
+  } else {
+    ({ error } = await sb.from('sales').insert(row));
+  }
+  if (error) { alert('保存に失敗しました: ' + error.message); return; }
+  closeSalesEntry();
+  setStatus('売上を保存しました', 'ok');
+  await renderSales();
+}
+
+async function deleteSales(id) {
+  if (!confirm('この売上レコードを削除しますか？')) return;
+  const { error } = await sb.from('sales').delete().eq('id', id);
+  if (error) { alert('削除に失敗しました: ' + error.message); return; }
+  setStatus('売上を削除しました', 'ok');
+  await renderSales();
+}
+
 function renderManage() {
+  // 機能設定トグルの状態を同期
+  updateSalesTabVisibility();
   // 既存のマスター項目を表示
   renderMasterList('media', 'mlMed');
   renderMasterList('dept', 'mlDept');
