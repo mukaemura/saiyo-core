@@ -8050,13 +8050,14 @@ function renderCompareSection(dataA, dataB, labelA, labelB) {
   if (!dataB) return '';
   const bar = renderCompareBar(dataA, dataB, labelA, labelB);
   const axes = [
-    { v:'',       label:'全体（ファネル）' },
-    { v:'age',    label:'年代別' },
-    { v:'status', label:'ステータス別' },
-    { v:'media',  label:'媒体別' },
-    { v:'job',    label:'職種別' },
-    { v:'dept',   label:'部署別' },
-    { v:'gender', label:'性別' },
+    { v:'',         label:'全体（ファネル）' },
+    { v:'leadtime', label:'リードタイム' },
+    { v:'age',      label:'年代別' },
+    { v:'status',   label:'ステータス別' },
+    { v:'media',    label:'媒体別' },
+    { v:'job',      label:'職種別' },
+    { v:'dept',     label:'部署別' },
+    { v:'gender',   label:'性別' },
   ];
   const sel = `<div style="display:flex;align-items:center;gap:8px;margin:2px 0 10px;">
     <span style="font-size:11px;color:#378ADD;font-weight:600;">軸で比較：</span>
@@ -8091,6 +8092,40 @@ function getCompareAxisVal(a, axis) {
 // 通常軸：応募数A/B+差分・採用率A/B+差分pt ／ ステータス軸：件数A/B+差分・構成比A/B
 function renderCompareAxisTable(dataA, dataB, axis) {
   const esc = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // リードタイム比較（区間ごとの平均日数。短いほど改善＝緑）
+  if (axis === 'leadtime') {
+    const map = (typeof _leadTimeMap !== 'undefined' && _leadTimeMap) ? _leadTimeMap : {};
+    const la = calcLeadTimes(dataA, map), lb = calcLeadTimes(dataB, map);
+    const pairs = [
+      { key:'app_to_in',    label:'応募→対応中' },
+      { key:'in_to_int',    label:'対応中→面接' },
+      { key:'int_to_hire',  label:'面接→採用' },
+      { key:'hire_to_join', label:'採用→入社' },
+      { key:'app_to_join',  label:'応募→入社' },
+    ];
+    const fmt = (r) => r.avg == null ? '-' : r.avg.toFixed(1) + '日';
+    const rows = pairs.map(p => {
+      const ra = la[p.key], rb = lb[p.key];
+      let deltaHtml = '<span style="color:#ccc;">-</span>';
+      if (ra.avg != null && rb.avg != null) {
+        const d = Math.round((ra.avg - rb.avg) * 10) / 10; // A - B（日）
+        const flat = d === 0, faster = d < 0; // 日数が短い＝改善
+        const col = flat ? '#aaa' : (faster ? '#3B6D11' : '#D85A30');
+        const ar = flat ? '±' : (faster ? '▼' : '▲');
+        deltaHtml = `<span style="color:${col};font-weight:700;">${ar}${Math.abs(d)}日</span>`;
+      }
+      return `<tr><td style="${tdStyleL}">${p.label}</td>
+        <td style="${tdStyle}">${fmt(ra)}<span style="font-size:9px;color:#aaa;margin-left:2px;">${ra.count?`(${ra.count})`:''}</span></td>
+        <td style="${tdStyle}">${fmt(rb)}<span style="font-size:9px;color:#aaa;margin-left:2px;">${rb.count?`(${rb.count})`:''}</span></td>
+        <td style="${tdStyle}">${deltaHtml}</td></tr>`;
+    }).join('');
+    return `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:360px;">
+      <thead><tr><th style="${thStyleL}">区間</th><th style="${thStyle}">A平均</th><th style="${thStyle}">B平均</th><th style="${thStyle}">差</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+      <div style="font-size:10px;color:#aaa;margin:6px 0 1rem;">※( )内は対象者数。日数が短いほど改善（▼緑）。両端の日付がそろう応募者のみ集計。</div>`;
+  }
+
   const isStatus = axis === 'status';
   const groupOf = (arr) => { const g={}; arr.forEach(a=>{ const k=getCompareAxisVal(a,axis); (g[k]=g[k]||[]).push(a); }); return g; };
   const ga = groupOf(dataA), gb = groupOf(dataB);
