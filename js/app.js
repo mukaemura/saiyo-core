@@ -6758,7 +6758,7 @@ async function renderAn() {
     const labelA = (document.getElementById('anFrom').value||'全期間')+'〜'+(document.getElementById('anTo').value||'今日');
     const f2 = document.getElementById('anFrom2').value, t2 = document.getElementById('anTo2').value;
     const labelB = (f2||'')+'〜'+(t2||'');
-    compareEl.innerHTML = dataB ? renderCompareBar(data, dataB, labelA, labelB) : '';
+    compareEl.innerHTML = dataB ? renderCompareSection(data, dataB, labelA, labelB) : '';
     // 比較ステータス表示も同期（手動で日付を入れた場合も反映）
     const cs = document.getElementById('compareStatus');
     if (cs) cs.textContent = dataB ? `比較中: ${f2||'〜'} 〜 ${t2||'〜'}` : '';
@@ -7952,6 +7952,86 @@ function renderCompareBar(dataA, dataB, labelA, labelB) {
       }).join('')}
     </div>
   </div>`;
+}
+
+// 期間比較セクション：ファネルバー＋軸セレクタ＋軸別A/B比較表
+let anCompareAxis = ''; // '' = 全体（ファネルのみ）/ 'age' 'status' 'media' 'job' 'dept' 'gender'
+function setCompareAxis(v) { anCompareAxis = v; renderAn(); }
+
+function renderCompareSection(dataA, dataB, labelA, labelB) {
+  if (!dataB) return '';
+  const bar = renderCompareBar(dataA, dataB, labelA, labelB);
+  const axes = [
+    { v:'',       label:'全体（ファネル）' },
+    { v:'age',    label:'年代別' },
+    { v:'status', label:'ステータス別' },
+    { v:'media',  label:'媒体別' },
+    { v:'job',    label:'職種別' },
+    { v:'dept',   label:'部署別' },
+    { v:'gender', label:'性別' },
+  ];
+  const sel = `<div style="display:flex;align-items:center;gap:8px;margin:2px 0 10px;">
+    <span style="font-size:11px;color:#378ADD;font-weight:600;">軸で比較：</span>
+    <select onchange="setCompareAxis(this.value)" style="padding:5px 9px;border:1px solid #c8ddf5;border-radius:7px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;">
+      ${axes.map(a=>`<option value="${a.v}" ${anCompareAxis===a.v?'selected':''}>${a.label}</option>`).join('')}
+    </select>
+  </div>`;
+  const table = anCompareAxis ? renderCompareAxisTable(dataA, dataB, anCompareAxis) : '';
+  return bar + sel + table;
+}
+
+// 比較軸のカテゴリ値を取り出す
+function getCompareAxisVal(a, axis) {
+  if (axis === 'age') {
+    const age = parseInt(a.age);
+    if (!age) return '不明';
+    if (age < 30) return '20代以下';
+    if (age < 40) return '30代';
+    if (age < 50) return '40代';
+    if (age < 60) return '50代';
+    return '60代以上';
+  }
+  if (axis === 'status') return a.status || '(未設定)';
+  if (axis === 'media')  return a.media  || '(未設定)';
+  if (axis === 'job')    return a.jobType|| '(未設定)';
+  if (axis === 'dept')   return a.dept   || '(未設定)';
+  if (axis === 'gender') return a.gender || '(未設定)';
+  return '(未設定)';
+}
+
+// 軸別 A vs B 比較表
+// 通常軸：応募数A/B+差分・採用率A/B+差分pt ／ ステータス軸：件数A/B+差分・構成比A/B
+function renderCompareAxisTable(dataA, dataB, axis) {
+  const esc = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const isStatus = axis === 'status';
+  const groupOf = (arr) => { const g={}; arr.forEach(a=>{ const k=getCompareAxisVal(a,axis); (g[k]=g[k]||[]).push(a); }); return g; };
+  const ga = groupOf(dataA), gb = groupOf(dataB);
+  const cats = [...new Set([...Object.keys(ga), ...Object.keys(gb)])];
+  cats.sort((x,y)=>((ga[y]?.length||0)+(gb[y]?.length||0)) - ((ga[x]?.length||0)+(gb[x]?.length||0)));
+  const tA = dataA.length, tB = dataB.length;
+  const rate = (n,d)=> d ? Math.round(n/d*100) : 0;
+  const hiredOf = (arr)=> calcFunnelCumulative(arr).hired || 0;
+  const delta = (d,unit)=>{ const flat=d===0; const up=d>0; const col=flat?'#aaa':(up?'#3B6D11':'#D85A30'); const ar=flat?'±':(up?'▲':'▼'); return `<span style="color:${col};font-weight:700;">${ar}${Math.abs(d)}${unit}</span>`; };
+  const axisLabel = { age:'年代', status:'ステータス', media:'媒体', job:'職種', dept:'部署', gender:'性別' }[axis] || '項目';
+
+  let head, body, foot;
+  if (isStatus) {
+    head = `<tr><th style="${thStyleL}">${axisLabel}</th><th style="${thStyle}">件数A</th><th style="${thStyle}">件数B</th><th style="${thStyle}">差</th><th style="${thStyle}">構成比A</th><th style="${thStyle}">構成比B</th></tr>`;
+    body = cats.map(c=>{ const na=ga[c]?.length||0, nb=gb[c]?.length||0;
+      return `<tr><td style="${tdStyleL}">${esc(c)}</td><td style="${tdStyle}">${na}</td><td style="${tdStyle}">${nb}</td><td style="${tdStyle}">${delta(na-nb,'')}</td><td style="${tdStyle}">${rate(na,tA)}%</td><td style="${tdStyle}">${rate(nb,tB)}%</td></tr>`;
+    }).join('');
+    foot = `<tr><td style="${tfStyleL}">合計</td><td style="${tfStyle}">${tA}</td><td style="${tfStyle}">${tB}</td><td style="${tfStyle}">${delta(tA-tB,'')}</td><td style="${tfStyle}">100%</td><td style="${tfStyle}">100%</td></tr>`;
+  } else {
+    head = `<tr><th style="${thStyleL}">${axisLabel}</th><th style="${thStyle}">応募A</th><th style="${thStyle}">応募B</th><th style="${thStyle}">差</th><th style="${thStyle};color:#3B6D11;">採用率A</th><th style="${thStyle};color:#3B6D11;">採用率B</th><th style="${thStyle}">差</th></tr>`;
+    body = cats.map(c=>{ const aArr=ga[c]||[], bArr=gb[c]||[]; const na=aArr.length, nb=bArr.length; const ra=rate(hiredOf(aArr),na), rb=rate(hiredOf(bArr),nb);
+      return `<tr><td style="${tdStyleL}">${esc(c)}</td><td style="${tdStyle}">${na}</td><td style="${tdStyle}">${nb}</td><td style="${tdStyle}">${delta(na-nb,'')}</td><td style="${tdStyle}">${na?ra+'%':'-'}</td><td style="${tdStyle}">${nb?rb+'%':'-'}</td><td style="${tdStyle}">${delta(ra-rb,'pt')}</td></tr>`;
+    }).join('');
+    const raAll=rate(hiredOf(dataA),tA), rbAll=rate(hiredOf(dataB),tB);
+    foot = `<tr><td style="${tfStyleL}">合計</td><td style="${tfStyle}">${tA}</td><td style="${tfStyle}">${tB}</td><td style="${tfStyle}">${delta(tA-tB,'')}</td><td style="${tfStyle}">${raAll}%</td><td style="${tfStyle}">${rbAll}%</td><td style="${tfStyle}">${delta(raAll-rbAll,'pt')}</td></tr>`;
+  }
+  return `<div style="overflow-x:auto;margin-bottom:1rem;"><table style="width:100%;border-collapse:collapse;min-width:420px;">
+    <thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot>
+  </table></div>`;
 }
 
 function renderAiAnalysis(data, targetId) {
