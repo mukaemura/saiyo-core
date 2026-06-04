@@ -6196,6 +6196,20 @@ function getAnData() {
   });
 }
 
+// 月別リードタイム・月別集計（全体）用：期間A（日付）フィルタは無視し、全月を常時対象にする。
+// 職種・部署・クライアントの絞り込みは getAnData と同様に効かせる。
+function getAnDataAllMonths() {
+  const dept=document.getElementById('anDept')?document.getElementById('anDept').value:'';
+  const job=document.getElementById('anJob')?document.getElementById('anJob').value:'';
+  const clientFilter = isAdmin ? (document.getElementById('anClient')?.value || '') : '';
+  return applicants.filter(a=>{
+    if(dept&&a.dept!==dept)return false;
+    if(job&&a.jobType!==job)return false;
+    if(clientFilter&&a.clientId!==clientFilter)return false;
+    return true;
+  });
+}
+
 // admin分析画面用：クライアント絞り込みプルダウンを生成・表示制御
 function populateAnClientFilter() {
   const sel = document.getElementById('anClient');
@@ -6421,8 +6435,8 @@ async function renderLeadTime(data) {
       </div>`;
   }).join('');
 
-  // 月別リードタイム集計（応募月ベース）
-  renderLeadTimeMonthly(data, ltMap);
+  // 月別リードタイム集計（応募月ベース）：期間フィルタに関係なく全月を常時表示
+  renderLeadTimeMonthly(getAnDataAllMonths(), ltMap);
 }
 
 // 月別リードタイム集計テーブル描画
@@ -6599,11 +6613,10 @@ function setAnTab(t,btn){
   anTab=t;
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  // 月別集計（常時表示）を更新（比較パネルは renderAn が anCompareBox に描画する）
+  // 月別集計（常時表示）を更新：期間フィルタに関係なく全月を表示
   const fixedEl = document.getElementById('anMonthlyFixed');
   if (fixedEl) {
-    const data = getAnData();
-    fixedEl.innerHTML = renderMonthTable(buildMonthStats(data), '');
+    fixedEl.innerHTML = renderMonthTable(buildMonthStats(getAnDataAllMonths()), '');
   }
   // カスタムセクションを再描画
   renderCustomSections();
@@ -6751,9 +6764,9 @@ async function renderAn() {
     if (cs) cs.textContent = dataB ? `比較中: ${f2||'〜'} 〜 ${t2||'〜'}` : '';
   }
 
-  // 月別集計（全体）
+  // 月別集計（全体）：期間フィルタに関係なく全月を常時表示
   const monthlyEl = document.getElementById('anMonthlyFixed');
-  if (monthlyEl) monthlyEl.innerHTML = renderMonthTable(buildMonthStats(data), '');
+  if (monthlyEl) monthlyEl.innerHTML = renderMonthTable(buildMonthStats(getAnDataAllMonths()), '');
 
   // コアラコーチ：データから改善案を生成
   renderKoalaCoach(data);
