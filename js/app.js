@@ -379,8 +379,8 @@ function setSectionSort(secId, col) {
   if (cur && cur.col === col) {
     cur.dir = -cur.dir; // 同じ列なら昇順/降順トグル
   } else {
-    // 名前列は昇順、数値列は降順をデフォルトに
-    sectionSortState[secId] = { col, dir: (col === 'name') ? 1 : -1 };
+    // カテゴリ系（名前・各軸）は昇順、数値列は降順をデフォルトに
+    sectionSortState[secId] = { col, dir: (col === 'name' || col.startsWith('ax')) ? 1 : -1 };
   }
   renderCustomSections();
 }
@@ -560,12 +560,36 @@ function renderCompareTableMulti(data, axes, secId) {
 
   const selectedSet = sectionSelectedRows[secId] || new Set();
 
-  // 親軸が変わるごとに区切り線を入れる
-  let prevAx1 = null;
-  const rows = sorted.map((g, idx) => {
+  // 各行の集計を先に求める（並べ替え用）
+  let rowsData = sorted.map(g => {
     const cum = calcFunnelCumulative(g.data);
-    const total = cum['applied'] || 0;
+    return { axisVals: g.axisVals, data: g.data, cum, total: cum['applied'] || 0 };
+  });
 
+  // 列ヘッダークリックによる並べ替え（デフォルトは応募数の降順＝親軸グループ表示）
+  const hasExplicitSort = !!sectionSortState[secId];
+  const sortState = sectionSortState[secId] || { col: 'applied', dir: -1 };
+  const sortArrow = (c) => sortState.col === c ? `<span style="color:#185FA5;margin-left:2px;">${sortState.dir > 0 ? '▲' : '▼'}</span>` : '<span style="color:#ccc;margin-left:2px;">↕</span>';
+  const mcolVal = (r, col) => {
+    if (col && col.startsWith('ax')) return r.axisVals[parseInt(col.slice(2))] ?? '';
+    if (col === 'applied') return r.total;
+    return r.cum[col] || 0;
+  };
+  if (hasExplicitSort) {
+    rowsData.sort((x, y) => {
+      if (sortState.col.startsWith('ax')) {
+        const c = _compareAxisName(mcolVal(x, sortState.col), mcolVal(y, sortState.col)) * sortState.dir;
+        return c !== 0 ? c : (y.total - x.total);
+      }
+      const dv = (mcolVal(x, sortState.col) - mcolVal(y, sortState.col)) * sortState.dir;
+      return dv !== 0 ? dv : (y.total - x.total);
+    });
+  }
+  // 親軸の区切り線は「軸0で並んでいるとき」だけ意味があるので、その場合のみ表示
+  const showParentBorder = !hasExplicitSort || sortState.col === 'ax0';
+
+  let prevAx1 = null;
+  const rows = rowsData.map(({ axisVals, cum, total }, idx) => {
     const cells = FUNNEL_STEPS.slice(1).map(s => {
       const cnt = cum[s.id] || 0;
       const pct = total ? Math.round(cnt/total*100) : 0;
@@ -575,16 +599,16 @@ function renderCompareTableMulti(data, axes, secId) {
       return `<td class="cell-step${heat}"><span class="num">${cnt}</span><span class="pct">${pct}%</span></td>`;
     }).join('');
 
-    const axCells = g.axisVals.map((v, i) => {
+    const axCells = axisVals.map((v, i) => {
       const styleClass = i === 0 ? '' : 'style="font-weight:500;color:#666;"';
       return `<td class="cell-name" ${styleClass}>${escFunnel(v)}</td>`;
     }).join('');
 
-    const rowKey = g.axisVals.join(' / ');
+    const rowKey = axisVals.join(' / ');
     const isSel = selectedSet.has(rowKey);
-    const isNewParent = prevAx1 !== g.axisVals[0];
-    prevAx1 = g.axisVals[0];
-    const borderStyle = isNewParent && idx > 0 ? 'border-top:2px solid #e4e8e7;' : '';
+    const isNewParent = prevAx1 !== axisVals[0];
+    prevAx1 = axisVals[0];
+    const borderStyle = (showParentBorder && isNewParent && idx > 0) ? 'border-top:2px solid #e4e8e7;' : '';
     const safeKey = escFunnel(rowKey);
 
     return `<tr class="${isSel?'selected':''}" style="${borderStyle}" data-row-name="${safeKey}">
@@ -595,7 +619,7 @@ function renderCompareTableMulti(data, axes, secId) {
     </tr>`;
   }).join('');
 
-  const headerCells = axes.map(ax => `<th class="col-name">${getAxisLabel(ax)}</th>`).join('');
+  const headerCells = axes.map((ax, i) => `<th class="col-name" style="cursor:pointer;" title="クリックで並べ替え" onclick="setSectionSort('${secId}','ax${i}')">${getAxisLabel(ax)}${sortArrow('ax'+i)}</th>`).join('');
   const avgPctStrs = FUNNEL_STEPS.slice(1).map(s => `<td>${Math.round(avgPcts[s.id])}%</td>`).join('');
 
   const note = remaining > 0
@@ -617,11 +641,11 @@ function renderCompareTableMulti(data, axes, secId) {
       <thead><tr>
         <th></th>
         ${headerCells}
-        <th class="col-step">応募</th>
-        <th class="col-step">対応中以上</th>
-        <th class="col-step">面接以上</th>
-        <th class="col-step">採用</th>
-        <th class="col-step">入社</th>
+        <th class="col-step" style="cursor:pointer;" title="クリックで並べ替え" onclick="setSectionSort('${secId}','applied')">応募${sortArrow('applied')}</th>
+        <th class="col-step" style="cursor:pointer;" title="クリックで並べ替え" onclick="setSectionSort('${secId}','in_progress')">対応中以上${sortArrow('in_progress')}</th>
+        <th class="col-step" style="cursor:pointer;" title="クリックで並べ替え" onclick="setSectionSort('${secId}','interview')">面接以上${sortArrow('interview')}</th>
+        <th class="col-step" style="cursor:pointer;" title="クリックで並べ替え" onclick="setSectionSort('${secId}','hired')">採用${sortArrow('hired')}</th>
+        <th class="col-step" style="cursor:pointer;" title="クリックで並べ替え" onclick="setSectionSort('${secId}','joined')">入社${sortArrow('joined')}</th>
       </tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr>
