@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
 <!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260604b">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260604b">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260604b">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260604b">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260604b">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260604c">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260604c">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260604c">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260604c">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260604c">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260604b">
+<link rel="stylesheet" href="css/style.css?v=20260604c">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -1560,7 +1560,7 @@
 
     <!-- ロゴ（カードより少し大きめに、幅いっぱい） -->
     <div style="text-align:center;margin-bottom:24px;">
-      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260604b" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
+      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260604c" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
     </div>
 
     <!-- ログインカード本体（少し狭め、中央寄せ） -->
@@ -1823,7 +1823,7 @@
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <!-- ロゴ＋プラットフォームサブテキスト -->
         <a href="#" onclick="goHome();return false;" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;cursor:pointer;" title="ホームに戻る">
-          <img src="assets/saiyo_mark.png?v=20260604b" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
+          <img src="assets/saiyo_mark.png?v=20260604c" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
           <div style="line-height:1;">
             <div style="font-size:14px;font-weight:600;color:#1a1a1a;">採用コア</div>
             <div style="font-size:9px;color:#888;letter-spacing:0.08em;margin-top:3px;">RECRUITING PLATFORM</div>
@@ -3289,20 +3289,22 @@
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:.75rem;">
           <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
             <label style="font-size:11px;color:#666;font-weight:500;">期間A：</label>
-            <input type="date" id="anFrom" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;">
+            <input type="date" id="anFrom" onchange="onAnDateChange()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;">
             <span style="font-size:10px;color:#aaa;">〜</span>
-            <input type="date" id="anTo" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;">
-            <button class="btn-sm" onclick="setPeriod('month')">今月</button>
-            <button class="btn-sm" onclick="setPeriod('quarter')">3ヶ月</button>
-            <button class="btn-sm" onclick="setPeriod('year')">1年</button>
-            <button class="btn-sm" onclick="setPeriod('all')">累計</button>
+            <input type="date" id="anTo" onchange="onAnDateChange()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;">
+            <button class="btn-sm" data-anperiod="custom" onclick="setPeriod('custom')">期間選択</button>
+            <button class="btn-sm" data-anperiod="lastMonth" onclick="setPeriod('lastMonth')">前月</button>
+            <button class="btn-sm" data-anperiod="month" onclick="setPeriod('month')">当月</button>
+            <button class="btn-sm" data-anperiod="quarter" onclick="setPeriod('quarter')">3ヶ月</button>
+            <button class="btn-sm" data-anperiod="year" onclick="setPeriod('year')">1年</button>
+            <button class="btn-sm" data-anperiod="all" onclick="setPeriod('all')">累計</button>
             <select id="anClient" onchange="renderAn()" style="display:none;padding:5px 8px;border:1.5px solid #378ADD;border-radius:8px;font-size:11px;font-family:inherit;background:#f0f6ff;color:#185FA5;font-weight:600;">
               <option value="">全クライアント</option>
             </select>
-            <select id="anDept" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;">
+            <select id="anDept" onchange="renderAn()" title="部署で絞り込み" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;max-width:150px;">
               <option value="">部署（全て）</option>
             </select>
-            <select id="anJob" onchange="renderAn()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;">
+            <select id="anJob" onchange="renderAn()" title="職種で絞り込み" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fafafa;max-width:170px;">
               <option value="">職種（全て）</option>
             </select>
           </div>
@@ -4203,10 +4205,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260604b"></script>
-<script src="js/app.js?v=20260604b"></script>
-<script src="js/paste-feature.js?v=20260604b"></script>
-<script src="js/email-feature.js?v=20260604b"></script>
-<script src="js/chip-feature.js?v=20260604b"></script>
+<script src="js/router.js?v=20260604c"></script>
+<script src="js/app.js?v=20260604c"></script>
+<script src="js/paste-feature.js?v=20260604c"></script>
+<script src="js/email-feature.js?v=20260604c"></script>
+<script src="js/chip-feature.js?v=20260604c"></script>
 </body>
 </html>

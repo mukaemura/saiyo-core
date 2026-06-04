@@ -1746,7 +1746,7 @@ function showSec(s) {
   if (s === 'list') { closeDetail(); renderList(); }
   if (s === 'schedule') renderSchedule();
   if (s === 'interview-cal') renderIvCal();
-  if (s === 'analytics') { setPeriod('all'); }
+  if (s === 'analytics') { setPeriod('month'); }  // デフォルトは「当月」
   if (s === 'master') renderManage();
   if (s === 'admin') renderAdmin();
   if (s === 'staff') renderStaff();
@@ -6221,12 +6221,41 @@ function populateAnClientFilter() {
 }
 
 function setPeriod(p) {
-  const now=new Date(); let from='',to=now.toISOString().split('T')[0];
-  if(p==='month')from=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];
-  else if(p==='quarter'){const d=new Date(now);d.setMonth(d.getMonth()-3);from=d.toISOString().split('T')[0];}
+  const now=new Date();
+  // 期間選択：日付ピッカーで自由指定するモード。ボタンをアクティブにして入力を促す
+  if(p==='custom'){
+    setAnPeriodActive('custom');
+    const f=document.getElementById('anFrom');
+    if(f){ try { if(f.showPicker) f.showPicker(); else f.focus(); } catch(e){ f.focus(); } }
+    return;
+  }
+  let from='',to=now.toISOString().split('T')[0];
+  if(p==='month'){
+    // 当月（1日〜今日）
+    from=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];
+  } else if(p==='lastMonth'){
+    // 前月（前月1日〜前月末日）
+    from=new Date(now.getFullYear(),now.getMonth()-1,1).toISOString().split('T')[0];
+    to=new Date(now.getFullYear(),now.getMonth(),0).toISOString().split('T')[0];
+  } else if(p==='quarter'){const d=new Date(now);d.setMonth(d.getMonth()-3);from=d.toISOString().split('T')[0];}
   else if(p==='year'){const d=new Date(now);d.setFullYear(d.getFullYear()-1);from=d.toISOString().split('T')[0];}
+  // 'all'（累計）は from='' のまま＝全期間
   document.getElementById('anFrom').value=from;
   document.getElementById('anTo').value=to;
+  setAnPeriodActive(p);
+  renderAn();
+}
+
+// 期間ボタンのアクティブ表示を切り替え
+function setAnPeriodActive(p){
+  document.querySelectorAll('[data-anperiod]').forEach(b=>{
+    b.classList.toggle('active', b.getAttribute('data-anperiod')===p);
+  });
+}
+
+// 期間Aの日付を手動で変えたら「期間選択」をアクティブにして再描画
+function onAnDateChange(){
+  setAnPeriodActive('custom');
   renderAn();
 }
 
