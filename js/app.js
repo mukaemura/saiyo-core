@@ -5058,8 +5058,8 @@ function renderDashboard() {
 
 function _renderDashboardCore() {
   const now = new Date();
-  const toStr = d => d.toISOString().split('T')[0];
-  const ym = now.toISOString().slice(0,7);
+  const toStr = d => fmtLocalDate(d);  // ローカル日付（UTC変換ズレ回避）
+  const ym = fmtLocalDate(now).slice(0,7);
   const monthStart = ym + '-01';
   const days30Ago = new Date(now); days30Ago.setDate(days30Ago.getDate() - 29);
   const h = now.getHours();
@@ -6220,6 +6220,14 @@ function populateAnClientFilter() {
   if (cur) sel.value = cur;
 }
 
+// ローカルタイムゾーンで YYYY-MM-DD を作る（toISOString はUTC変換で日付がずれるため使わない）
+function fmtLocalDate(d){
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
 function setPeriod(p) {
   const now=new Date();
   // 期間選択：日付ピッカーで自由指定するモード。ボタンをアクティブにして入力を促す
@@ -6229,16 +6237,16 @@ function setPeriod(p) {
     if(f){ try { if(f.showPicker) f.showPicker(); else f.focus(); } catch(e){ f.focus(); } }
     return;
   }
-  let from='',to=now.toISOString().split('T')[0];
+  let from='',to=fmtLocalDate(now);
   if(p==='month'){
     // 当月（1日〜今日）
-    from=new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];
+    from=fmtLocalDate(new Date(now.getFullYear(),now.getMonth(),1));
   } else if(p==='lastMonth'){
     // 前月（前月1日〜前月末日）
-    from=new Date(now.getFullYear(),now.getMonth()-1,1).toISOString().split('T')[0];
-    to=new Date(now.getFullYear(),now.getMonth(),0).toISOString().split('T')[0];
-  } else if(p==='quarter'){const d=new Date(now);d.setMonth(d.getMonth()-3);from=d.toISOString().split('T')[0];}
-  else if(p==='year'){const d=new Date(now);d.setFullYear(d.getFullYear()-1);from=d.toISOString().split('T')[0];}
+    from=fmtLocalDate(new Date(now.getFullYear(),now.getMonth()-1,1));
+    to=fmtLocalDate(new Date(now.getFullYear(),now.getMonth(),0));
+  } else if(p==='quarter'){const d=new Date(now);d.setMonth(d.getMonth()-3);from=fmtLocalDate(d);}
+  else if(p==='year'){const d=new Date(now);d.setFullYear(d.getFullYear()-1);from=fmtLocalDate(d);}
   // 'all'（累計）は from='' のまま＝全期間
   document.getElementById('anFrom').value=from;
   document.getElementById('anTo').value=to;
@@ -7838,15 +7846,17 @@ function setCompare(mode) {
   const to = document.getElementById('anTo').value;
   const now = new Date();
   let f2='', t2='';
+  // YYYY-MM-DD をローカル日付として安全にパース（new Date(str) のUTC解釈ズレを回避）
+  const parseLocal = (s) => { const [y,m,d]=s.split('-').map(Number); return new Date(y, m-1, d); };
   if (mode === 'prevSame') {
     // 期間Aと同じ長さの「直前の期間」をBに設定（施策の前後比較用）
     if (from && to) {
-      const df = new Date(from), dt = new Date(to);
-      const days = Math.round((dt - df) / 86400000); // A の日数（両端含むので +0 で差日数）
-      const bEnd = new Date(df); bEnd.setDate(bEnd.getDate() - 1);        // Aの開始前日
+      const dfL = parseLocal(from), dtL = parseLocal(to);
+      const days = Math.round((dtL - dfL) / 86400000); // A の日数（差日数）
+      const bEnd = new Date(dfL); bEnd.setDate(bEnd.getDate() - 1);          // Aの開始前日
       const bStart = new Date(bEnd); bStart.setDate(bStart.getDate() - days); // 同じ長さだけ遡る
-      f2 = bStart.toISOString().split('T')[0];
-      t2 = bEnd.toISOString().split('T')[0];
+      f2 = fmtLocalDate(bStart);
+      t2 = fmtLocalDate(bEnd);
     } else {
       alert('先に期間A（開始日・終了日）を指定してください');
       return;
@@ -7854,16 +7864,16 @@ function setCompare(mode) {
   } else if (mode === 'lastMonth') {
     const d = new Date(now.getFullYear(), now.getMonth()-1, 1);
     const d2 = new Date(now.getFullYear(), now.getMonth(), 0);
-    f2 = d.toISOString().split('T')[0]; t2 = d2.toISOString().split('T')[0];
+    f2 = fmtLocalDate(d); t2 = fmtLocalDate(d2);
   } else if (mode === 'last3m') {
     const d = new Date(now); d.setMonth(d.getMonth()-6);
     const d2 = new Date(now); d2.setMonth(d2.getMonth()-3);
-    f2 = d.toISOString().split('T')[0]; t2 = d2.toISOString().split('T')[0];
+    f2 = fmtLocalDate(d); t2 = fmtLocalDate(d2);
   } else if (mode === 'lastYear') {
     if (from && to) {
-      const df=new Date(from); df.setFullYear(df.getFullYear()-1);
-      const dt=new Date(to); dt.setFullYear(dt.getFullYear()-1);
-      f2=df.toISOString().split('T')[0]; t2=dt.toISOString().split('T')[0];
+      const df=parseLocal(from); df.setFullYear(df.getFullYear()-1);
+      const dt=parseLocal(to); dt.setFullYear(dt.getFullYear()-1);
+      f2=fmtLocalDate(df); t2=fmtLocalDate(dt);
     }
   }
   document.getElementById('anFrom2').value = f2;
