@@ -772,6 +772,7 @@ let quickFilterMode = 'all'; // 'all' | 'active'
 let clients = []; // 管理者用
 let salesEnabled = false; // 売上管理機能のオン/オフ（masters の feature_sales 行で管理）
 let salesRecords = []; // 現クライアントの売上レコード
+let salesChartInstances = []; // 売上グラフのChartインスタンス
 let staffList = []; // 担当者マスタ（Phase B-1で追加）
 // 現在の担当者（Phase B-2で追加）
 let currentStaffId = null;
@@ -13300,6 +13301,69 @@ async function deleteSales(id) {
   if (error) { alert('削除に失敗しました: ' + error.message); return; }
   setStatus('売上を削除しました', 'ok');
   await renderSales();
+}
+
+// 入社月ベースのグラフ（月×売上／月×売上×担当者）
+function renderSalesCharts() {
+  const cont = document.getElementById('salesCharts');
+  if (!cont) return;
+  salesChartInstances.forEach(c => { try { c.destroy(); } catch(e) {} });
+  salesChartInstances = [];
+  const recs = salesRecords.filter(r => r.join_month);
+  if (!recs.length) { cont.innerHTML = ''; return; }
+
+  const months = [...new Set(recs.map(r => r.join_month))].sort();
+  const byMonth = {}; months.forEach(m => byMonth[m] = 0);
+  const byMonthStaff = {}; months.forEach(m => byMonthStaff[m] = {});
+  const staffNameOf = (r) => r.staff_id ? (getStaffNameById(r.staff_id) || '担当者不明') : '未割当';
+  recs.forEach(r => {
+    const amt = Number(r.amount || 0);
+    byMonth[r.join_month] += amt;
+    const sn = staffNameOf(r);
+    byMonthStaff[r.join_month][sn] = (byMonthStaff[r.join_month][sn] || 0) + amt;
+  });
+  const allStaff = [...new Set(recs.map(staffNameOf))];
+  const palette = ['#5aaa8e','#378ADD','#EF9F27','#9B59B6','#E0739A','#1D9E75','#854F0B','#5DCAA5','#C0392B','#2C7BB6'];
+  const total = months.reduce((s, m) => s + byMonth[m], 0);
+  const yenTick = (v) => '¥' + Number(v).toLocaleString('ja-JP');
+
+  cont.innerHTML = `
+    <div style="background:#fff;border-radius:10px;padding:1.125rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+      <div style="font-size:12px;font-weight:700;color:#1a1a1a;margin-bottom:2px;">📈 月別売上（入社月ベース）</div>
+      <div style="font-size:10.5px;color:#888;margin-bottom:10px;">合計 ${fmtYen(total)}</div>
+      <div style="position:relative;height:240px;"><canvas id="salesChartMonth"></canvas></div>
+    </div>
+    <div style="background:#fff;border-radius:10px;padding:1.125rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
+      <div style="font-size:12px;font-weight:700;color:#1a1a1a;margin-bottom:2px;">👤 月別売上 × 担当者</div>
+      <div style="font-size:10.5px;color:#888;margin-bottom:10px;">担当者ごとの内訳（積み上げ）</div>
+      <div style="position:relative;height:260px;"><canvas id="salesChartStaff"></canvas></div>
+    </div>`;
+
+  const el1 = document.getElementById('salesChartMonth');
+  if (el1 && typeof Chart !== 'undefined') {
+    salesChartInstances.push(new Chart(el1, {
+      type: 'bar',
+      data: { labels: months, datasets: [{ label: '売上', data: months.map(m => byMonth[m]), backgroundColor: 'rgba(29,158,117,.25)', borderColor: '#1D9E75', borderWidth: 1.5 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (it) => '売上: ' + fmtYen(it.parsed.y) } } },
+        scales: { y: { beginAtZero: true, ticks: { callback: yenTick, font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } }
+      }
+    }));
+  }
+  const el2 = document.getElementById('salesChartStaff');
+  if (el2 && typeof Chart !== 'undefined') {
+    const datasets = allStaff.map((sn, i) => ({ label: sn, data: months.map(m => byMonthStaff[m][sn] || 0), backgroundColor: palette[i % palette.length] }));
+    salesChartInstances.push(new Chart(el2, {
+      type: 'bar',
+      data: { labels: months, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: true, position: 'top', labels: { font: { size: 10 }, boxWidth: 12 } }, tooltip: { callbacks: { label: (it) => it.dataset.label + ': ' + fmtYen(it.parsed.y) } } },
+        scales: { x: { stacked: true, ticks: { font: { size: 10 } } }, y: { stacked: true, beginAtZero: true, ticks: { callback: yenTick, font: { size: 10 } } } }
+      }
+    }));
+  }
 }
 
 function renderManage() {
