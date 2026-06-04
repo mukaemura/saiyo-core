@@ -9361,10 +9361,16 @@ function getIvCalInterviews() {
       if (staffFilter === '__none__') { if (ids.length) return; }
       else if (!ids.includes(staffFilter)) return;
     }
+    // 担当者名（複数なら「、」区切り）
+    const staffNames = (a.staffIds || []).map(sid => {
+      const s = staffList.find(x => String(x.id) === String(sid));
+      return s ? s.name : null;
+    }).filter(Boolean);
+    const staff = staffNames.join('、');
     (a.interviews || []).forEach(iv => {
       if (!iv.scheduled_at) return;
       const ivType = iv.interview_type === 'other' ? (iv.type_other || 'その他') : (iv.interview_type || '面接');
-      list.push({ id: iv.id, applicantId: a.id, name: a.name || '', type: ivType, result: iv.result || 'pending', date: iv.scheduled_at.slice(0, 10), time: iv.scheduled_at.length > 10 ? iv.scheduled_at.slice(11, 16) : '', clientId: a.clientId, gender: a.gender || '', isCasual: CASUAL_INTERVIEW_TYPES.includes(iv.interview_type) });
+      list.push({ id: iv.id, applicantId: a.id, name: a.name || '', type: ivType, result: iv.result || 'pending', date: iv.scheduled_at.slice(0, 10), time: iv.scheduled_at.length > 10 ? iv.scheduled_at.slice(11, 16) : '', clientId: a.clientId, gender: a.gender || '', isCasual: CASUAL_INTERVIEW_TYPES.includes(iv.interview_type), staff: staff });
     });
   });
   return list;
@@ -9514,8 +9520,9 @@ function renderIvCal() {
           if (gStr === '男' || gStr === '男性' || /^m(ale)?$/i.test(gStr)) gBorder = '#378ADD';
           else if (gStr === '女' || gStr === '女性' || /^f(emale)?$/i.test(gStr)) gBorder = '#D4537E';
           const typeColor = iv.isCasual ? '#27AE60' : rs.color;
+          const staffStr = iv.staff ? `<span style="font-size:9px;color:#9B59B6;font-weight:600;margin-left:4px;">👤${esc(iv.staff)}</span>` : '';
           html += `<div onclick="openIvResultPopup('${iv.applicantId}','${iv.id}')" style="background:${rs.bg};border-left:3px solid ${gBorder};border-radius:6px;padding:5px 7px;margin-bottom:4px;cursor:pointer;transition:box-shadow .15s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow='none'">`;
-          html += `<div>${timeStr}<span style="font-size:11px;font-weight:600;color:#1a1a1a;">${esc(iv.name)}</span></div>`;
+          html += `<div>${timeStr}<span style="font-size:11px;font-weight:600;color:#1a1a1a;">${esc(iv.name)}</span>${staffStr}</div>`;
           html += `<div style="font-size:9.5px;color:${typeColor};font-weight:500;margin-top:2px;">${esc(iv.type)} ・ ${rs.label}</div>`;
           html += `</div>`;
         });
@@ -9568,7 +9575,7 @@ function renderIvCal() {
           if (gStr === '男' || gStr === '男性' || /^m(ale)?$/i.test(gStr)) gBorder = '#378ADD';
           else if (gStr === '女' || gStr === '女性' || /^f(emale)?$/i.test(gStr)) gBorder = '#D4537E';
           const typeColor = iv.isCasual ? '#27AE60' : rs.color;
-          html += `<div onclick="openIvResultPopup('${iv.applicantId}','${iv.id}')" style="font-size:9.5px;padding:2px 4px;margin-bottom:2px;border-radius:4px;background:${rs.bg};color:${typeColor};cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid ${gBorder};" title="${esc(iv.name)} ${esc(iv.type)}">${esc(iv.name)} <span style="font-weight:600;">${esc(shortType)}</span></div>`;
+          html += `<div onclick="openIvResultPopup('${iv.applicantId}','${iv.id}')" style="font-size:9.5px;padding:2px 4px;margin-bottom:2px;border-radius:4px;background:${rs.bg};color:${typeColor};cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid ${gBorder};" title="${esc(iv.name)} ${esc(iv.type)}${iv.staff ? ' / 担当:' + esc(iv.staff) : ''}">${esc(iv.name)} <span style="font-weight:600;">${esc(shortType)}</span>${iv.staff ? `<span style="color:#9B59B6;font-weight:600;"> 👤${esc(iv.staff)}</span>` : ''}</div>`;
         });
         if (dayItems.length > 3) {
           html += `<div style="font-size:9px;color:#888;padding:1px 4px;">+${dayItems.length - 3}件</div>`;
