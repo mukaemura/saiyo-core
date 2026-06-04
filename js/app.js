@@ -2536,30 +2536,104 @@ function renderSchList(cat, items) {
     const cid = a.coreStatusId || STATUS_TO_CORE[a.status] || 'applied';
     const coreName = getCoreStatusName(cid);
     const coreColor = getCoreStatusColor(cid);
+    const subInfo = `${escapeHtml(a.jobType||'')} ${escapeHtml(a.media ? '/'+a.media : '')}`;
+    const leftHtml = `<div>
+        <span style="font-weight:600;">${escapeHtml(a.name||'(名前なし)')}</span>
+        <span style="color:#aaa;font-size:10px;margin-left:6px;">${subInfo}</span>
+        <span style="font-size:10px;background:${coreColor};color:#fff;padding:2px 7px;border-radius:9px;margin-left:6px;">${escapeHtml(coreName)}</span>
+      </div>`;
+
+    // 「今週の面接」だけ：その場で結果入力できるインラインフォーム付き
+    if (cat === 'interview') {
+      const iv = it.interview;
+      const ivId = String(iv.id);
+      const aid = escapeHtml(String(a.id));
+      const dt = iv.scheduled_at ? formatDateTime(iv.scheduled_at) : '日程未定';
+      const typ = iv.interview_type === 'other' ? (iv.type_other || 'その他') : (iv.interview_type || '面接');
+      const curResult = iv.result || 'pending';
+      const optsHtml = INTERVIEW_RESULTS.map(r => `<option value="${r.id}" ${r.id === curResult ? 'selected' : ''}>${r.name}</option>`).join('');
+      const memoVal = escapeHtml(iv.memo || '');
+      return `<div style="background:#FAFAFA;border-radius:8px;border:1px solid transparent;margin-bottom:6px;">
+      <div onclick="openApplicantEdit('${aid}')" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;font-size:12px;cursor:pointer;border-radius:8px;" onmouseover="this.style.background='#fff'" onmouseout="this.style.background=''">
+        ${leftHtml}
+        <div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
+          <span style="font-size:10px;background:#EEEDFE;color:#3C3489;padding:2px 7px;border-radius:9px;font-weight:600;">${escapeHtml(typ)}</span>
+          <span style="font-size:11px;color:#3C3489;font-weight:600;">${escapeHtml(dt)}</span>
+          <button onclick="event.stopPropagation();toggleSchResultForm('${ivId}')" style="font-size:10.5px;background:#5aaa8e;color:#fff;border:none;padding:4px 10px;border-radius:7px;font-weight:600;cursor:pointer;font-family:inherit;">結果を入力 ▾</button>
+        </div>
+      </div>
+      <div id="schRes_${ivId}" style="display:none;padding:10px 12px;border-top:1px dashed #cdd8d4;" onclick="event.stopPropagation()">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:11px;color:#666;font-weight:600;">結果</span>
+          <select id="schResSel_${ivId}" style="padding:5px 8px;border:1px solid #cdd8d4;border-radius:7px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;">${optsHtml}</select>
+          <input id="schResMemo_${ivId}" type="text" value="${memoVal}" placeholder="メモ（任意）" style="flex:1;min-width:140px;padding:5px 8px;border:1px solid #cdd8d4;border-radius:7px;font-size:12px;font-family:inherit;">
+          <button onclick="saveSchInterviewResult('${ivId}','${aid}')" style="font-size:11px;background:#185FA5;color:#fff;border:none;padding:6px 14px;border-radius:7px;font-weight:600;cursor:pointer;font-family:inherit;">保存</button>
+          <button onclick="toggleSchResultForm('${ivId}')" style="font-size:11px;background:#fff;color:#888;border:1px solid #ddd;padding:6px 12px;border-radius:7px;cursor:pointer;font-family:inherit;">閉じる</button>
+        </div>
+      </div>
+    </div>`;
+    }
+
     let rightHtml = '';
     if (cat === 'today') {
       rightHtml = `<span style="font-size:10px;background:#FAFAFA;color:#666;padding:2px 7px;border-radius:9px;border:1px solid #eee;">${escapeHtml(it.reason)}</span>`;
       if (it.highlight) {
         rightHtml += ` <span style="font-size:10px;color:#993C1D;font-weight:600;margin-left:4px;">${escapeHtml(it.highlight)}</span>`;
       }
-    } else if (cat === 'interview') {
-      const iv = it.interview;
-      const dt = iv.scheduled_at ? formatDateTime(iv.scheduled_at) : '日程未定';
-      const typ = iv.interview_type === 'other' ? (iv.type_other || 'その他') : (iv.interview_type || '面接');
-      rightHtml = `<span style="font-size:10px;background:#EEEDFE;color:#3C3489;padding:2px 7px;border-radius:9px;font-weight:600;">${escapeHtml(typ)}</span> <span style="font-size:11px;color:#3C3489;font-weight:600;margin-left:6px;">${escapeHtml(dt)}</span>`;
     } else if (cat === 'stale') {
       rightHtml = `<span style="font-size:10px;color:#854F0B;font-weight:600;">${it.days}日経過</span> <span style="font-size:10px;color:#aaa;margin-left:6px;">${escapeHtml(it.reason)}</span>`;
     }
-    const subInfo = `${escapeHtml(a.jobType||'')} ${escapeHtml(a.media ? '/'+a.media : '')}`;
     return `<div onclick="openApplicantEdit('${escapeHtml(String(a.id))}')" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#FAFAFA;border-radius:8px;font-size:12px;cursor:pointer;border:1px solid transparent;" onmouseover="this.style.borderColor='#1a1a1a';this.style.background='#fff'" onmouseout="this.style.borderColor='transparent';this.style.background='#FAFAFA'">
-      <div>
-        <span style="font-weight:600;">${escapeHtml(a.name||'(名前なし)')}</span>
-        <span style="color:#aaa;font-size:10px;margin-left:6px;">${subInfo}</span>
-        <span style="font-size:10px;background:${coreColor};color:#fff;padding:2px 7px;border-radius:9px;margin-left:6px;">${escapeHtml(coreName)}</span>
-      </div>
+      ${leftHtml}
       <div>${rightHtml}</div>
     </div>`;
   }).join('');
+}
+
+// スケジュール画面：面接結果のインライン入力フォームを開閉
+function toggleSchResultForm(ivId) {
+  const el = document.getElementById('schRes_' + ivId);
+  if (!el) return;
+  const open = el.style.display === 'none' || !el.style.display;
+  el.style.display = open ? 'block' : 'none';
+  if (open) {
+    const sel = document.getElementById('schResSel_' + ivId);
+    if (sel) sel.focus();
+  }
+}
+
+// スケジュール画面：面接結果をその場で保存（応募者詳細を開かずに完結）
+async function saveSchInterviewResult(ivId, aid) {
+  const sel = document.getElementById('schResSel_' + ivId);
+  const memoEl = document.getElementById('schResMemo_' + ivId);
+  if (!sel) return;
+  const result = sel.value || 'pending';
+  const memo = memoEl ? memoEl.value.trim() : '';
+
+  // イベント記録用に旧データを取得
+  const ivs = (window._scheduleInterviewMap && window._scheduleInterviewMap[aid]) || [];
+  const oldIv = ivs.find(x => String(x.id) === String(ivId)) || null;
+
+  const update = { result };
+  if (memoEl) update.memo = memo || null;
+  const { error } = await sb.from('interviews').update(update).eq('id', ivId);
+  if (error) { alert('結果の保存に失敗しました: ' + error.message); return; }
+
+  // タイムラインへイベント記録（submitInterview と同じ体裁）
+  try {
+    const typeLabel = oldIv
+      ? (oldIv.interview_type === 'other' ? (oldIv.type_other || 'その他') : (oldIv.interview_type || '面接'))
+      : '面接';
+    const resName = getInterviewResultMeta(result).name;
+    const oldRes = oldIv ? getInterviewResultMeta(oldIv.result || 'pending').name : '';
+    await recordEvent(aid, 'interview_updated', `面接結果：${typeLabel}`, `結果：${oldRes} → ${resName}`, { interview_id: ivId });
+  } catch (e) {
+    console.warn('[saveSchInterviewResult] イベント記録失敗（無視）', e);
+  }
+
+  setStatus('面接結果を保存しました', 'ok');
+  // スケジュールを再描画（結果が pending 以外になった面接は今日/今週リストから外れる）
+  await renderSchedule();
 }
 
 // 日時フォーマット（YYYY-MM-DDTHH:MM 形式 → "5/8(月) 14:00"）
