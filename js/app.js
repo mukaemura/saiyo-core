@@ -6591,15 +6591,11 @@ function setAnTab(t,btn){
   anTab=t;
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  // 月別集計（常時表示）を更新
+  // 月別集計（常時表示）を更新（比較パネルは renderAn が anCompareBox に描画する）
   const fixedEl = document.getElementById('anMonthlyFixed');
   if (fixedEl) {
-    const dataB = getCompareData();
-    const cmpBar = dataB ? renderCompareBar(data, dataB,
-      (document.getElementById('anFrom').value||'A')+'〜'+(document.getElementById('anTo').value||''),
-      (document.getElementById('anFrom2').value||'B')+'〜'+(document.getElementById('anTo2').value||'')
-    ) : '';
-    fixedEl.innerHTML = cmpBar + renderMonthTable(buildMonthStats(data), '');
+    const data = getAnData();
+    fixedEl.innerHTML = renderMonthTable(buildMonthStats(data), '');
   }
   // カスタムセクションを再描画
   renderCustomSections();
@@ -6733,6 +6729,19 @@ async function renderAn() {
 
   // 平均リードタイム（月別集計の直前に描画）
   await renderLeadTime(data);
+
+  // 期間A vs B 比較パネル（比較Bが設定されている時だけ表示）
+  const compareEl = document.getElementById('anCompareBox');
+  if (compareEl) {
+    const dataB = getCompareData();
+    const labelA = (document.getElementById('anFrom').value||'全期間')+'〜'+(document.getElementById('anTo').value||'今日');
+    const f2 = document.getElementById('anFrom2').value, t2 = document.getElementById('anTo2').value;
+    const labelB = (f2||'')+'〜'+(t2||'');
+    compareEl.innerHTML = dataB ? renderCompareBar(data, dataB, labelA, labelB) : '';
+    // 比較ステータス表示も同期（手動で日付を入れた場合も反映）
+    const cs = document.getElementById('compareStatus');
+    if (cs) cs.textContent = dataB ? `比較中: ${f2||'〜'} 〜 ${t2||'〜'}` : '';
+  }
 
   // 月別集計（全体）
   const monthlyEl = document.getElementById('anMonthlyFixed');
@@ -7829,7 +7838,20 @@ function setCompare(mode) {
   const to = document.getElementById('anTo').value;
   const now = new Date();
   let f2='', t2='';
-  if (mode === 'lastMonth') {
+  if (mode === 'prevSame') {
+    // 期間Aと同じ長さの「直前の期間」をBに設定（施策の前後比較用）
+    if (from && to) {
+      const df = new Date(from), dt = new Date(to);
+      const days = Math.round((dt - df) / 86400000); // A の日数（両端含むので +0 で差日数）
+      const bEnd = new Date(df); bEnd.setDate(bEnd.getDate() - 1);        // Aの開始前日
+      const bStart = new Date(bEnd); bStart.setDate(bStart.getDate() - days); // 同じ長さだけ遡る
+      f2 = bStart.toISOString().split('T')[0];
+      t2 = bEnd.toISOString().split('T')[0];
+    } else {
+      alert('先に期間A（開始日・終了日）を指定してください');
+      return;
+    }
+  } else if (mode === 'lastMonth') {
     const d = new Date(now.getFullYear(), now.getMonth()-1, 1);
     const d2 = new Date(now.getFullYear(), now.getMonth(), 0);
     f2 = d.toISOString().split('T')[0]; t2 = d2.toISOString().split('T')[0];
@@ -7860,28 +7882,49 @@ function clearCompare() {
 function getCompareData() {
   const f=document.getElementById('anFrom2').value, t=document.getElementById('anTo2').value;
   if (!f && !t) return null;
-  return applicants.filter(a=>{ if(f&&a.appDate<f)return false; if(t&&a.appDate>t)return false; return true; });
+  // 期間A と同じ絞り込み（職種・部署・クライアント）を適用し、日付だけBの範囲にする＝公平な比較
+  const dept=document.getElementById('anDept')?document.getElementById('anDept').value:'';
+  const job=document.getElementById('anJob')?document.getElementById('anJob').value:'';
+  const clientFilter = isAdmin ? (document.getElementById('anClient')?.value || '') : '';
+  return applicants.filter(a=>{
+    if(f&&a.appDate<f)return false;
+    if(t&&a.appDate>t)return false;
+    if(dept&&a.dept!==dept)return false;
+    if(job&&a.jobType!==job)return false;
+    if(clientFilter&&a.clientId!==clientFilter)return false;
+    return true;
+  });
 }
 
 function renderCompareBar(dataA, dataB, labelA, labelB) {
   if (!dataB) return '';
+  // コアステータス歩留ベースで比較（期間長が違っても率で公平に比べられる）
+  const fa = calcFunnelCumulative(dataA), fb = calcFunnelCumulative(dataB);
+  const ta = dataA.length, tb = dataB.length;
+  const rate = (n, d) => d ? Math.round(n / d * 100) : 0;
+  // 応募数だけ件数、その他は歩留(%)
   const metrics = [
-    {label:'応募数', a:dataA.length, b:dataB.length},
-    {label:'1次面接', a:dataA.filter(x=>x.int1Date).length, b:dataB.filter(x=>x.int1Date).length},
-    {label:'採用', a:dataA.filter(x=>['内定','内定承諾','採用'].includes(x.hireStatus)).length, b:dataB.filter(x=>['内定','内定承諾','採用'].includes(x.hireStatus)).length},
-    {label:'面接率', a:dataA.length?Math.round(dataA.filter(x=>x.int1Date).length/dataA.length*100):0, b:dataB.length?Math.round(dataB.filter(x=>x.int1Date).length/dataB.length*100):0, pct:true},
-    {label:'採用率', a:dataA.length?Math.round(dataA.filter(x=>['内定','内定承諾','採用'].includes(x.hireStatus)).length/dataA.length*100):0, b:dataB.length?Math.round(dataB.filter(x=>['内定','内定承諾','採用'].includes(x.hireStatus)).length/dataB.length*100):0, pct:true},
+    { label:'応募数', a:ta,                         b:tb,                         pct:false },
+    { label:'対応率', a:rate(fa.in_progress, ta),   b:rate(fb.in_progress, tb),   pct:true },
+    { label:'面接率', a:rate(fa.interview, ta),     b:rate(fb.interview, tb),     pct:true },
+    { label:'採用率', a:rate(fa.hired, ta),         b:rate(fb.hired, tb),         pct:true },
+    { label:'入社率', a:rate(fa.joined, ta),        b:rate(fb.joined, tb),        pct:true },
   ];
   return `<div style="background:#f0f6ff;border-radius:8px;padding:.875rem;margin-bottom:1rem;border-left:3px solid #378ADD;">
-    <div style="font-size:11px;font-weight:600;color:#378ADD;margin-bottom:8px;">📊 期間比較: ${labelA} vs ${labelB}</div>
+    <div style="font-size:11px;font-weight:600;color:#378ADD;margin-bottom:2px;">📊 期間比較（A＝今 vs B＝比較）</div>
+    <div style="font-size:10px;color:#888;margin-bottom:8px;">A: ${labelA}　／　B: ${labelB}　<span style="color:#aaa;">※応募数は件数、他は歩留（応募を100%とした到達率）</span></div>
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">
       ${metrics.map(m=>{
-        const diff=m.a-m.b; const up=diff>=0;
-        return`<div style="text-align:center;background:#fff;border-radius:6px;padding:7px;">
+        const diff = m.a - m.b;
+        const flat = diff === 0;
+        const up = diff > 0;
+        const arrow = flat ? '±' : (up ? '▲' : '▼');
+        const col = flat ? '#aaa' : (up ? '#3B6D11' : '#D85A30');
+        return`<div style="text-align:center;background:#fff;border-radius:6px;padding:8px 6px;">
           <div style="font-size:10px;color:#aaa;margin-bottom:3px;">${m.label}</div>
-          <div style="font-size:15px;font-weight:700;color:#1a1a1a;">${m.a}${m.pct?'%':''}</div>
-          <div style="font-size:10px;color:${up?'#3B6D11':'#D85A30'};margin-top:2px;">${up?'▲':'▼'}${Math.abs(diff)}${m.pct?'%':''}</div>
-          <div style="font-size:10px;color:#aaa;">B: ${m.b}${m.pct?'%':''}</div>
+          <div style="font-size:18px;font-weight:800;color:#1a1a1a;line-height:1.1;">${m.a}${m.pct?'%':'<span style=\"font-size:11px;font-weight:600;\">名</span>'}</div>
+          <div style="font-size:11px;font-weight:700;color:${col};margin-top:3px;">${arrow}${Math.abs(diff)}${m.pct?'pt':''}</div>
+          <div style="font-size:10px;color:#aaa;margin-top:2px;">B: ${m.b}${m.pct?'%':'名'}</div>
         </div>`;
       }).join('')}
     </div>
