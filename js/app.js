@@ -9063,9 +9063,40 @@ function ivCalToday() {
   renderIvCal();
 }
 
+// 面接管理カレンダー：担当者フィルタのプルダウンを生成（admin=クライアント別グループ、クライアント=フラット）
+function populateIvCalStaffFilter() {
+  const sel = document.getElementById('ivCalStaffFilter');
+  if (!sel) return;
+  const cur = sel.value;
+  const opts = (staffList || []).filter(s => !s.is_resigned);
+  let html = '<option value="">担当者（全て）</option>';
+  if (isAdmin) {
+    const byClient = {};
+    opts.forEach(s => { const c = s.client_id || '_'; (byClient[c] = byClient[c] || []).push(s); });
+    Object.entries(byClient).forEach(([cid, list]) => {
+      const cname = (typeof getClientDisplayName === 'function') ? getClientDisplayName(cid) : cid;
+      html += `<optgroup label="${escapeHtml(cname)}">`;
+      list.forEach(s => html += `<option value="${escapeHtml(String(s.id))}">${escapeHtml(s.name)}</option>`);
+      html += '</optgroup>';
+    });
+  } else {
+    opts.forEach(s => html += `<option value="${escapeHtml(String(s.id))}">${escapeHtml(s.name)}</option>`);
+  }
+  html += '<option value="__none__">（未割当）</option>';
+  sel.innerHTML = html;
+  sel.value = cur; // 選択を維持
+}
+
 function getIvCalInterviews() {
+  const staffFilter = document.getElementById('ivCalStaffFilter')?.value || '';
   const list = [];
   applicants.forEach(a => {
+    // 担当者で絞り込み
+    if (staffFilter) {
+      const ids = (a.staffIds || []).map(String);
+      if (staffFilter === '__none__') { if (ids.length) return; }
+      else if (!ids.includes(staffFilter)) return;
+    }
     (a.interviews || []).forEach(iv => {
       if (!iv.scheduled_at) return;
       const ivType = iv.interview_type === 'other' ? (iv.type_other || 'その他') : (iv.interview_type || '面接');
@@ -9160,6 +9191,7 @@ function renderIvCal() {
   const body = document.getElementById('ivCalBody');
   const label = document.getElementById('ivCalLabel');
   if (!body) return;
+  populateIvCalStaffFilter();
   const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const all = getIvCalInterviews();
   const today = new Date().toISOString().slice(0, 10);
