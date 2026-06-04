@@ -1192,7 +1192,7 @@ async function loadApplicantInterviews() {
   if (!applicants.length) return;
   const ids = applicants.map(a => a.id);
   const { data, error } = await sb.from('interviews')
-    .select('applicant_id, scheduled_at, result, interview_type, type_other')
+    .select('id, applicant_id, scheduled_at, result, interview_type, type_other, memo')
     .in('applicant_id', ids)
     .order('scheduled_at', { ascending: false, nullsFirst: false });
   if (error) {
@@ -8894,17 +8894,91 @@ function getIvCalInterviews() {
     (a.interviews || []).forEach(iv => {
       if (!iv.scheduled_at) return;
       const ivType = iv.interview_type === 'other' ? (iv.type_other || 'その他') : (iv.interview_type || '面接');
-      list.push({ applicantId: a.id, name: a.name || '', type: ivType, result: iv.result || 'pending', date: iv.scheduled_at.slice(0, 10), time: iv.scheduled_at.length > 10 ? iv.scheduled_at.slice(11, 16) : '', clientId: a.clientId, gender: a.gender || '', isCasual: CASUAL_INTERVIEW_TYPES.includes(iv.interview_type) });
+      list.push({ id: iv.id, applicantId: a.id, name: a.name || '', type: ivType, result: iv.result || 'pending', date: iv.scheduled_at.slice(0, 10), time: iv.scheduled_at.length > 10 ? iv.scheduled_at.slice(11, 16) : '', clientId: a.clientId, gender: a.gender || '', isCasual: CASUAL_INTERVIEW_TYPES.includes(iv.interview_type) });
     });
   });
   return list;
 }
 
 function ivResultStyle(result) {
-  if (result === 'pass') return { bg: '#E8F5E9', color: '#2E7D32', label: '合格' };
-  if (result === 'fail') return { bg: '#FFEBEE', color: '#C62828', label: '不合格' };
-  if (result === 'no_show') return { bg: '#F5F5F5', color: '#888', label: '不来場' };
-  return { bg: '#E3F2FD', color: '#1565C0', label: '未実施' };
+  // 結果コードは INTERVIEW_RESULTS（pending/passed/failed/declined/no_show/on_hold）に統一
+  const meta = getInterviewResultMeta(result || 'pending');
+  return { bg: meta.bg, color: meta.color, label: meta.name };
+}
+
+// 面接管理カレンダー：カードクリックで結果入力ポップアップを開く
+function openIvResultPopup(applicantId, interviewId) {
+  const a = applicants.find(x => String(x.id) === String(applicantId));
+  if (!a) return;
+  const iv = (a.interviews || []).find(x => String(x.id) === String(interviewId));
+  if (!iv) { openApplicantEdit(applicantId); return; }  // 念のため：見つからなければ従来どおり詳細へ
+  closeIvResultPopup();
+  const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const typ = iv.interview_type === 'other' ? (iv.type_other || 'その他') : (iv.interview_type || '面接');
+  const dt = iv.scheduled_at ? formatDateTime(iv.scheduled_at) : '日程未定';
+  const curResult = iv.result || 'pending';
+  const optsHtml = INTERVIEW_RESULTS.map(r => `<option value="${r.id}" ${r.id === curResult ? 'selected' : ''}>${r.name}</option>`).join('');
+  const overlay = document.createElement('div');
+  overlay.id = 'ivResultPopup';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:99999;display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = (e) => { if (e.target === overlay) closeIvResultPopup(); };
+  overlay.innerHTML = `<div style="background:#fff;border-radius:14px;padding:20px;width:340px;max-width:90vw;box-shadow:0 12px 44px rgba(0,0,0,.22);">
+      <div style="font-size:15px;font-weight:700;color:#1a1a1a;">${esc(a.name || '(名前なし)')}</div>
+      <div style="font-size:11px;color:#888;margin:3px 0 16px;">${esc(typ)} ・ ${esc(dt)}</div>
+      <label style="display:block;font-size:11px;font-weight:600;color:#666;margin-bottom:4px;">面接結果</label>
+      <select id="ivPopResult" style="width:100%;padding:8px 10px;border:1px solid #cdd8d4;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;cursor:pointer;margin-bottom:12px;">${optsHtml}</select>
+      <label style="display:block;font-size:11px;font-weight:600;color:#666;margin-bottom:4px;">メモ（任意）</label>
+      <textarea id="ivPopMemo" style="width:100%;min-height:60px;resize:vertical;padding:8px 10px;border:1px solid #cdd8d4;border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;">${esc(iv.memo || '')}</textarea>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button onclick="saveIvResultPopup('${esc(String(applicantId))}','${esc(String(interviewId))}')" style="flex:1;background:#5aaa8e;color:#fff;border:none;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">保存</button>
+        <button onclick="closeIvResultPopup()" style="background:#fff;color:#888;border:1px solid #ddd;padding:10px 16px;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;">閉じる</button>
+      </div>
+      <button onclick="closeIvResultPopup();openApplicantEdit('${esc(String(applicantId))}')" style="width:100%;margin-top:10px;background:none;border:none;color:#185FA5;font-size:12px;cursor:pointer;font-family:inherit;text-decoration:underline;text-underline-offset:2px;">応募者の詳細を開く →</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  const sel = document.getElementById('ivPopResult');
+  if (sel) sel.focus();
+}
+
+function closeIvResultPopup() {
+  const el = document.getElementById('ivResultPopup');
+  if (el) el.remove();
+}
+
+async function saveIvResultPopup(applicantId, interviewId) {
+  const sel = document.getElementById('ivPopResult');
+  const memoEl = document.getElementById('ivPopMemo');
+  if (!sel) return;
+  const result = sel.value || 'pending';
+  const memo = memoEl ? memoEl.value.trim() : '';
+
+  const a = applicants.find(x => String(x.id) === String(applicantId));
+  const oldIv = a ? (a.interviews || []).find(x => String(x.id) === String(interviewId)) : null;
+  const prevResult = oldIv ? (oldIv.result || 'pending') : 'pending';
+
+  const update = { result };
+  if (memoEl) update.memo = memo || null;
+  const { error } = await sb.from('interviews').update(update).eq('id', interviewId);
+  if (error) { alert('結果の保存に失敗しました: ' + error.message); return; }
+
+  // ローカルキャッシュも更新（カレンダーへ即反映）
+  if (oldIv) { oldIv.result = result; if (memoEl) oldIv.memo = memo || null; }
+
+  // タイムラインへイベント記録（submitInterview と同じ体裁）
+  try {
+    const typeLabel = oldIv
+      ? (oldIv.interview_type === 'other' ? (oldIv.type_other || 'その他') : (oldIv.interview_type || '面接'))
+      : '面接';
+    const resName = getInterviewResultMeta(result).name;
+    const oldRes = getInterviewResultMeta(prevResult).name;
+    await recordEvent(applicantId, 'interview_updated', `面接結果：${typeLabel}`, `結果：${oldRes} → ${resName}`, { interview_id: interviewId });
+  } catch (e) {
+    console.warn('[saveIvResultPopup] イベント記録失敗（無視）', e);
+  }
+
+  closeIvResultPopup();
+  setStatus('面接結果を保存しました', 'ok');
+  renderIvCal();
 }
 
 function renderIvCal() {
@@ -8969,7 +9043,7 @@ function renderIvCal() {
           if (gStr === '男' || gStr === '男性' || /^m(ale)?$/i.test(gStr)) gBorder = '#378ADD';
           else if (gStr === '女' || gStr === '女性' || /^f(emale)?$/i.test(gStr)) gBorder = '#D4537E';
           const typeColor = iv.isCasual ? '#27AE60' : rs.color;
-          html += `<div onclick="openApplicantEdit('${iv.applicantId}')" style="background:${rs.bg};border-left:3px solid ${gBorder};border-radius:6px;padding:5px 7px;margin-bottom:4px;cursor:pointer;transition:box-shadow .15s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow='none'">`;
+          html += `<div onclick="openIvResultPopup('${iv.applicantId}','${iv.id}')" style="background:${rs.bg};border-left:3px solid ${gBorder};border-radius:6px;padding:5px 7px;margin-bottom:4px;cursor:pointer;transition:box-shadow .15s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow='none'">`;
           html += `<div>${timeStr}<span style="font-size:11px;font-weight:600;color:#1a1a1a;">${esc(iv.name)}</span></div>`;
           html += `<div style="font-size:9.5px;color:${typeColor};font-weight:500;margin-top:2px;">${esc(iv.type)} ・ ${rs.label}</div>`;
           html += `</div>`;
@@ -9023,7 +9097,7 @@ function renderIvCal() {
           if (gStr === '男' || gStr === '男性' || /^m(ale)?$/i.test(gStr)) gBorder = '#378ADD';
           else if (gStr === '女' || gStr === '女性' || /^f(emale)?$/i.test(gStr)) gBorder = '#D4537E';
           const typeColor = iv.isCasual ? '#27AE60' : rs.color;
-          html += `<div onclick="openApplicantEdit('${iv.applicantId}')" style="font-size:9.5px;padding:2px 4px;margin-bottom:2px;border-radius:4px;background:${rs.bg};color:${typeColor};cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid ${gBorder};" title="${esc(iv.name)} ${esc(iv.type)}">${esc(iv.name)} <span style="font-weight:600;">${esc(shortType)}</span></div>`;
+          html += `<div onclick="openIvResultPopup('${iv.applicantId}','${iv.id}')" style="font-size:9.5px;padding:2px 4px;margin-bottom:2px;border-radius:4px;background:${rs.bg};color:${typeColor};cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid ${gBorder};" title="${esc(iv.name)} ${esc(iv.type)}">${esc(iv.name)} <span style="font-weight:600;">${esc(shortType)}</span></div>`;
         });
         if (dayItems.length > 3) {
           html += `<div style="font-size:9px;color:#888;padding:1px 4px;">+${dayItems.length - 3}件</div>`;
