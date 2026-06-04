@@ -3289,7 +3289,7 @@ function renderList() {
       });
     tb.innerHTML = sortedGroups.map(g => {
       const headerRow = `<tr class="client-group-header">
-        <td colspan="13" style="padding:10px 12px;background:linear-gradient(90deg,#f0faf6,#fafcfb);border-top:2px solid #5aaa8e;border-bottom:1px solid #c8d6d2;font-size:12px;font-weight:700;color:#2a4a3e;">
+        <td colspan="16" style="padding:10px 12px;background:linear-gradient(90deg,#f0faf6,#fafcfb);border-top:2px solid #5aaa8e;border-bottom:1px solid #c8d6d2;font-size:12px;font-weight:700;color:#2a4a3e;">
           🏢 ${escapeOwnerHtml(g.name)}　<span style="font-size:11px;color:#888;font-weight:500;">（${g.items.length}件）</span>
         </td>
       </tr>`;
@@ -3368,20 +3368,21 @@ function buildAppRowHTML(a) {
     }
   }
 
-  // Phase C-1：担当者バッジ（人数バッジ形式）
-  let staffCell = '<span class="list-col-empty" style="font-size:10.5px;">未割当</span>';
+  // Phase C-1：担当者バッジ（人数バッジ形式）。クリックでその場割り当てポップアップ
+  let staffInner = '<span style="font-size:10.5px;color:#bbb;">＋ 担当</span>';
   if (a.staffIds && a.staffIds.length) {
     const staffNames = a.staffIds.map(sid => {
       const s = staffList.find(x => String(x.id) === String(sid));
       return s ? s.name : null;
     }).filter(Boolean);
     if (staffNames.length === 1) {
-      staffCell = `<span style="font-size:11px;">${esc(staffNames[0])}</span>`;
+      staffInner = `<span style="font-size:11px;">${esc(staffNames[0])}</span>`;
     } else if (staffNames.length > 1) {
       const tip = staffNames.join('、');
-      staffCell = `<span style="font-size:11px;" title="${esc(tip)}">${esc(staffNames[0])}</span><span style="background:#e8f1fc;color:#185FA5;padding:1px 5px;border-radius:8px;font-size:9.5px;margin-left:2px;" title="${esc(tip)}">+${staffNames.length - 1}</span>`;
+      staffInner = `<span style="font-size:11px;" title="${esc(tip)}">${esc(staffNames[0])}</span><span style="background:#e8f1fc;color:#185FA5;padding:1px 5px;border-radius:8px;font-size:9.5px;margin-left:2px;" title="${esc(tip)}">+${staffNames.length - 1}</span>`;
     }
   }
+  const staffCell = `<span onclick="event.stopPropagation();openStaffAssignPopup('${a.id}')" title="クリックして担当者を設定" style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:6px;cursor:pointer;" onmouseover="this.style.background='#eef5f1'" onmouseout="this.style.background=''">${staffInner}</span>`;
 
   // Phase C-1：更新日（MM/DD）
   let updatedCell = '<span class="list-col-empty">-</span>';
@@ -3418,6 +3419,7 @@ function buildAppRowHTML(a) {
       </td>
       <td>${a.appDate||''}</td>
       <td>${nameLink}</td>
+      <td>${staffCell}</td>
       <td>${jobNoCell}</td>
       <td>${jobNameCell}</td>
       <td title="${esc(a.jobType||'')}">${a.jobType||''}</td>
@@ -3439,7 +3441,7 @@ function buildAppRowHTML(a) {
         ${a.email ? `<button onclick="openEmailComposer('${a.id}')" title="メール送信" style="padding:4px 8px;background:#fff;border:0.5px solid #185FA5;border-radius:6px;font-size:10.5px;cursor:pointer;color:#185FA5;font-family:inherit;font-weight:500;margin-left:4px;">📧</button>` : ''}
       </td>
     </tr>
-    <tr id="detail_${a.id}" style="display:none;"><td colspan="15" style="padding:0;"></td></tr>`;
+    <tr id="detail_${a.id}" style="display:none;"><td colspan="16" style="padding:0;"></td></tr>`;
 }
 
 function stColor(s) {
@@ -3841,6 +3843,92 @@ async function saveApplicantStaff(applicantId) {
   }
   // ローカルのstaffIdsも更新
   if (a) a.staffIds = [...editSelectedStaffIds];
+}
+
+// ========================================
+// 一覧から担当者をその場で割り当て（編集画面を開かずに完結）
+// ========================================
+function openStaffAssignPopup(applicantId) {
+  const a = applicants.find(x => String(x.id) === String(applicantId));
+  if (!a) return;
+  const targetClientId = a.clientId || currentClientId;
+  const candidates = staffList.filter(s => (s.is_active !== false) && (!targetClientId || s.client_id === targetClientId));
+  closeStaffAssignPopup();
+  const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const cur = (a.staffIds || []).map(String);
+  let bodyHtml;
+  if (!candidates.length) {
+    bodyHtml = `<div style="font-size:12px;color:#888;padding:8px 0;">在籍中の担当者がいません。「担当者管理」から追加してください。</div>`;
+  } else {
+    bodyHtml = `<div style="display:flex;flex-wrap:wrap;gap:8px;">${candidates.map(s => {
+      const checked = cur.includes(String(s.id));
+      return `<label style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border:1.5px solid ${checked?'#5aaa8e':'#e4e8e7'};border-radius:8px;background:${checked?'#f3faf6':'#fff'};font-size:13px;cursor:pointer;">
+        <input type="checkbox" value="${esc(String(s.id))}" ${checked?'checked':''} onchange="onStaffAssignToggle(this)" style="width:14px;height:14px;cursor:pointer;">
+        <span style="font-weight:500;">${esc(s.name||'')}</span>
+      </label>`;
+    }).join('')}</div>`;
+  }
+  const overlay = document.createElement('div');
+  overlay.id = 'staffAssignPopup';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:99999;display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = (e) => { if (e.target === overlay) closeStaffAssignPopup(); };
+  overlay.innerHTML = `<div style="background:#fff;border-radius:14px;padding:20px;width:400px;max-width:92vw;box-shadow:0 12px 44px rgba(0,0,0,.22);">
+      <div style="font-size:15px;font-weight:700;color:#1a1a1a;">${esc(a.name||'(名前なし)')} の担当者</div>
+      <div style="font-size:11px;color:#888;margin:3px 0 14px;">クリックで選択（複数可）→ 保存</div>
+      ${bodyHtml}
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button onclick="saveStaffAssignPopup('${esc(String(applicantId))}')" style="flex:1;background:#5aaa8e;color:#fff;border:none;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">保存</button>
+        <button onclick="closeStaffAssignPopup()" style="background:#fff;color:#888;border:1px solid #ddd;padding:10px 16px;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;">閉じる</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function onStaffAssignToggle(input) {
+  const label = input.closest('label');
+  if (!label) return;
+  if (input.checked) { label.style.border = '1.5px solid #5aaa8e'; label.style.background = '#f3faf6'; }
+  else { label.style.border = '1.5px solid #e4e8e7'; label.style.background = '#fff'; }
+}
+
+function closeStaffAssignPopup() {
+  const el = document.getElementById('staffAssignPopup');
+  if (el) el.remove();
+}
+
+async function saveStaffAssignPopup(applicantId) {
+  const overlay = document.getElementById('staffAssignPopup');
+  if (!overlay) return;
+  const ids = [...overlay.querySelectorAll('input[type=checkbox]:checked')].map(c => c.value);
+  const a = applicants.find(x => String(x.id) === String(applicantId));
+  const cid = a ? a.clientId : currentClientId;
+  const oldIds = a ? (a.staffIds || []).map(String) : [];
+  // 既存の紐付けを削除 → 新規挿入
+  let delQ = sb.from('applicant_staff').delete().eq('applicant_id', applicantId);
+  if (!isAdmin) delQ = delQ.eq('client_id', currentClientId);
+  const { error: delErr } = await delQ;
+  if (delErr) { alert('担当者の保存に失敗しました: ' + delErr.message); return; }
+  if (ids.length) {
+    const rows = ids.map(sid => ({ applicant_id: applicantId, staff_id: sid, client_id: cid }));
+    const { error: insErr } = await sb.from('applicant_staff').insert(rows);
+    if (insErr) { alert('担当者の保存に失敗しました: ' + insErr.message); return; }
+  }
+  if (a) a.staffIds = [...ids];
+  // タイムラインへ差分記録（saveApp と同じ体裁）
+  try {
+    const newSet = new Set(ids.map(String)), oldSet = new Set(oldIds);
+    const added = [...newSet].filter(x => !oldSet.has(x)).map(getStaffNameById);
+    const removed = [...oldSet].filter(x => !newSet.has(x)).map(getStaffNameById);
+    if (added.length || removed.length) {
+      const parts = [];
+      if (added.length) parts.push(`追加：${added.join('、')}`);
+      if (removed.length) parts.push(`解除：${removed.join('、')}`);
+      await recordEvent(applicantId, 'staff_change', '担当者変更', parts.join(' / '), { added: [...newSet], removed: [...oldSet] });
+    }
+  } catch (e) { console.warn('[saveStaffAssignPopup] イベント記録失敗（無視）', e); }
+  closeStaffAssignPopup();
+  setStatus('担当者を更新しました', 'ok');
+  renderList();
 }
 
 // ========================================
