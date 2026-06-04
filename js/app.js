@@ -6860,6 +6860,8 @@ async function renderAn() {
   renderKoalaCoach(data);
 
   renderAnContent(data);
+  // 保存済みのセクション並び順・表示状態を適用
+  applyAnSecLayout();
 }
 
 // ========================================
@@ -6870,12 +6872,16 @@ function renderKoalaCoach(data) {
   const introEl = document.getElementById('koalaCoachIntro');
   const advicesEl = document.getElementById('koalaCoachAdvices');
   if (!box || !introEl || !advicesEl) return;
+  // 空のときはセクションブロックごと隠す（並べ替え対象の空ヘッダーを出さない）
+  const koalaSec = box.closest('.ansec');
 
   // データが0件なら非表示
   if (!data || data.length === 0) {
     box.style.display = 'none';
+    if (koalaSec) koalaSec.style.display = 'none';
     return;
   }
+  if (koalaSec) koalaSec.style.display = '';
 
   const advices = analyzeAndAdvise(data);
   box.style.display = 'block';
@@ -7407,15 +7413,78 @@ function buildMultiAxisHTML(data, axes, secId) {
   return cards + note;
 }
 
+// ========================================
+// 採用分析：セクションの並べ替え／表示切替（固定＋追加分析を #anSections で一元管理）
+// ========================================
+const AN_SEC_ORDER_KEY = 'saiyo_anSecOrder';
+const AN_SEC_HIDDEN_KEY = 'saiyo_anSecHidden';
+function getAnSecOrder() {
+  try { const a = JSON.parse(localStorage.getItem(AN_SEC_ORDER_KEY) || 'null'); return Array.isArray(a) ? a : null; } catch(e) { return null; }
+}
+function saveAnSecOrder(arr) { try { localStorage.setItem(AN_SEC_ORDER_KEY, JSON.stringify(arr)); } catch(e) {} }
+function getAnSecHidden() {
+  try { return new Set(JSON.parse(localStorage.getItem(AN_SEC_HIDDEN_KEY) || '[]')); } catch(e) { return new Set(); }
+}
+function saveAnSecHidden(set) { try { localStorage.setItem(AN_SEC_HIDDEN_KEY, JSON.stringify([...set])); } catch(e) {} }
+
+// 現在のDOM順を保存
+function persistAnSecOrder() {
+  const cont = document.getElementById('anSections');
+  if (!cont) return;
+  const ids = [...cont.querySelectorAll(':scope > .ansec')].map(b => b.getAttribute('data-ansec'));
+  saveAnSecOrder(ids);
+}
+// 上(-1)/下(+1)へ移動
+function moveAnSection(id, dir) {
+  const cont = document.getElementById('anSections');
+  if (!cont) return;
+  const blocks = [...cont.querySelectorAll(':scope > .ansec')];
+  const idx = blocks.findIndex(b => b.getAttribute('data-ansec') === id);
+  if (idx < 0) return;
+  const swap = idx + dir;
+  if (swap < 0 || swap >= blocks.length) return;
+  if (dir < 0) cont.insertBefore(blocks[idx], blocks[swap]);
+  else cont.insertBefore(blocks[swap], blocks[idx]);
+  persistAnSecOrder();
+}
+// 表示/非表示トグル（固定セクション用）
+function toggleAnSecHidden(id) {
+  const set = getAnSecHidden();
+  if (set.has(id)) set.delete(id); else set.add(id);
+  saveAnSecHidden(set);
+  applyAnSecHidden();
+}
+function applyAnSecHidden() {
+  const set = getAnSecHidden();
+  document.querySelectorAll('#anSections > .ansec').forEach(b => {
+    b.classList.toggle('hidden', set.has(b.getAttribute('data-ansec')));
+  });
+}
+// 保存済みの並び順・表示状態をDOMに適用
+function applyAnSecLayout() {
+  const cont = document.getElementById('anSections');
+  if (!cont) return;
+  const order = getAnSecOrder();
+  if (order) {
+    const blocks = {};
+    cont.querySelectorAll(':scope > .ansec').forEach(b => { blocks[b.getAttribute('data-ansec')] = b; });
+    // 保存順に並べ替え（保存順にないブロックは現状の位置で末尾に残る）
+    order.forEach(id => { if (blocks[id]) { cont.appendChild(blocks[id]); delete blocks[id]; } });
+  }
+  applyAnSecHidden();
+}
+
 function renderCustomSections() {
-  const container = document.getElementById('anCustomSections');
-  if (!container) return;
+  const cont = document.getElementById('anSections');
+  if (!cont) return;
   // 既存のChartを全破棄
   Object.values(sectionCharts).forEach(charts => charts.forEach(c => { try { c.destroy(); } catch(e) {} }));
   Object.keys(sectionCharts).forEach(k => delete sectionCharts[k]);
+  // 既存の「追加した分析」ブロックを撤去（固定セクションは残す）
+  cont.querySelectorAll(':scope > .ansec[data-ancustom]').forEach(e => e.remove());
   const data = getAnData();
-  // HTML生成
-  container.innerHTML = activeSections.map(s => {
+  // 追加分析ブロックを #anSections の末尾に生成（並び順は applyAnSecLayout が調整）
+  const html = activeSections.map(s => {
     let title;
     if (s.type === 'multi_axis' && s.opts && s.opts.axes) {
       const axisLabels = {jobType:'職種',dept:'部署',media:'媒体',agency:'紹介会社',ageGroup:'年代',gender:'性別',status:'ステータス',hireStatus:'採用可否',staff:'担当者'};
@@ -7430,27 +7499,29 @@ function renderCustomSections() {
       console.error('[buildSectionInline error]', s.type, s.id, e);
       bodyHtml = '<div class="empty" style="color:#D85A30;">表示エラー: ' + (e.message || e) + '</div>';
     }
-    return `<div id="${s.id}" style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.04);overflow:hidden;margin-bottom:0;">
-      <div onclick="toggleAccordion('${s.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:.875rem 1rem;cursor:pointer;border-bottom:1px solid #f0f0ee;" onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background=''">
-        <div style="font-size:12px;font-weight:600;color:#1a1a1a;">${title}</div>
-        <div style="display:flex;gap:6px;align-items:center;">
-          <span id="acc_icon_${s.id}" style="font-size:14px;color:#aaa;">▼</span>
-          <button class="btn-del" onclick="event.stopPropagation();removeSection('${s.id}')" style="font-size:10px;padding:2px 8px;">✕</button>
+    return `<div class="ansec" id="${s.id}" data-ansec="${s.id}" data-ancustom="1">
+      <div class="ansec-bar">
+        <span class="ansec-title">${title}</span>
+        <div class="ansec-ctrls">
+          <button onclick="moveAnSection('${s.id}',-1)" title="上へ">▲</button>
+          <button onclick="moveAnSection('${s.id}',1)" title="下へ">▼</button>
+          <button onclick="removeSection('${s.id}')" title="削除">✕</button>
         </div>
       </div>
-      <div id="acc_body_${s.id}" style="padding:1rem;">${bodyHtml}</div>
+      <div id="acc_body_${s.id}" class="ansec-body">${bodyHtml}</div>
     </div>`;
   }).join('');
-  // AI分析だけはDOM生成後に非同期で描画（ファネル系はCSS描画なのでJS呼出不要）
+  if (html) cont.insertAdjacentHTML('beforeend', html);
+  // AI分析だけはDOM生成後に非同期で描画
   activeSections.forEach(s => {
     try {
-      if (s.type === 'ai') {
-        renderAiAnalysis(data, 'acc_body_' + s.id);
-      }
+      if (s.type === 'ai') renderAiAnalysis(data, 'acc_body_' + s.id);
     } catch(e) {
       console.error('[renderCustomSections section error]', s.type, s.id, e);
     }
   });
+  // 保存済みの並び順・表示状態を再適用
+  applyAnSecLayout();
 }
 
 function buildSectionInline(data, s) {

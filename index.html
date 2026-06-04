@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>採用コア</title>
 <!-- ファビコン -->
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260604j">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260604j">
-<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260604j">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260604j">
-<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260604j">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=20260604k">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=20260604k">
+<link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png?v=20260604k">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=20260604k">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico?v=20260604k">
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260604j">
+<link rel="stylesheet" href="css/style.css?v=20260604k">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -1560,7 +1560,7 @@
 
     <!-- ロゴ（カードより少し大きめに、幅いっぱい） -->
     <div style="text-align:center;margin-bottom:24px;">
-      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260604j" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
+      <img id="loginLogoImg" src="assets/saiyo_logo_main.png?v=20260604k" alt="採用コア" style="width:100%;max-width:680px;height:auto;object-fit:contain;display:inline-block;vertical-align:top;">
     </div>
 
     <!-- ログインカード本体（少し狭め、中央寄せ） -->
@@ -1823,7 +1823,7 @@
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <!-- ロゴ＋プラットフォームサブテキスト -->
         <a href="#" onclick="goHome();return false;" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;cursor:pointer;" title="ホームに戻る">
-          <img src="assets/saiyo_mark.png?v=20260604j" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
+          <img src="assets/saiyo_mark.png?v=20260604k" alt="採用コア" style="width:34px;height:34px;object-fit:contain;">
           <div style="line-height:1;">
             <div style="font-size:14px;font-weight:600;color:#1a1a1a;">採用コア</div>
             <div style="font-size:9px;color:#888;letter-spacing:0.08em;margin-top:3px;">RECRUITING PLATFORM</div>
@@ -3333,52 +3333,68 @@
         <!-- 期間A vs B 比較パネル（比較Bが設定されている時だけ表示） -->
         <div id="anCompareBox"></div>
 
-        <!-- コアラコーチ（分析結果からの改善提案） -->
-        <div id="koalaCoachBox" style="display:none;margin-bottom:.875rem;background:linear-gradient(135deg,#E1F5EE 0%,#FAEEDA 100%);border-radius:12px;padding:14px 16px;border:1px solid #5DCAA5;">
-          <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;">
-            <img src="assets/koala-think.png" style="width:54px;height:54px;object-fit:contain;flex-shrink:0;">
-            <div style="flex:1;">
-              <div style="font-size:13px;font-weight:600;color:#0F6E56;margin-bottom:2px;">🐨 コアラからのアドバイス</div>
-              <div id="koalaCoachIntro" style="font-size:12px;color:#0F6E56;line-height:1.5;"></div>
+      </div><!-- /上部固定カード（フィルター・比較） -->
+
+      <!-- 並べ替え・表示切替できるセクション群（▲▼で移動／👁で表示切替・端末に保存） -->
+      <div id="anSections">
+
+        <div class="ansec" data-ansec="koala">
+          <div class="ansec-bar"><span class="ansec-title">🐨 コアラからのアドバイス</span>
+            <div class="ansec-ctrls"><button onclick="moveAnSection('koala',-1)" title="上へ">▲</button><button onclick="moveAnSection('koala',1)" title="下へ">▼</button><button onclick="toggleAnSecHidden('koala')" title="表示/非表示">👁</button></div>
+          </div>
+          <div class="ansec-body">
+            <div id="koalaCoachBox" style="display:none;background:linear-gradient(135deg,#E1F5EE 0%,#FAEEDA 100%);border-radius:12px;padding:14px 16px;border:1px solid #5DCAA5;">
+              <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;">
+                <img src="assets/koala-think.png" style="width:54px;height:54px;object-fit:contain;flex-shrink:0;">
+                <div style="flex:1;">
+                  <div style="font-size:13px;font-weight:600;color:#0F6E56;margin-bottom:2px;">🐨 コアラからのアドバイス</div>
+                  <div id="koalaCoachIntro" style="font-size:12px;color:#0F6E56;line-height:1.5;"></div>
+                </div>
+              </div>
+              <div id="koalaCoachAdvices" style="display:flex;flex-direction:column;gap:8px;"></div>
             </div>
           </div>
-          <div id="koalaCoachAdvices" style="display:flex;flex-direction:column;gap:8px;"></div>
         </div>
 
-        <!-- KPI -->
-        <div class="metric-grid" id="anMetrics" style="margin-bottom:.875rem;"></div>
-
-        <!-- 逆ピラミッドファネル -->
-        <div id="anFunnelBar"></div>
-      </div>
-
-      <!-- 平均リードタイム（月別集計の直前） -->
-      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:.25rem;">
-          <span style="font-size:12px;font-weight:600;color:#1a1a1a;">⏱ 平均リードタイム</span>
-          <span class="lt-info-btn" data-tip="選考ステータスごとの平均所要日数&#10;・events履歴から各到達日を算出&#10;・両端の日付がある応募者だけが対象&#10;・期間/部署/職種フィルタに連動">i</span>
+        <div class="ansec" data-ansec="kpi">
+          <div class="ansec-bar"><span class="ansec-title">📊 KPIサマリー</span>
+            <div class="ansec-ctrls"><button onclick="moveAnSection('kpi',-1)" title="上へ">▲</button><button onclick="moveAnSection('kpi',1)" title="下へ">▼</button><button onclick="toggleAnSecHidden('kpi')" title="表示/非表示">👁</button></div>
+          </div>
+          <div class="ansec-body"><div class="metric-grid" id="anMetrics"></div></div>
         </div>
-        <div style="font-size:10.5px;color:#888;margin-bottom:.75rem;">選考ステータスごとの平均所要日数</div>
-        <div id="anLeadTime" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;"></div>
-      </div>
 
-      <!-- 月別リードタイム集計 -->
-      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
-        <div style="font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:.75rem;display:flex;align-items:center;gap:6px;">
-          ⏱ 月別リードタイム
-          <span style="font-size:10px;color:#aaa;font-weight:400;">応募月ベース</span>
+        <div class="ansec" data-ansec="funnel">
+          <div class="ansec-bar"><span class="ansec-title">🔻 選考ファネル</span>
+            <div class="ansec-ctrls"><button onclick="moveAnSection('funnel',-1)" title="上へ">▲</button><button onclick="moveAnSection('funnel',1)" title="下へ">▼</button><button onclick="toggleAnSecHidden('funnel')" title="表示/非表示">👁</button></div>
+          </div>
+          <div class="ansec-body"><div id="anFunnelBar"></div></div>
         </div>
-        <div id="anLeadTimeMonthly"></div>
-      </div>
 
-      <!-- 常時表示：月別集計（全体） -->
-      <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
-        <div style="font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:.75rem;display:flex;align-items:center;gap:6px;">
-          📊 月別集計（全体）
-          <span style="font-size:10px;color:#aaa;font-weight:400;">常時表示</span>
+        <div class="ansec" data-ansec="leadtime">
+          <div class="ansec-bar"><span class="ansec-title">⏱ 平均リードタイム <span class="lt-info-btn" data-tip="選考ステータスごとの平均所要日数&#10;・events履歴から各到達日を算出&#10;・両端の日付がある応募者だけが対象&#10;・期間/部署/職種フィルタに連動">i</span></span>
+            <div class="ansec-ctrls"><button onclick="moveAnSection('leadtime',-1)" title="上へ">▲</button><button onclick="moveAnSection('leadtime',1)" title="下へ">▼</button><button onclick="toggleAnSecHidden('leadtime')" title="表示/非表示">👁</button></div>
+          </div>
+          <div class="ansec-body">
+            <div style="font-size:10.5px;color:#888;margin-bottom:.75rem;">選考ステータスごとの平均所要日数</div>
+            <div id="anLeadTime" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;"></div>
+          </div>
         </div>
-        <div id="anMonthlyFixed"></div>
-      </div>
+
+        <div class="ansec" data-ansec="leadtime_monthly">
+          <div class="ansec-bar"><span class="ansec-title">⏱ 月別リードタイム <span style="font-size:10px;color:#aaa;font-weight:400;">応募月ベース</span></span>
+            <div class="ansec-ctrls"><button onclick="moveAnSection('leadtime_monthly',-1)" title="上へ">▲</button><button onclick="moveAnSection('leadtime_monthly',1)" title="下へ">▼</button><button onclick="toggleAnSecHidden('leadtime_monthly')" title="表示/非表示">👁</button></div>
+          </div>
+          <div class="ansec-body"><div id="anLeadTimeMonthly"></div></div>
+        </div>
+
+        <div class="ansec" data-ansec="monthly">
+          <div class="ansec-bar"><span class="ansec-title">📊 月別集計（全体）</span>
+            <div class="ansec-ctrls"><button onclick="moveAnSection('monthly',-1)" title="上へ">▲</button><button onclick="moveAnSection('monthly',1)" title="下へ">▼</button><button onclick="toggleAnSecHidden('monthly')" title="表示/非表示">👁</button></div>
+          </div>
+          <div class="ansec-body"><div id="anMonthlyFixed"></div></div>
+        </div>
+
+      </div><!-- /#anSections（追加した分析もここに入る） -->
 
       <!-- 分析ビルダー（シンプル化） -->
       <div style="background:#fff;border-radius:10px;padding:1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;">
@@ -3425,9 +3441,6 @@
           <button class="btn-sm" onclick="activeSections=[];renderCustomSections();" style="color:#D85A30;border-color:#D85A30;">全セクションをクリア</button>
         </div>
       </div>
-
-      <!-- カスタムセクション表示エリア -->
-      <div id="anCustomSections" style="display:flex;flex-direction:column;gap:.75rem;margin-top:1rem;"></div>
     </div>
 
 
@@ -4213,10 +4226,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260604j"></script>
-<script src="js/app.js?v=20260604j"></script>
-<script src="js/paste-feature.js?v=20260604j"></script>
-<script src="js/email-feature.js?v=20260604j"></script>
-<script src="js/chip-feature.js?v=20260604j"></script>
+<script src="js/router.js?v=20260604k"></script>
+<script src="js/app.js?v=20260604k"></script>
+<script src="js/paste-feature.js?v=20260604k"></script>
+<script src="js/email-feature.js?v=20260604k"></script>
+<script src="js/chip-feature.js?v=20260604k"></script>
 </body>
 </html>

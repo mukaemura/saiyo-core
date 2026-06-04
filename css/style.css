@@ -34,6 +34,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .btn-sm:hover{background:#f0f0ee;}
 .btn-sm.active{background:#185FA5;color:#fff;border-color:#185FA5;font-weight:700;}
 .btn-sm.active:hover{background:#13518f;}
+/* 採用分析：並べ替え・表示切替できるセクションブロック */
+.ansec{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.04);margin-bottom:.75rem;overflow:hidden;}
+.ansec-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:.6rem 1rem;border-bottom:1px solid #f0f0ee;}
+.ansec-title{font-size:12px;font-weight:600;color:#1a1a1a;display:flex;align-items:center;gap:6px;}
+.ansec-ctrls{display:flex;gap:4px;flex-shrink:0;}
+.ansec-ctrls button{width:26px;height:24px;border:1px solid #e0e0e0;background:#fff;border-radius:6px;cursor:pointer;font-size:11px;color:#888;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0;font-family:inherit;}
+.ansec-ctrls button:hover{background:#f0f0ee;color:#444;}
+.ansec-body{padding:1rem;}
+.ansec.hidden{opacity:.55;}
+.ansec.hidden .ansec-body{display:none;}
+.ansec.hidden .ansec-bar{border-bottom:none;}
+.ansec.hidden .ansec-title::after{content:'（非表示）';font-size:10px;color:#aaa;font-weight:400;margin-left:4px;}
 .btn-del{background:transparent;color:#D85A30;border:1px solid #D85A30;border-radius:6px;padding:4px 9px;font-size:11px;cursor:pointer;font-family:inherit;}
 .btn-exp{padding:6px 12px;border:1px solid #ddd;border-radius:8px;background:transparent;color:#666;cursor:pointer;font-size:11px;font-family:inherit;}
 .btn-exp:hover{background:#f0f0ee;}
