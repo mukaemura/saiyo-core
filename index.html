@@ -14,7 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260607a">
+<link rel="stylesheet" href="css/style.css?v=20260607b">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -2402,6 +2402,10 @@
         </select>
         <button id="ivCalClearBtn" onclick="clearIvCalSearch()" title="検索条件をクリア" style="display:none;padding:5px 10px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fff;color:#888;cursor:pointer;">✕ クリア</button>
         <div style="display:flex;border:1px solid #ddd;border-radius:8px;overflow:hidden;font-size:11px;margin-left:auto;">
+          <button id="ivCalCalBtn" onclick="setIvCalDisplay('calendar')" style="padding:5px 12px;border:none;background:#9B59B6;color:#fff;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">📅 カレンダー</button>
+          <button id="ivCalListBtn" onclick="setIvCalDisplay('list')" style="padding:5px 12px;border:none;border-left:1px solid #ddd;background:#fff;color:#666;cursor:pointer;font-size:11px;font-family:inherit;font-weight:500;">📋 リスト</button>
+        </div>
+        <div style="display:flex;border:1px solid #ddd;border-radius:8px;overflow:hidden;font-size:11px;">
           <button id="ivCalWeekBtn" onclick="setIvCalView('week')" style="padding:5px 12px;border:none;background:#9B59B6;color:#fff;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">週間</button>
           <button id="ivCalMonthBtn" onclick="setIvCalView('month')" style="padding:5px 12px;border:none;border-left:1px solid #ddd;background:#fff;color:#666;cursor:pointer;font-size:11px;font-family:inherit;font-weight:500;">月間</button>
         </div>
@@ -4283,10 +4287,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260607a"></script>
-<script src="js/app.js?v=20260607a"></script>
-<script src="js/paste-feature.js?v=20260607a"></script>
-<script src="js/email-feature.js?v=20260607a"></script>
-<script src="js/chip-feature.js?v=20260607a"></script>
+<script src="js/router.js?v=20260607b"></script>
+<script src="js/app.js?v=20260607b"></script>
+<script src="js/paste-feature.js?v=20260607b"></script>
+<script src="js/email-feature.js?v=20260607b"></script>
+<script src="js/chip-feature.js?v=20260607b"></script>
 </body>
 </html>

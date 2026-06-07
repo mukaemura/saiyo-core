@@ -9295,7 +9295,25 @@ function shiftMonth(inputId, renderFn, delta) {
 // 面接管理カレンダー
 // ========================================
 let ivCalView = 'week'; // 'week' | 'month'
+let ivCalDisplay = 'calendar'; // 'calendar' | 'list'
 let ivCalBaseDate = new Date();
+
+// 面接管理：カレンダー / リスト の表示切り替え（週間・月間の絞り込みは共通で効く）
+function setIvCalDisplay(mode) {
+  ivCalDisplay = mode;
+  const cBtn = document.getElementById('ivCalCalBtn');
+  const lBtn = document.getElementById('ivCalListBtn');
+  if (cBtn && lBtn) {
+    if (mode === 'calendar') {
+      cBtn.style.background = '#9B59B6'; cBtn.style.color = '#fff'; cBtn.style.fontWeight = '600';
+      lBtn.style.background = '#fff'; lBtn.style.color = '#666'; lBtn.style.fontWeight = '500';
+    } else {
+      lBtn.style.background = '#9B59B6'; lBtn.style.color = '#fff'; lBtn.style.fontWeight = '600';
+      cBtn.style.background = '#fff'; cBtn.style.color = '#666'; cBtn.style.fontWeight = '500';
+    }
+  }
+  renderIvCal();
+}
 
 function setIvCalView(view) {
   ivCalView = view;
@@ -9429,6 +9447,7 @@ function renderIvCalList(items) {
     body.innerHTML = '<div style="text-align:center;color:#aaa;padding:48px 0;font-size:13px;">該当する面接がありません</div>';
     return;
   }
+  const todayStr = new Date().toISOString().slice(0, 10);
   let html = '<div style="background:#fff;border-radius:10px;border:1px solid #eee;overflow:hidden;">';
   let lastDate = '';
   sorted.forEach(iv => {
@@ -9436,7 +9455,11 @@ function renderIvCalList(items) {
       lastDate = iv.date;
       const d = new Date(iv.date + 'T00:00');
       const wd = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
-      html += `<div style="background:#faf7fc;padding:6px 12px;font-size:11px;font-weight:700;color:#7A3FA0;border-top:1px solid #f0f0ee;">${iv.date.replace(/-/g, '/')}（${wd}）</div>`;
+      if (iv.date === todayStr) {
+        html += `<div style="background:#9B59B6;padding:6px 12px;font-size:11px;font-weight:700;color:#fff;border-top:1px solid #f0f0ee;">${iv.date.replace(/-/g, '/')}（${wd}）<span style="margin-left:8px;background:#fff;color:#9B59B6;padding:1px 8px;border-radius:9px;font-size:10px;">本日</span></div>`;
+      } else {
+        html += `<div style="background:#faf7fc;padding:6px 12px;font-size:11px;font-weight:700;color:#7A3FA0;border-top:1px solid #f0f0ee;">${iv.date.replace(/-/g, '/')}（${wd}）</div>`;
+      }
     }
     const rs = ivResultStyle(iv.result);
     const typeColor = iv.isCasual ? '#27AE60' : rs.color;
@@ -9578,6 +9601,28 @@ function renderIvCal() {
     const monthCount = all.filter(iv => iv.date.slice(0, 7) === ym).length;
     const countEl = document.getElementById('ivCalCount');
     if (countEl) countEl.textContent = monthCount > 0 ? monthCount + '件' : '';
+  }
+
+  // リスト表示モード：週間/月間の期間で絞り込み（過去も含む）、本日を強調
+  if (ivCalDisplay === 'list') {
+    let periodItems, lbl;
+    if (ivCalView === 'week') {
+      const base = new Date(ivCalBaseDate);
+      const dow = base.getDay();
+      const mon = new Date(base); mon.setDate(base.getDate() - ((dow + 6) % 7));
+      const days = [];
+      for (let i = 0; i < 7; i++) { const d = new Date(mon); d.setDate(mon.getDate() + i); days.push(d.toISOString().slice(0, 10)); }
+      lbl = `${days[0].slice(5).replace('-', '/')} 〜 ${days[6].slice(5).replace('-', '/')}`;
+      periodItems = all.filter(iv => days.includes(iv.date));
+    } else {
+      const y = ivCalBaseDate.getFullYear(), m = ivCalBaseDate.getMonth();
+      lbl = `${y}年${m + 1}月`;
+      const ym = `${y}-${String(m + 1).padStart(2, '0')}`;
+      periodItems = all.filter(iv => iv.date.slice(0, 7) === ym);
+    }
+    if (label) label.textContent = lbl;
+    renderIvCalList(periodItems);
+    return;
   }
 
   if (ivCalView === 'week') {
