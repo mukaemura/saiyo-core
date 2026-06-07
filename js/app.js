@@ -3216,8 +3216,9 @@ function onSearchFieldChange() {
   const inp = document.getElementById('srch');
   if (sel && inp) {
     const ph = {
-      all: '名前・メール・電話・職種・求人番号',
+      all: '名前・ふりがな・メール・電話・職種・求人番号',
       name: '名前で検索',
+      kana: 'ふりがなで検索',
       email: 'メールで検索',
       tel: '電話番号で検索',
       jobType: '職種で検索',
@@ -3277,7 +3278,7 @@ function renderList() {
     if (q) {
       let hay;
       if (qField === 'all') {
-        hay = [a.name, a.email, a.tel, a.jobType, a.jobNo, a.jobName, a.dept]
+        hay = [a.name, a.kana, a.email, a.tel, a.jobType, a.jobNo, a.jobName, a.dept]
           .map(v => (v == null ? '' : String(v))).join(' ').toLowerCase();
       } else {
         hay = (a[qField] == null ? '' : String(a[qField])).toLowerCase();
@@ -9353,6 +9354,10 @@ function populateIvCalStaffFilter() {
 
 function getIvCalInterviews() {
   const staffFilter = document.getElementById('ivCalStaffFilter')?.value || '';
+  const q = (document.getElementById('ivCalSearch')?.value || '').trim().toLowerCase();
+  const resultFilter = document.getElementById('ivCalResultFilter')?.value || '';
+  const typeFilter = document.getElementById('ivCalTypeFilter')?.value || '';
+  const statusFilter = document.getElementById('ivCalStatusFilter')?.value || '';
   const list = [];
   applicants.forEach(a => {
     // 担当者で絞り込み
@@ -9360,6 +9365,14 @@ function getIvCalInterviews() {
       const ids = (a.staffIds || []).map(String);
       if (staffFilter === '__none__') { if (ids.length) return; }
       else if (!ids.includes(staffFilter)) return;
+    }
+    // 詳細ステータスで絞り込み
+    if (statusFilter && (a.status || '') !== statusFilter) return;
+    // 名前・ふりがなで絞り込み
+    if (q) {
+      const nm = (a.name || '').toLowerCase();
+      const kn = (a.kana || '').toLowerCase();
+      if (!nm.includes(q) && !kn.includes(q)) return;
     }
     // 担当者名（複数なら「、」区切り）
     const staffNames = (a.staffIds || []).map(sid => {
@@ -9369,11 +9382,79 @@ function getIvCalInterviews() {
     const staff = staffNames.join('、');
     (a.interviews || []).forEach(iv => {
       if (!iv.scheduled_at) return;
+      const result = iv.result || 'pending';
+      if (resultFilter && result !== resultFilter) return;
+      if (typeFilter && (iv.interview_type || '') !== typeFilter) return;
       const ivType = iv.interview_type === 'other' ? (iv.type_other || 'その他') : (iv.interview_type || '面接');
-      list.push({ id: iv.id, applicantId: a.id, name: a.name || '', type: ivType, result: iv.result || 'pending', date: iv.scheduled_at.slice(0, 10), time: iv.scheduled_at.length > 10 ? iv.scheduled_at.slice(11, 16) : '', clientId: a.clientId, gender: a.gender || '', isCasual: CASUAL_INTERVIEW_TYPES.includes(iv.interview_type), staff: staff });
+      list.push({ id: iv.id, applicantId: a.id, name: a.name || '', kana: a.kana || '', status: a.status || '', type: ivType, result: result, date: iv.scheduled_at.slice(0, 10), time: iv.scheduled_at.length > 10 ? iv.scheduled_at.slice(11, 16) : '', clientId: a.clientId, gender: a.gender || '', isCasual: CASUAL_INTERVIEW_TYPES.includes(iv.interview_type), staff: staff });
     });
   });
   return list;
+}
+
+// 面接管理：検索/条件フィルタの選択肢を生成
+function populateIvCalFilters() {
+  const rs = document.getElementById('ivCalResultFilter');
+  if (rs && !rs.dataset.filled) {
+    rs.innerHTML = '<option value="">結果（全て）</option>' + INTERVIEW_RESULTS.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+    rs.dataset.filled = '1';
+  }
+  const ts = document.getElementById('ivCalTypeFilter');
+  if (ts && !ts.dataset.filled) {
+    ts.innerHTML = '<option value="">種別（全て）</option>' + INTERVIEW_TYPES.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    ts.dataset.filled = '1';
+  }
+  const ss = document.getElementById('ivCalStatusFilter');
+  if (ss) {
+    const cur = ss.value;
+    ss.innerHTML = '<option value="">ステータス（全て）</option>' + (detailStatuses || []).map(d => `<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)}</option>`).join('');
+    ss.value = cur;
+  }
+}
+
+// 面接管理：検索条件をクリア
+function clearIvCalSearch() {
+  const ids = ['ivCalSearch', 'ivCalResultFilter', 'ivCalTypeFilter', 'ivCalStatusFilter'];
+  ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  renderIvCal();
+}
+
+// 面接管理：検索結果をリスト表示
+function renderIvCalList(items) {
+  const body = document.getElementById('ivCalBody');
+  if (!body) return;
+  const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const sorted = items.slice().sort((a, b) => (a.date + (a.time || '99:99')).localeCompare(b.date + (b.time || '99:99')));
+  if (!sorted.length) {
+    body.innerHTML = '<div style="text-align:center;color:#aaa;padding:48px 0;font-size:13px;">該当する面接がありません</div>';
+    return;
+  }
+  let html = '<div style="background:#fff;border-radius:10px;border:1px solid #eee;overflow:hidden;">';
+  let lastDate = '';
+  sorted.forEach(iv => {
+    if (iv.date !== lastDate) {
+      lastDate = iv.date;
+      const d = new Date(iv.date + 'T00:00');
+      const wd = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
+      html += `<div style="background:#faf7fc;padding:6px 12px;font-size:11px;font-weight:700;color:#7A3FA0;border-top:1px solid #f0f0ee;">${iv.date.replace(/-/g, '/')}（${wd}）</div>`;
+    }
+    const rs = ivResultStyle(iv.result);
+    const typeColor = iv.isCasual ? '#27AE60' : rs.color;
+    const gStr = String(iv.gender || '').trim();
+    let gBorder = rs.color;
+    if (gStr === '男' || gStr === '男性' || /^m(ale)?$/i.test(gStr)) gBorder = '#378ADD';
+    else if (gStr === '女' || gStr === '女性' || /^f(emale)?$/i.test(gStr)) gBorder = '#D4537E';
+    html += `<div onclick="openIvResultPopup('${iv.applicantId}','${iv.id}')" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid #f5f5f3;border-left:3px solid ${gBorder};cursor:pointer;flex-wrap:wrap;" onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background='#fff'">`;
+    html += `<span style="font-size:11px;color:#888;width:42px;flex-shrink:0;">${esc(iv.time || '--:--')}</span>`;
+    html += `<span style="font-size:13px;font-weight:600;color:#1a1a1a;min-width:90px;">${esc(iv.name)}</span>`;
+    html += `<span style="font-size:11px;color:${typeColor};font-weight:500;">${esc(iv.type)}</span>`;
+    html += `<span style="font-size:10.5px;padding:1px 9px;border-radius:9px;background:${rs.bg};color:${rs.color};font-weight:600;">${rs.label}</span>`;
+    if (iv.status) html += `<span style="font-size:10px;color:#777;">${esc(iv.status)}</span>`;
+    if (iv.staff) html += `<span style="font-size:10px;color:#9B59B6;font-weight:600;margin-left:auto;">👤${esc(iv.staff)}</span>`;
+    html += `</div>`;
+  });
+  html += '</div>';
+  body.innerHTML = html;
 }
 
 function ivResultStyle(result) {
@@ -9462,9 +9543,26 @@ function renderIvCal() {
   const label = document.getElementById('ivCalLabel');
   if (!body) return;
   populateIvCalStaffFilter();
+  populateIvCalFilters();
   const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const all = getIvCalInterviews();
   const today = new Date().toISOString().slice(0, 10);
+
+  // 検索モード（名前/ふりがな・結果・種別・ステータスのいずれかが指定）→ リスト表示
+  const q = (document.getElementById('ivCalSearch')?.value || '').trim();
+  const resultFilter = document.getElementById('ivCalResultFilter')?.value || '';
+  const typeFilter = document.getElementById('ivCalTypeFilter')?.value || '';
+  const statusFilter = document.getElementById('ivCalStatusFilter')?.value || '';
+  const searchMode = !!(q || resultFilter || typeFilter || statusFilter);
+  const clearBtn = document.getElementById('ivCalClearBtn');
+  if (clearBtn) clearBtn.style.display = searchMode ? '' : 'none';
+  if (searchMode) {
+    if (label) label.textContent = '検索結果';
+    const countEl = document.getElementById('ivCalCount');
+    if (countEl) countEl.textContent = all.length > 0 ? all.length + '件' : '0件';
+    renderIvCalList(all);
+    return;
+  }
 
   if (ivCalView === 'week') {
     const base = new Date(ivCalBaseDate);
@@ -12144,6 +12242,7 @@ function selectCalIvApplicant(appId) {
   if (results) { results.style.display = 'none'; }
   const search = document.getElementById('calIvSearch');
   if (search) search.value = a.name || '';
+  renderCalIvStatusStaff();
 }
 
 function renderCalIvForm() {
@@ -12203,6 +12302,7 @@ function renderCalIvForm() {
         <input id="calIvMemo" type="text" placeholder="メモ..." style="width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;">
       </div>
     </div>
+    <div id="calIvStatusStaff"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
       <button onclick="closeCalInterviewModal()" style="padding:7px 14px;border:1px solid #ddd;background:#fff;color:#666;border-radius:7px;font-size:12px;font-family:inherit;cursor:pointer;">キャンセル</button>
       <button onclick="submitCalInterview(true)" style="padding:7px 16px;background:#fff;color:#5aaa8e;border:1.5px solid #5aaa8e;border-radius:7px;font-size:12px;font-family:inherit;font-weight:600;cursor:pointer;">＋ 続けて登録</button>
@@ -12215,6 +12315,45 @@ function renderCalIvForm() {
   renderCalIvMiniCal();
   const defaultChip = document.querySelector('#calIvTypeChips .cal-iv-chip[data-value="1次面接"]');
   if (defaultChip) selectCalIvTypeChip(defaultChip);
+  renderCalIvStatusStaff();
+}
+
+// 新規面接登録モーダル：詳細ステータス・担当者セクション（応募者選択で更新）
+function renderCalIvStatusStaff() {
+  const wrap = document.getElementById('calIvStatusStaff');
+  if (!wrap) return;
+  const esc = escapeHtml;
+  const a = _calIvSelectedAppId ? applicants.find(x => x.id === _calIvSelectedAppId) : null;
+  if (!a) {
+    wrap.innerHTML = `<div style="border-top:1px solid #f0f0ee;margin-top:4px;padding-top:12px;font-size:11px;color:#bbb;">応募者を選択すると、詳細ステータス・担当者を設定できます。</div>`;
+    return;
+  }
+  const curStatus = a.status || '';
+  const statusOpts = (detailStatuses || []).map(d => `<option value="${esc(d.name)}" ${d.name === curStatus ? 'selected' : ''}>${esc(d.name)}</option>`).join('');
+  const targetClientId = a.clientId || currentClientId;
+  const candidates = (staffList || []).filter(s => (s.is_active !== false) && !s.is_resigned && (!targetClientId || s.client_id === targetClientId));
+  const cur = (a.staffIds || []).map(String);
+  let staffHtml;
+  if (!candidates.length) {
+    staffHtml = `<div style="font-size:11px;color:#aaa;">在籍中の担当者がいません</div>`;
+  } else {
+    staffHtml = `<div style="display:flex;flex-wrap:wrap;gap:6px;">${candidates.map(s => {
+      const checked = cur.includes(String(s.id));
+      return `<label style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:1.5px solid ${checked ? '#5aaa8e' : '#e4e8e7'};border-radius:7px;background:${checked ? '#f3faf6' : '#fff'};font-size:12px;cursor:pointer;">
+        <input type="checkbox" value="${esc(String(s.id))}" ${checked ? 'checked' : ''} onchange="onStaffAssignToggle(this)" style="width:13px;height:13px;cursor:pointer;">
+        <span>${esc(s.name || '')}</span></label>`;
+    }).join('')}</div>`;
+  }
+  wrap.innerHTML = `
+    <div style="border-top:1px solid #f0f0ee;margin-top:8px;padding-top:12px;">
+      <div style="font-size:11px;color:#666;margin-bottom:4px;">詳細ステータス</div>
+      <select id="calIvStatus" style="width:100%;padding:7px 10px;border:1px solid #e4e8e7;border-radius:6px;background:#fff;font-size:12px;font-family:inherit;margin-bottom:12px;">
+        <option value="">（変更しない）</option>
+        ${statusOpts}
+      </select>
+      <div style="font-size:11px;color:#666;margin-bottom:6px;">担当者</div>
+      ${staffHtml}
+    </div>`;
 }
 
 // モーダル用チップ選択
@@ -12321,6 +12460,23 @@ async function submitCalInterview(continueMode) {
 
   if (a) { a.interviews = (a.interviews || []).concat([ins]); }
 
+  // 詳細ステータスの更新（選択かつ変更時のみ）
+  const stEl = document.getElementById('calIvStatus');
+  const newStatus = stEl ? stEl.value : '';
+  if (a && newStatus && newStatus !== (a.status || '')) {
+    try { await updateStatus(a.id, newStatus); } catch (e) { console.warn('[calIv] ステータス更新失敗', e); }
+  }
+  // 担当者の更新（変更時のみ）
+  const staffWrap = document.getElementById('calIvStatusStaff');
+  if (a && staffWrap) {
+    const ids = [...staffWrap.querySelectorAll('input[type=checkbox]:checked')].map(c => c.value);
+    const oldIds = (a.staffIds || []).map(String);
+    const changed = ids.length !== oldIds.length || ids.some(x => !oldIds.includes(x));
+    if (changed) {
+      try { await saveCalIvStaff(a.id, ids, oldIds); } catch (e) { console.warn('[calIv] 担当者更新失敗', e); }
+    }
+  }
+
   try {
     const typeLabel = typeSel === 'その他' ? (typeOther || 'その他') : typeSel;
     const dateLabel = scheduledAt ? new Date(scheduledAt).toLocaleString('ja-JP', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '日程未定';
@@ -12343,6 +12499,34 @@ async function submitCalInterview(continueMode) {
   } else {
     closeCalInterviewModal();
   }
+}
+
+// 新規面接登録モーダルからの担当者紐付け保存（UIに依存しない版）
+async function saveCalIvStaff(applicantId, ids, oldIds) {
+  const a = applicants.find(x => x.id === applicantId);
+  const cid = a ? a.clientId : currentClientId;
+  let delQ = sb.from('applicant_staff').delete().eq('applicant_id', applicantId);
+  if (!isAdmin) delQ = delQ.eq('client_id', currentClientId);
+  const { error: delErr } = await delQ;
+  if (delErr) throw delErr;
+  if (ids.length) {
+    const rows = ids.map(sid => ({ applicant_id: applicantId, staff_id: sid, client_id: cid }));
+    const { error: insErr } = await sb.from('applicant_staff').insert(rows);
+    if (insErr) throw insErr;
+  }
+  if (a) a.staffIds = [...ids];
+  // タイムラインへ差分記録（saveStaffAssignPopup と同じ体裁）
+  try {
+    const newSet = new Set(ids.map(String)), oldSet = new Set((oldIds || []).map(String));
+    const added = [...newSet].filter(x => !oldSet.has(x)).map(getStaffNameById);
+    const removed = [...oldSet].filter(x => !newSet.has(x)).map(getStaffNameById);
+    if (added.length || removed.length) {
+      const parts = [];
+      if (added.length) parts.push(`追加：${added.join('、')}`);
+      if (removed.length) parts.push(`解除：${removed.join('、')}`);
+      await recordEvent(applicantId, 'staff_change', '担当者変更', parts.join(' / '), { added: [...newSet], removed: [...oldSet] });
+    }
+  } catch (e) { console.warn('[saveCalIvStaff] イベント記録失敗（無視）', e); }
 }
 
 // 旧関数の互換性維持

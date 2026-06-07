@@ -14,7 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<link rel="stylesheet" href="css/style.css?v=20260604p">
+<link rel="stylesheet" href="css/style.css?v=20260607a">
 <style>
   /* ===== v2.5 グローバルトーン統一（ログイン画面の色味を全体に適用） ===== */
   body { background:#f7f6f1 !important; }
@@ -2220,12 +2220,13 @@
             <select id="srchField" onchange="onSearchFieldChange()" title="検索する項目を選びます" style="border:none;border-right:1px solid #ddd;background:#eef3f1;color:#0F6E56;font-weight:600;padding:6px 8px;font-size:11px;font-family:inherit;cursor:pointer;border-radius:0;">
               <option value="all">全項目</option>
               <option value="name">名前</option>
+              <option value="kana">ふりがな</option>
               <option value="email">メール</option>
               <option value="tel">電話番号</option>
               <option value="jobType">職種</option>
               <option value="jobNo">求人番号</option>
             </select>
-            <input type="text" id="srch" placeholder="名前・メール・電話・職種・求人番号" style="width:200px;border:none;background:transparent;padding:6px 9px;font-size:11px;font-family:inherit;border-radius:0;" oninput="renderList()">
+            <input type="text" id="srch" placeholder="名前・ふりがな・メール・電話・職種・求人番号" style="width:200px;border:none;background:transparent;padding:6px 9px;font-size:11px;font-family:inherit;border-radius:0;" oninput="renderList()">
           </div>
           <select id="appClientFilter" onchange="renderList()" style="display:none;padding:5px 9px;border:1.5px solid #378ADD;border-radius:8px;font-size:11px;font-family:inherit;background:#f0f6ff;color:#185FA5;font-weight:600;">
             <option value="">全クライアント</option>
@@ -2386,9 +2387,20 @@
         <h2 style="font-size:14px;font-weight:700;margin:0;">📋 面接管理</h2>
         <span id="ivCalCount" style="font-size:15px;color:#9B59B6;font-weight:700;"></span>
         <button onclick="openCalInterviewModal()" style="padding:6px 14px;background:#5aaa8e;color:#fff;border:none;border-radius:7px;font-size:12px;font-family:inherit;font-weight:600;cursor:pointer;">＋ 新規面接登録</button>
+        <input id="ivCalSearch" type="text" placeholder="名前・ふりがなで検索..." oninput="renderIvCal()" autocomplete="off" style="padding:5px 10px;border:1px solid #9B59B6;border-radius:8px;font-size:11px;font-family:inherit;background:#fff;color:#333;width:160px;">
         <select id="ivCalStaffFilter" onchange="renderIvCal()" title="担当者で絞り込み" style="padding:5px 10px;border:1px solid #9B59B6;border-radius:8px;font-size:11px;font-family:inherit;background:#F5EEFA;color:#7A3FA0;font-weight:600;cursor:pointer;max-width:190px;">
           <option value="">担当者（全て）</option>
         </select>
+        <select id="ivCalStatusFilter" onchange="renderIvCal()" title="詳細ステータスで絞り込み" style="padding:5px 10px;border:1px solid #9B59B6;border-radius:8px;font-size:11px;font-family:inherit;background:#F5EEFA;color:#7A3FA0;font-weight:600;cursor:pointer;max-width:170px;">
+          <option value="">ステータス（全て）</option>
+        </select>
+        <select id="ivCalResultFilter" onchange="renderIvCal()" title="面接結果で絞り込み" style="padding:5px 10px;border:1px solid #9B59B6;border-radius:8px;font-size:11px;font-family:inherit;background:#F5EEFA;color:#7A3FA0;font-weight:600;cursor:pointer;">
+          <option value="">結果（全て）</option>
+        </select>
+        <select id="ivCalTypeFilter" onchange="renderIvCal()" title="面接種別で絞り込み" style="padding:5px 10px;border:1px solid #9B59B6;border-radius:8px;font-size:11px;font-family:inherit;background:#F5EEFA;color:#7A3FA0;font-weight:600;cursor:pointer;">
+          <option value="">種別（全て）</option>
+        </select>
+        <button id="ivCalClearBtn" onclick="clearIvCalSearch()" title="検索条件をクリア" style="display:none;padding:5px 10px;border:1px solid #ddd;border-radius:8px;font-size:11px;font-family:inherit;background:#fff;color:#888;cursor:pointer;">✕ クリア</button>
         <div style="display:flex;border:1px solid #ddd;border-radius:8px;overflow:hidden;font-size:11px;margin-left:auto;">
           <button id="ivCalWeekBtn" onclick="setIvCalView('week')" style="padding:5px 12px;border:none;background:#9B59B6;color:#fff;cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;">週間</button>
           <button id="ivCalMonthBtn" onclick="setIvCalView('month')" style="padding:5px 12px;border:none;border-left:1px solid #ddd;background:#fff;color:#666;cursor:pointer;font-size:11px;font-family:inherit;font-weight:500;">月間</button>
@@ -4271,10 +4283,10 @@
   </div>
 </div>
 
-<script src="js/router.js?v=20260604p"></script>
-<script src="js/app.js?v=20260604p"></script>
-<script src="js/paste-feature.js?v=20260604p"></script>
-<script src="js/email-feature.js?v=20260604p"></script>
-<script src="js/chip-feature.js?v=20260604p"></script>
+<script src="js/router.js?v=20260607a"></script>
+<script src="js/app.js?v=20260607a"></script>
+<script src="js/paste-feature.js?v=20260607a"></script>
+<script src="js/email-feature.js?v=20260607a"></script>
+<script src="js/chip-feature.js?v=20260607a"></script>
 </body>
 </html>
