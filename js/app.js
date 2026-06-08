@@ -9404,7 +9404,18 @@ function getIvCalInterviews() {
       if (resultFilter && result !== resultFilter) return;
       if (typeFilter && (iv.interview_type || '') !== typeFilter) return;
       const ivType = iv.interview_type === 'other' ? (iv.type_other || 'その他') : (iv.interview_type || '面接');
-      list.push({ id: iv.id, applicantId: a.id, name: a.name || '', kana: a.kana || '', status: a.status || '', type: ivType, result: result, date: iv.scheduled_at.slice(0, 10), time: iv.scheduled_at.length > 10 ? iv.scheduled_at.slice(11, 16) : '', clientId: a.clientId, gender: a.gender || '', isCasual: CASUAL_INTERVIEW_TYPES.includes(iv.interview_type), staff: staff });
+      // scheduled_at は UTC の ISO 文字列で保存されるため、日本時間(JST)へ変換して日付・時刻を出す
+      // （文字列を直接 slice すると UTC のまま表示され 9 時間ずれる）
+      let ivDate, ivTime;
+      if (iv.scheduled_at.length > 10) {
+        const dt = new Date(iv.scheduled_at);
+        ivDate = dt.toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' }); // YYYY-MM-DD
+        ivTime = dt.toLocaleTimeString('en-GB', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' }); // HH:MM
+      } else {
+        ivDate = iv.scheduled_at.slice(0, 10);
+        ivTime = '';
+      }
+      list.push({ id: iv.id, applicantId: a.id, name: a.name || '', kana: a.kana || '', status: a.status || '', type: ivType, result: result, date: ivDate, time: ivTime, clientId: a.clientId, gender: a.gender || '', isCasual: CASUAL_INTERVIEW_TYPES.includes(iv.interview_type), staff: staff });
     });
   });
   return list;
@@ -9447,7 +9458,7 @@ function renderIvCalList(items) {
     body.innerHTML = '<div style="text-align:center;color:#aaa;padding:48px 0;font-size:13px;">該当する面接がありません</div>';
     return;
   }
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
   let html = '<div style="background:#fff;border-radius:10px;border:1px solid #eee;overflow:hidden;">';
   let lastDate = '';
   sorted.forEach(iv => {
@@ -9569,7 +9580,7 @@ function renderIvCal() {
   populateIvCalFilters();
   const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const all = getIvCalInterviews();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
 
   // 検索モード（名前/ふりがな・結果・種別・ステータスのいずれかが指定）→ リスト表示
   const q = (document.getElementById('ivCalSearch')?.value || '').trim();
@@ -9592,7 +9603,7 @@ function renderIvCal() {
     const dowTmp = base.getDay();
     const monTmp = new Date(base); monTmp.setDate(base.getDate() - ((dowTmp + 6) % 7));
     const weekDays = [];
-    for (let wi = 0; wi < 7; wi++) { const wd = new Date(monTmp); wd.setDate(monTmp.getDate() + wi); weekDays.push(wd.toISOString().slice(0, 10)); }
+    for (let wi = 0; wi < 7; wi++) { const wd = new Date(monTmp); wd.setDate(monTmp.getDate() + wi); weekDays.push(wd.toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })); }
     const weekCount = all.filter(iv => weekDays.includes(iv.date)).length;
     const countEl = document.getElementById('ivCalCount');
     if (countEl) countEl.textContent = weekCount > 0 ? weekCount + '件' : '';
@@ -9611,7 +9622,7 @@ function renderIvCal() {
       const dow = base.getDay();
       const mon = new Date(base); mon.setDate(base.getDate() - ((dow + 6) % 7));
       const days = [];
-      for (let i = 0; i < 7; i++) { const d = new Date(mon); d.setDate(mon.getDate() + i); days.push(d.toISOString().slice(0, 10)); }
+      for (let i = 0; i < 7; i++) { const d = new Date(mon); d.setDate(mon.getDate() + i); days.push(d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })); }
       lbl = `${days[0].slice(5).replace('-', '/')} 〜 ${days[6].slice(5).replace('-', '/')}`;
       periodItems = all.filter(iv => days.includes(iv.date));
     } else {
@@ -9632,7 +9643,7 @@ function renderIvCal() {
     const days = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(mon); d.setDate(mon.getDate() + i);
-      days.push(d.toISOString().slice(0, 10));
+      days.push(d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' }));
     }
     const sunLabel = days[6];
     if (label) label.textContent = `${days[0].slice(5).replace('-', '/')} 〜 ${sunLabel.slice(5).replace('-', '/')}`;
