@@ -1239,8 +1239,9 @@ async function loadApplicants() {
       cautionNote: r.caution_note || '',
       clientId: r.client_id,
       updatedAt: r.updated_at || r.created_at || null,
-      // 新ステータスからcoreStatusIdを再計算（旧データもこれで正しくマッピングされる）
-      coreStatusId: STATUS_TO_CORE[newStatus] || r.core_status_id || 'applied',
+      // コアステータスは詳細ステータスマスター（真のソース）から都度導出する。
+      // 保存済み core_status_id は信頼せず、年齢NG等のクライアント固有ステータスも正しくマッピングされる。
+      coreStatusId: getCoreStatusId(newStatus),
       detailStatusId: r.detail_status_id || null,
       // Phase C-1：担当者は別途読み込む（loadApplicantStaff）
       staffIds: []
@@ -4268,6 +4269,8 @@ async function saveApp() {
     row.caution = true;
     if (!row.caution_note) row.caution_note = buildReapplyCautionNote(cautionReapply);
   }
+  // 詳細ステータスに紐づくコアステータスを強制同期（真のソース＝detail_status_master）
+  row.core_status_id = getCoreStatusId(row.status);
   let error;
   let savedId = editId;
   // Phase D-1：旧データを保持（差分検知用）
@@ -4692,6 +4695,9 @@ async function doImportInsert() {
     if (!proceed) { btn.disabled = false; btn.textContent = 'この内容で一括登録する'; return; }
   }
 
+  // 詳細ステータスに紐づくコアステータスを強制付与（重複→その他 等も反映）
+  rows.forEach(r => { r.core_status_id = getCoreStatusId(r.status); });
+
   // 1件ずつ登録して成功/失敗を集計（バルクで失敗すると全件失敗するため）
   let okCount = 0;
   const failures = [];
@@ -4771,6 +4777,8 @@ function buildUpdateObjFromCsvRow(r) {
   setIf('media',        r['媒体名']);
   setIf('agency',       r['人材紹介会社']);
   setIf('status',       r['ステータス']);
+  // ステータスを更新する場合はコアステータスも強制同期
+  if (obj.status !== undefined) obj.core_status_id = getCoreStatusId(obj.status);
   setIf('hire_status',  r['採用可否']);
   setIf('contact_date', r['コンタクト日']);
   setIf('int1_date',    r['1次面接日時'] || r['面接日時']);
@@ -9025,6 +9033,8 @@ async function bulkApply() {
     if (c.field === 'staff') return;
     updateObj[dbFieldMap[c.field] || c.field] = c.value;
   });
+  // ステータス変更時はコアステータスも強制同期
+  if (updateObj.status !== undefined) updateObj.core_status_id = getCoreStatusId(updateObj.status);
 
   // 1) applicants テーブルを一括更新（担当者以外）
   if (Object.keys(updateObj).length > 0) {
@@ -9049,7 +9059,10 @@ async function bulkApply() {
     if (!a) return;
     changes.forEach(c => {
       if (c.field === 'staff') a.staffIds = [String(c.value)];
-      else a[c.field] = c.value;
+      else {
+        a[c.field] = c.value;
+        if (c.field === 'status') a.coreStatusId = getCoreStatusId(c.value);
+      }
     });
   });
 
