@@ -9522,6 +9522,9 @@ function openIvResultPopup(applicantId, interviewId) {
   const dt = iv.scheduled_at ? formatDateTime(iv.scheduled_at) : '日程未定';
   const curResult = iv.result || 'pending';
   const optsHtml = INTERVIEW_RESULTS.map(r => `<option value="${r.id}" ${r.id === curResult ? 'selected' : ''}>${r.name}</option>`).join('');
+  const curStatus = a.status || '';
+  const statusOptsHtml = `<option value="" ${curStatus === '' ? 'selected' : ''}>（未設定）</option>` +
+    (detailStatuses || []).map(d => `<option value="${esc(d.name)}" ${d.name === curStatus ? 'selected' : ''}>${esc(d.name)}</option>`).join('');
   const overlay = document.createElement('div');
   overlay.id = 'ivResultPopup';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:99999;display:flex;align-items:center;justify-content:center;';
@@ -9531,6 +9534,8 @@ function openIvResultPopup(applicantId, interviewId) {
       <div style="font-size:11px;color:#888;margin:3px 0 16px;">${esc(typ)} ・ ${esc(dt)}</div>
       <label style="display:block;font-size:11px;font-weight:600;color:#666;margin-bottom:4px;">面接結果</label>
       <select id="ivPopResult" style="width:100%;padding:8px 10px;border:1px solid #cdd8d4;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;cursor:pointer;margin-bottom:12px;">${optsHtml}</select>
+      <label style="display:block;font-size:11px;font-weight:600;color:#666;margin-bottom:4px;">詳細ステータス</label>
+      <select id="ivPopStatus" style="width:100%;padding:8px 10px;border:1px solid #cdd8d4;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;cursor:pointer;margin-bottom:12px;">${statusOptsHtml}</select>
       <label style="display:block;font-size:11px;font-weight:600;color:#666;margin-bottom:4px;">メモ（任意）</label>
       <textarea id="ivPopMemo" style="width:100%;min-height:60px;resize:vertical;padding:8px 10px;border:1px solid #cdd8d4;border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;">${esc(iv.memo || '')}</textarea>
       <div style="display:flex;gap:8px;margin-top:16px;">
@@ -9552,6 +9557,7 @@ function closeIvResultPopup() {
 async function saveIvResultPopup(applicantId, interviewId) {
   const sel = document.getElementById('ivPopResult');
   const memoEl = document.getElementById('ivPopMemo');
+  const statusEl = document.getElementById('ivPopStatus');
   if (!sel) return;
   const result = sel.value || 'pending';
   const memo = memoEl ? memoEl.value.trim() : '';
@@ -9567,6 +9573,11 @@ async function saveIvResultPopup(applicantId, interviewId) {
 
   // ローカルキャッシュも更新（カレンダーへ即反映）
   if (oldIv) { oldIv.result = result; if (memoEl) oldIv.memo = memo || null; }
+
+  // 詳細ステータスが変更されていれば応募者ステータスも更新（コアステータス導出・イベント記録は updateStatus に委譲）
+  if (statusEl && a && (statusEl.value || '') !== (a.status || '')) {
+    await updateStatus(applicantId, statusEl.value);
+  }
 
   // タイムラインへイベント記録（submitInterview と同じ体裁）
   try {
