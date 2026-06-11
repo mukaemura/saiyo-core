@@ -12486,15 +12486,15 @@ function renderCalIvMiniCal() {
   const y = _calIvCalMonth.getFullYear(), m = _calIvCalMonth.getMonth();
   const fd = new Date(y, m, 1).getDay();
   const dim = new Date(y, m+1, 0).getDate();
-  const startOffset = (fd + 6) % 7;
+  const startOffset = fd;
   const today = now.toISOString().slice(0,10);
-  const dayNames = ['月','火','水','木','金','土','日'];
+  const dayNames = ['日','月','火','水','木','金','土'];
   let html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">';
   html += '<button type="button" onclick="calIvMiniCalNav(-1)" style="border:none;background:none;cursor:pointer;font-size:14px;padding:2px 6px;">◀</button>';
   html += '<span style="font-size:12px;font-weight:600;">' + y + '年' + (m+1) + '月</span>';
   html += '<button type="button" onclick="calIvMiniCalNav(1)" style="border:none;background:none;cursor:pointer;font-size:14px;padding:2px 6px;">▶</button></div>';
   html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;text-align:center;">';
-  dayNames.forEach((dn,i) => { const c = i===5?'#1565C0':i===6?'#C62828':'#555'; html += '<div style="font-size:10px;font-weight:600;color:'+c+';padding:3px 0;">'+dn+'</div>'; });
+  dayNames.forEach((dn,i) => { const c = i===0?'#C62828':i===6?'#1565C0':'#555'; html += '<div style="font-size:10px;font-weight:600;color:'+c+';padding:3px 0;">'+dn+'</div>'; });
   const totalCells = Math.ceil((startOffset+dim)/7)*7;
   for (let i=0;i<totalCells;i++) {
     const day = i-startOffset+1;
