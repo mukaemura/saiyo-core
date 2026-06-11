@@ -9625,7 +9625,7 @@ function renderIvCal() {
   if (ivCalView === 'week') {
     const base = new Date(ivCalBaseDate);
     const dowTmp = base.getDay();
-    const monTmp = new Date(base); monTmp.setDate(base.getDate() - ((dowTmp + 6) % 7));
+    const monTmp = new Date(base); monTmp.setDate(base.getDate() - dowTmp);
     const weekDays = [];
     for (let wi = 0; wi < 7; wi++) { const wd = new Date(monTmp); wd.setDate(monTmp.getDate() + wi); weekDays.push(wd.toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })); }
     const weekCount = all.filter(iv => weekDays.includes(iv.date)).length;
@@ -9644,7 +9644,7 @@ function renderIvCal() {
     if (ivCalView === 'week') {
       const base = new Date(ivCalBaseDate);
       const dow = base.getDay();
-      const mon = new Date(base); mon.setDate(base.getDate() - ((dow + 6) % 7));
+      const mon = new Date(base); mon.setDate(base.getDate() - dow);
       const days = [];
       for (let i = 0; i < 7; i++) { const d = new Date(mon); d.setDate(mon.getDate() + i); days.push(d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })); }
       lbl = `${days[0].slice(5).replace('-', '/')} 〜 ${days[6].slice(5).replace('-', '/')}`;
@@ -9663,7 +9663,7 @@ function renderIvCal() {
   if (ivCalView === 'week') {
     const base = new Date(ivCalBaseDate);
     const dow = base.getDay();
-    const mon = new Date(base); mon.setDate(base.getDate() - ((dow + 6) % 7));
+    const mon = new Date(base); mon.setDate(base.getDate() - dow);
     const days = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(mon); d.setDate(mon.getDate() + i);
@@ -9672,11 +9672,11 @@ function renderIvCal() {
     const sunLabel = days[6];
     if (label) label.textContent = `${days[0].slice(5).replace('-', '/')} 〜 ${sunLabel.slice(5).replace('-', '/')}`;
 
-    const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
+    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
     let html = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;">';
     days.forEach((ds, i) => {
       const isToday = ds === today;
-      const isSun = i === 6, isSat = i === 5;
+      const isSun = i === 0, isSat = i === 6;
       const dayColor = isSun ? '#C62828' : isSat ? '#1565C0' : '#333';
       const dayBg = isToday ? '#9B59B6' : 'transparent';
       const dayFg = isToday ? '#fff' : dayColor;
@@ -9715,13 +9715,13 @@ function renderIvCal() {
     if (label) label.textContent = `${y}年${m + 1}月`;
     const fd = new Date(y, m, 1).getDay();
     const dim = new Date(y, m + 1, 0).getDate();
-    const startOffset = (fd + 6) % 7;
-    const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
+    const startOffset = fd;
+    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
 
     let html = '<div style="background:#fff;border-radius:10px;border:1px solid #eee;overflow:hidden;">';
     html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);">';
     dayNames.forEach((dn, i) => {
-      const c = i === 6 ? '#C62828' : i === 5 ? '#1565C0' : '#333';
+      const c = i === 0 ? '#C62828' : i === 6 ? '#1565C0' : '#333';
       html += `<div style="text-align:center;padding:8px 4px;font-size:11px;font-weight:700;color:${c};border-bottom:2px solid #eee;">${dn}</div>`;
     });
     html += '</div>';
@@ -9733,7 +9733,7 @@ function renderIvCal() {
       const valid = day >= 1 && day <= dim;
       const ds = valid ? `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : '';
       const isToday = ds === today;
-      const isSun = i % 7 === 6, isSat = i % 7 === 5;
+      const isSun = i % 7 === 0, isSat = i % 7 === 6;
       const dayColor = isSun ? '#C62828' : isSat ? '#1565C0' : '#333';
       const cellBg = isToday ? '#F3E5F5' : valid ? '#fff' : '#fafafa';
 
@@ -12214,9 +12214,9 @@ function renderIvMiniCal(targetDate) {
   const y = _ivCalMonth.getFullYear(), m = _ivCalMonth.getMonth();
   const fd = new Date(y, m, 1).getDay();
   const dim = new Date(y, m + 1, 0).getDate();
-  const startOffset = (fd + 6) % 7;
+  const startOffset = fd;
   const today = now.toISOString().slice(0, 10);
-  const dayNames = ['月','火','水','木','金','土','日'];
+  const dayNames = ['日','月','火','水','木','金','土'];
 
   let html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">';
   html += '<button type="button" onclick="ivMiniCalNav(-1)" style="border:none;background:none;cursor:pointer;font-size:14px;padding:2px 6px;">◀</button>';
@@ -12225,7 +12225,7 @@ function renderIvMiniCal(targetDate) {
   html += '</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;text-align:center;">';
   dayNames.forEach((dn, i) => {
-    const c = i === 5 ? '#1565C0' : i === 6 ? '#C62828' : '#555';
+    const c = i === 0 ? '#C62828' : i === 6 ? '#1565C0' : '#555';
     html += '<div style="font-size:10px;font-weight:600;color:' + c + ';padding:3px 0;">' + dn + '</div>';
   });
   const totalCells = Math.ceil((startOffset + dim) / 7) * 7;
